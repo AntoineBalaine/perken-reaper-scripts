@@ -135,20 +135,22 @@ pub fn printOutliers(out: anytype, result: beat.Result, median: f64) !void {
     }
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const alloc = init.gpa;
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(alloc);
-    defer std.process.argsFree(alloc, args);
-    const out = std.io.getStdOut().writer();
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    // Because stdout is buffered now, the output is flushed when main returns.
+    var out_buffer: [4096]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(io, &out_buffer);
+    const out = &stdout_writer.interface;
+    defer out.flush() catch {};
     if (args.len < 2) {
         try out.print("usage: analyze <file.wav>\n", .{});
         return;
     }
 
-    const bytes = try std.fs.cwd().readFileAlloc(alloc, args[1], 1 << 30);
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(io, args[1], alloc, .limited(1 << 30));
     defer alloc.free(bytes);
     const wav = try readWav(alloc, bytes);
     defer alloc.free(wav.mono);

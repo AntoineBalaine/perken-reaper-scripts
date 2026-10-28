@@ -34,7 +34,7 @@ pub const Job = struct {
     end_time: f64,
     /// How far reading has got, in accessor time.
     cursor: f64,
-    mono: std.ArrayListUnmanaged(f32) = .{},
+    mono: std.ArrayListUnmanaged(f32) = .empty,
     params: beat.Params,
     phase: std.atomic.Value(Phase) = std.atomic.Value(Phase).init(.reading),
     thread: ?std.Thread = null,

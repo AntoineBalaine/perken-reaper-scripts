@@ -21,6 +21,7 @@
 //! refused when the line count changed. Quitting the editor with a non-zero
 //! status (`:cq` in vim) cancels the rename.
 const std = @import("std");
+const globals = @import("globals.zig");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
@@ -145,7 +146,7 @@ pub fn splitNames(content: []const u8, out: [][]const u8) ?usize {
     var it = std.mem.splitScalar(u8, body, '\n');
     while (it.next()) |line| {
         if (n >= out.len) return null;
-        out[n] = std.mem.trimRight(u8, line, "\r");
+        out[n] = std.mem.trimEnd(u8, line, "\r");
         n += 1;
     }
     return n;
@@ -153,6 +154,7 @@ pub fn splitNames(content: []const u8, out: [][]const u8) ?usize {
 
 /// Entry point for the action: writes the names file and opens the editor.
 pub fn start() void {
+    const io = globals.io();
     // Batch rename has no Windows terminal launcher yet, and the std.fs
     // calls below can overflow the stack at the depth REAPER calls into the
     // extension on Windows (see win_file.zig). Because of both, Windows is
@@ -168,11 +170,11 @@ pub fn start() void {
     }
 
     if (settings) |*st| st.deinit();
-    settings = config.load(std.heap.c_allocator);
+    settings = config.load(std.heap.c_allocator, io);
 
     const resource = std.mem.span(Reaper.GetResourcePath());
     session.dir_len = (std.fmt.bufPrint(&session.dir_buf, "{s}/Data/Perken/rename", .{resource}) catch return).len;
-    std.fs.cwd().makePath(session.dir()) catch |err| {
+    std.Io.Dir.cwd().createDirPath(io, session.dir()) catch |err| {
         log.warn("batch rename: cannot create {s}: {s}", .{ session.dir(), @errorName(err) });
         return;
     };
@@ -181,14 +183,14 @@ pub fn start() void {
     // file, so starting a new rename simply replaces it.
     var done_buf: [std.fs.max_path_bytes]u8 = undefined;
     const done_path = sessionPath(&done_buf, "done") orelse return;
-    std.fs.deleteFileAbsolute(done_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, done_path) catch {};
     var tty_path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const tty_path = sessionPath(&tty_path_buf, "tty") orelse return;
-    std.fs.deleteFileAbsolute(tty_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, tty_path) catch {};
 
-    if (!writeNamesFile()) return;
-    if (!writeScript(done_path)) return;
-    if (!launchTerminal()) return;
+    if (!writeNamesFile(io)) return;
+    if (!writeScript(io, done_path)) return;
+    if (!launchTerminal(io)) return;
 
     session.phase = .editing;
     session.ticks = 0;
@@ -199,16 +201,17 @@ pub fn start() void {
     log.info("batch rename: editing {d} track names", .{session.count});
 }
 
-pub fn writeNamesFile() bool {
+pub fn writeNamesFile(io: std.Io) bool {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = sessionPath(&path_buf, "tracks.txt") orelse return false;
-    const file = std.fs.createFileAbsolute(path, .{}) catch |err| {
+    const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch |err| {
         log.warn("batch rename: cannot write {s}: {s}", .{ path, @errorName(err) });
         return false;
     };
-    defer file.close();
-    var bw = std.io.bufferedWriter(file.writer());
-    const w = bw.writer();
+    defer file.close(io);
+    var write_buffer: [4096]u8 = undefined;
+    var file_writer = file.writer(io, &write_buffer);
+    const w = &file_writer.interface;
 
     session.count = 0;
     const total = Reaper.CountSelectedTracks(null);
@@ -223,23 +226,24 @@ pub fn writeNamesFile() bool {
         writeNameLine(w, name) catch return false;
         session.count += 1;
     }
-    bw.flush() catch return false;
+    w.flush() catch return false;
     return session.count > 0;
 }
 
-pub fn writeScript(done_path: []const u8) bool {
+pub fn writeScript(io: std.Io, done_path: []const u8) bool {
     var names_buf: [std.fs.max_path_bytes]u8 = undefined;
     const names_path = sessionPath(&names_buf, "tracks.txt") orelse return false;
     var script_buf: [std.fs.max_path_bytes]u8 = undefined;
     const script_path = sessionPath(&script_buf, "edit.command") orelse return false;
 
-    const file = std.fs.createFileAbsolute(script_path, .{ .mode = 0o755 }) catch |err| {
+    const file = std.Io.Dir.createFileAbsolute(io, script_path, .{ .permissions = .executable_file }) catch |err| {
         log.warn("batch rename: cannot write {s}: {s}", .{ script_path, @errorName(err) });
         return false;
     };
-    defer file.close();
-    var bw = std.io.bufferedWriter(file.writer());
-    const w = bw.writer();
+    defer file.close(io);
+    var write_buffer: [4096]u8 = undefined;
+    var file_writer = file.writer(io, &write_buffer);
+    const w = &file_writer.interface;
     var tty_buf: [std.fs.max_path_bytes]u8 = undefined;
     const tty_path = sessionPath(&tty_buf, "tty") orelse return false;
     w.writeAll("#!/bin/sh\ntty > ") catch return false;
@@ -252,22 +256,22 @@ pub fn writeScript(done_path: []const u8) bool {
     w.writeAll("\necho $? > ") catch return false;
     writeShellQuoted(w, done_path) catch return false;
     w.writeAll("\nexit\n") catch return false;
-    bw.flush() catch return false;
+    w.flush() catch return false;
     return true;
 }
 
 /// Runs the terminal command in the background (see runDetached).
-pub fn launchTerminal() bool {
+pub fn launchTerminal(io: std.Io) bool {
     var script_buf: [std.fs.max_path_bytes]u8 = undefined;
     const script_path = sessionPath(&script_buf, "edit.command") orelse return false;
 
     var cmd_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&cmd_buf);
-    const w = fbs.writer();
+    var fbs: std.Io.Writer = .fixed(&cmd_buf);
+    const w = &fbs;
     w.print("{s} ", .{terminal()}) catch return false;
     writeShellQuoted(w, script_path) catch return false;
     w.writeAll(" >/dev/null 2>&1 &") catch return false;
-    runDetached(fbs.getWritten());
+    runDetached(io, fbs.buffered());
     return true;
 }
 
@@ -297,11 +301,12 @@ pub fn onTimer() callconv(.c) void {
 /// Checks whether the editor has exited; when it has, applies or cancels the
 /// rename and then schedules the window close or stops the timer.
 pub fn pollDone() void {
+    const io = globals.io();
     var done_buf: [std.fs.max_path_bytes]u8 = undefined;
     const done_path = sessionPath(&done_buf, "done") orelse return;
     var status_buf: [16]u8 = undefined;
-    const status_raw = std.fs.cwd().readFile(done_path, &status_buf) catch return;
-    std.fs.deleteFileAbsolute(done_path) catch {};
+    const status_raw = std.Io.Dir.cwd().readFile(io, done_path, &status_buf) catch return;
+    std.Io.Dir.deleteFileAbsolute(io, done_path) catch {};
 
     const status = std.mem.trim(u8, status_raw, " \t\r\n");
     if (std.mem.eql(u8, status, "0")) {
@@ -310,7 +315,7 @@ pub fn pollDone() void {
         log.info("batch rename: editor exited with status {s}, rename cancelled", .{status});
     }
 
-    if (closeTerminal() and readTty()) {
+    if (closeTerminal() and readTty(io)) {
         session.phase = .closing;
         session.close_at = session.ticks + CLOSE_DELAY_TICKS;
     } else {
@@ -320,10 +325,10 @@ pub fn pollDone() void {
 
 /// Reads the terminal device the launcher script recorded. Returns false
 /// when it is missing or is not a device path (e.g. "not a tty").
-pub fn readTty() bool {
+pub fn readTty(io: std.Io) bool {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = sessionPath(&path_buf, "tty") orelse return false;
-    const raw = std.fs.cwd().readFile(path, &session.tty_buf) catch return false;
+    const raw = std.Io.Dir.cwd().readFile(io, path, &session.tty_buf) catch return false;
     const tty = std.mem.trim(u8, raw, " \t\r\n");
     if (!std.mem.startsWith(u8, tty, "/dev/")) return false;
     std.mem.copyForwards(u8, &session.tty_buf, tty);
@@ -335,42 +340,43 @@ pub fn readTty() bool {
 /// tty. macOS asks once for permission to let REAPER control Terminal.app;
 /// when it is refused, the window simply stays open.
 pub fn closeTerminalWindow() void {
+    const io = globals.io();
     if (builtin.os.tag != .macos) return;
     var script_buf: [std.fs.max_path_bytes]u8 = undefined;
     const script_path = sessionPath(&script_buf, "close.applescript") orelse return;
-    std.fs.cwd().writeFile(.{ .sub_path = script_path, .data = close_script }) catch |err| {
+    std.Io.Dir.cwd().writeFile(io, .{ .sub_path = script_path, .data = close_script }) catch |err| {
         log.warn("batch rename: cannot write {s}: {s}", .{ script_path, @errorName(err) });
         return;
     };
 
     var cmd_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&cmd_buf);
-    const w = fbs.writer();
+    var fbs: std.Io.Writer = .fixed(&cmd_buf);
+    const w = &fbs;
     w.writeAll("osascript ") catch return;
     writeShellQuoted(w, script_path) catch return;
     w.writeByte(' ') catch return;
     writeShellQuoted(w, session.tty_buf[0..session.tty_len]) catch return;
     w.writeAll(" >/dev/null 2>&1 &") catch return;
-    runDetached(fbs.getWritten());
+    runDetached(io, fbs.buffered());
 }
 
 /// Runs a shell command line through /bin/sh. The command line ends with
 /// "&", so the shell exits right away: waiting on it does not block REAPER,
 /// and the background process is not left as a zombie child of REAPER.
-pub fn runDetached(cmd: []const u8) void {
+pub fn runDetached(io: std.Io, cmd: []const u8) void {
     const argv = [_][]const u8{ "/bin/sh", "-c", cmd };
-    var child = std.process.Child.init(&argv, std.heap.c_allocator);
-    child.spawn() catch |err| {
+    var child = std.process.spawn(io, .{ .argv = &argv }) catch |err| {
         log.warn("batch rename: cannot run '{s}': {s}", .{ cmd, @errorName(err) });
         return;
     };
-    _ = child.wait() catch {};
+    _ = child.wait(io) catch {};
 }
 
 pub fn applyNames() void {
+    const io = globals.io();
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = sessionPath(&path_buf, "tracks.txt") orelse return;
-    const content = std.fs.cwd().readFileAlloc(std.heap.c_allocator, path, MAX_FILE_BYTES) catch |err| {
+    const content = std.Io.Dir.cwd().readFileAlloc(io, path, std.heap.c_allocator, .limited(MAX_FILE_BYTES)) catch |err| {
         log.warn("batch rename: cannot read {s}: {s}", .{ path, @errorName(err) });
         return;
     };
@@ -444,14 +450,14 @@ test "splitNames: trailing newline, CRLF, empty names" {
 
 test "writeShellQuoted escapes single quotes" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeShellQuoted(fbs.writer(), "/a b/it's");
-    try std.testing.expectEqualStrings("'/a b/it'\\''s'", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeShellQuoted(&fbs, "/a b/it's");
+    try std.testing.expectEqualStrings("'/a b/it'\\''s'", fbs.buffered());
 }
 
 test "writeNameLine flattens embedded line breaks" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeNameLine(fbs.writer(), "Lead\nVox");
-    try std.testing.expectEqualStrings("Lead Vox\n", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeNameLine(&fbs, "Lead\nVox");
+    try std.testing.expectEqualStrings("Lead Vox\n", fbs.buffered());
 }

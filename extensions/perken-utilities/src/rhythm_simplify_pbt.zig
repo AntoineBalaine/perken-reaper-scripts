@@ -87,12 +87,12 @@ fn drawRun(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, fi
     const total_units: usize = unitsOf(meter_ctx.end()) - @as(usize, @intCast(start_unit));
 
     var cuts = try std.ArrayList(usize).initCapacity(allocator, total_units);
-    defer cuts.deinit();
+    defer cuts.deinit(allocator);
     var i: usize = 1;
     while (i < total_units) : (i += 1) {
-        if (try ctx.drawBool(tc, 0.3)) try cuts.append(i);
+        if (try ctx.drawBool(tc, 0.3)) try cuts.append(allocator, i);
     }
-    try cuts.append(total_units);
+    try cuts.append(allocator, total_units);
 
     var events = try std.ArrayList(rs.Event).initCapacity(allocator, cuts.items.len);
     var prev: usize = 0;
@@ -100,11 +100,11 @@ fn drawRun(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, fi
         const units = cut - prev;
         prev = cut;
         const kind: rs.Kind = if (try ctx.drawBool(tc, 0.5)) .note else .rest;
-        try events.append(.{ .kind = kind, .dur = rs.Rational.of(@intCast(units), 16) });
+        try events.append(allocator, .{ .kind = kind, .dur = rs.Rational.of(@intCast(units), 16) });
     }
     return .{
         .start = rs.Rational.of(start_unit, 16),
-        .events = try events.toOwnedSlice(),
+        .events = try events.toOwnedSlice(allocator),
         .ctx = meter_ctx,
     };
 }

@@ -28,8 +28,10 @@ pub fn logFn(
 
     const prefix = color ++ "[" ++ @tagName(level) ++ "] " ++ scope_prefix;
 
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-    const stderr = std.io.getStdErr().writer();
-    nosuspend stderr.print(prefix ++ format ++ Color.reset ++ "\n", args) catch return;
+    // Because the locked stderr writer is buffered, unlockStderr flushes what the print left in the buffer.
+    var buffer: [256]u8 = undefined;
+    const locked = std.debug.lockStderr(&buffer);
+    defer std.debug.unlockStderr();
+    const stderr = &locked.file_writer.interface;
+    stderr.print(prefix ++ format ++ Color.reset ++ "\n", args) catch return;
 }

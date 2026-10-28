@@ -210,7 +210,7 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
     if (job.grid) |g| {
         if (g.tempo) |t| {
             tempo = t.bpm;
-            imgui.api.Text(ctx, fmtZ(&line, "Tempo: {d} BPM (constant grid from {d:.2} s)", .{ fmtBpm(t.bpm), t.first_beat }));
+            imgui.api.Text(ctx, fmtZ(&line, "Tempo: {f} BPM (constant grid from {d:.2} s)", .{ fmtBpm(t.bpm), t.first_beat }));
             if (job.passages.len == 0) {
                 imgui.api.Text(ctx, "The whole item follows the grid.");
             } else {
@@ -268,7 +268,7 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
 /// BPM when it can), otherwise three decimals.
 pub const BpmText = struct {
     bpm: f64,
-    pub fn format(self: BpmText, comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+    pub fn format(self: BpmText, w: *std.Io.Writer) std.Io.Writer.Error!void {
         if (self.bpm == @round(self.bpm)) {
             try w.print("{d:.0}", .{self.bpm});
         } else {

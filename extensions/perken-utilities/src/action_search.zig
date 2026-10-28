@@ -12,6 +12,7 @@
 //!
 //! The terminal is the one configured in [rename] terminal (see config.zig).
 const std = @import("std");
+const globals = @import("globals.zig");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
@@ -69,14 +70,15 @@ pub fn parseSelection(line: []const u8) ?c_int {
     return if (id > 0) id else null;
 }
 
-fn writeListFile(path: []const u8) bool {
-    const file = std.fs.createFileAbsolute(path, .{}) catch |err| {
+fn writeListFile(io: std.Io, path: []const u8) bool {
+    const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
         return false;
     };
-    defer file.close();
-    var bw = std.io.bufferedWriter(file.writer());
-    const w = bw.writer();
+    defer file.close(io);
+    var write_buffer: [4096]u8 = undefined;
+    var file_writer = file.writer(io, &write_buffer);
+    const w = &file_writer.interface;
 
     const section = Reaper.SectionFromUniqueID(0) orelse {
         log.warn("REAPER has no main actions section", .{});
@@ -90,18 +92,19 @@ fn writeListFile(path: []const u8) bool {
         const text = if (name) |n| std.mem.span(n) else "";
         writeListLine(w, id, text) catch return false;
     }
-    bw.flush() catch return false;
+    w.flush() catch return false;
     return idx > 0;
 }
 
-fn writeScript(script_path: []const u8, list_path: []const u8, result_path: []const u8, done_path: []const u8) bool {
-    const file = std.fs.createFileAbsolute(script_path, .{ .mode = 0o755 }) catch |err| {
+fn writeScript(io: std.Io, script_path: []const u8, list_path: []const u8, result_path: []const u8, done_path: []const u8) bool {
+    const file = std.Io.Dir.createFileAbsolute(io, script_path, .{ .permissions = .executable_file }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ script_path, @errorName(err) });
         return false;
     };
-    defer file.close();
-    var bw = std.io.bufferedWriter(file.writer());
-    const w = bw.writer();
+    defer file.close(io);
+    var write_buffer: [4096]u8 = undefined;
+    var file_writer = file.writer(io, &write_buffer);
+    const w = &file_writer.interface;
     // Because REAPER (and so the terminal it opens) may not have Homebrew's
     // folders on its PATH, the usual install locations are appended.
     w.writeAll("#!/bin/sh\nPATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin\"\n") catch return false;
@@ -115,11 +118,12 @@ fn writeScript(script_path: []const u8, list_path: []const u8, result_path: []co
     w.writeAll("\necho $? > ") catch return false;
     batch_rename.writeShellQuoted(w, done_path) catch return false;
     w.writeAll("\nexit\n") catch return false;
-    bw.flush() catch return false;
+    w.flush() catch return false;
     return true;
 }
 
 pub fn start() void {
+    const io = globals.io();
     // Because of the same terminal launcher and std.fs depth limits as the
     // batch rename (see batch_rename.start), Windows is refused up front.
     if (builtin.os.tag == .windows) {
@@ -128,11 +132,11 @@ pub fn start() void {
     }
 
     if (settings) |*st| st.deinit();
-    settings = config.load(std.heap.c_allocator);
+    settings = config.load(std.heap.c_allocator, io);
 
     const resource = std.mem.span(Reaper.GetResourcePath());
     session.dir_len = (std.fmt.bufPrint(&session.dir_buf, "{s}/Data/Perken/actions", .{resource}) catch return).len;
-    std.fs.cwd().makePath(session.dir()) catch |err| {
+    std.Io.Dir.cwd().createDirPath(io, session.dir()) catch |err| {
         log.warn("cannot create {s}: {s}", .{ session.dir(), @errorName(err) });
         return;
     };
@@ -148,20 +152,20 @@ pub fn start() void {
 
     // A previous search whose terminal was closed never writes its done
     // file, so a new search replaces it.
-    std.fs.deleteFileAbsolute(done_path) catch {};
-    std.fs.deleteFileAbsolute(result_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, done_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, result_path) catch {};
 
-    if (!writeListFile(list_path)) return;
-    if (!writeScript(script_path, list_path, result_path, done_path)) return;
+    if (!writeListFile(io, list_path)) return;
+    if (!writeScript(io, script_path, list_path, result_path, done_path)) return;
 
     var cmd_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&cmd_buf);
-    const w = fbs.writer();
+    var fbs: std.Io.Writer = .fixed(&cmd_buf);
+    const w = &fbs;
     const term = if (settings) |st| st.rename_terminal else config.default_terminal;
     w.print("{s} ", .{term}) catch return;
     batch_rename.writeShellQuoted(w, script_path) catch return;
     w.writeAll(" >/dev/null 2>&1 &") catch return;
-    batch_rename.runDetached(fbs.getWritten());
+    batch_rename.runDetached(io, fbs.buffered());
 
     session.waiting = true;
     session.ticks = 0;
@@ -187,11 +191,12 @@ pub fn onTimer() callconv(.c) void {
 
 /// Checks whether fzf has exited; when it chose an action, runs it.
 fn pollDone() void {
+    const io = globals.io();
     var done_buf: [std.fs.max_path_bytes]u8 = undefined;
     const done_path = sessionPath(&done_buf, "done") orelse return;
     var status_buf: [16]u8 = undefined;
-    const status_raw = std.fs.cwd().readFile(done_path, &status_buf) catch return;
-    std.fs.deleteFileAbsolute(done_path) catch {};
+    const status_raw = std.Io.Dir.cwd().readFile(io, done_path, &status_buf) catch return;
+    std.Io.Dir.deleteFileAbsolute(io, done_path) catch {};
     stopTimer();
 
     const status = std.mem.trim(u8, status_raw, " \t\r\n");
@@ -203,7 +208,7 @@ fn pollDone() void {
     var result_buf: [std.fs.max_path_bytes]u8 = undefined;
     const result_path = sessionPath(&result_buf, "result.txt") orelse return;
     var line_buf: [1024]u8 = undefined;
-    const line = std.fs.cwd().readFile(result_path, &line_buf) catch return;
+    const line = std.Io.Dir.cwd().readFile(io, result_path, &line_buf) catch return;
     const id = parseSelection(line) orelse {
         log.warn("action search: no command id in the chosen line", .{});
         return;
@@ -222,9 +227,9 @@ pub const entries = [_]actions.Entry{
 
 test "writeListLine keeps one entry on one line" {
     var buf: [128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeListLine(fbs.writer(), 40707, "Item: Set to\tdefault\ncolor");
-    try std.testing.expectEqualStrings("40707\tItem: Set to default color\n", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeListLine(&fbs, 40707, "Item: Set to\tdefault\ncolor");
+    try std.testing.expectEqualStrings("40707\tItem: Set to default color\n", fbs.buffered());
 }
 
 test "parseSelection reads the id before the first tab" {

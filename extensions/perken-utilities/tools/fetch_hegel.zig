@@ -4,12 +4,11 @@
 //! build.zig as a build-time tool, not shipped in the extension.
 const std = @import("std");
 
-pub fn main() !void {
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_state.deinit();
-    const allocator = arena_state.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(allocator);
+    const args = try init.minimal.args.toSlice(allocator);
     if (args.len != 4) {
         std.debug.print("usage: fetch_hegel <url> <sha256-sidecar-url> <output-path>\n", .{});
         return error.InvalidArgs;
@@ -21,11 +20,11 @@ pub fn main() !void {
     // Already there: nothing to do, and nothing to ask the network for.
     // The hash was checked when it was written; delete the file to force a
     // fresh download.
-    if (std.fs.cwd().access(out_path, .{})) |_| {
+    if (std.Io.Dir.cwd().access(io, out_path, .{})) |_| {
         return;
     } else |_| {}
 
-    var client = std.http.Client{ .allocator = allocator };
+    var client = std.http.Client{ .allocator = allocator, .io = io };
     defer client.deinit();
 
     const body = try fetchAll(allocator, &client, url, 64 * 1024 * 1024);
@@ -44,20 +43,22 @@ pub fn main() !void {
         return error.HashMismatch;
     }
 
-    if (std.fs.path.dirname(out_path)) |dir| try std.fs.cwd().makePath(dir);
-    try std.fs.cwd().writeFile(.{ .sub_path = out_path, .data = body });
+    if (std.fs.path.dirname(out_path)) |dir| try std.Io.Dir.cwd().createDirPath(io, dir);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out_path, .data = body });
 }
 
 fn fetchAll(allocator: std.mem.Allocator, client: *std.http.Client, url: []const u8, max_size: usize) ![]u8 {
-    var body: std.ArrayList(u8) = .empty;
+    var body: std.Io.Writer.Allocating = .init(allocator);
+    defer body.deinit();
     const result = try client.fetch(.{
         .location = .{ .url = url },
-        .response_storage = .{ .dynamic = &body },
-        .max_append_size = max_size,
+        .response_writer = &body.writer,
     });
     if (result.status != .ok) {
         std.debug.print("GET {s} -> {d}\n", .{ url, @backingInt(result.status) });
         return error.FetchFailed;
     }
-    return body.toOwnedSlice(allocator);
+    // Because fetch no longer caps the body itself, the size limit is checked once the body is read.
+    if (body.written().len > max_size) return error.FetchTooLarge;
+    return body.toOwnedSlice();
 }

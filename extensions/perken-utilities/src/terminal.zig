@@ -6,6 +6,7 @@
 //! action falls back to the project's recording path, and tells the user when
 //! even that is unknown.
 const std = @import("std");
+const globals = @import("globals.zig");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
@@ -47,6 +48,7 @@ fn showError(message: [:0]const u8) void {
 }
 
 fn openTerminal(_: *actions.RunCtx) void {
+    const io = globals.io();
     // The shell is started through /bin/sh, which Windows does not have.
     if (builtin.os.tag == .windows) {
         return showError("Because this action starts the shell through /bin/sh, it is not available on Windows yet.");
@@ -75,27 +77,27 @@ fn openTerminal(_: *actions.RunCtx) void {
         return showError("Because the REAPER resource path is too long, the shell was not opened.");
     };
     var body_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
-    var body = std.io.fixedBufferStream(&body_buf);
-    writeScript(body.writer(), dir) catch {
+    var body: std.Io.Writer = .fixed(&body_buf);
+    writeScript(&body, dir) catch {
         return showError("Because the project path is too long, the shell was not opened.");
     };
-    const file = std.fs.cwd().createFile(script, .{ .mode = 0o755 }) catch |err| {
+    const file = std.Io.Dir.cwd().createFile(io, script, .{ .permissions = .executable_file }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ script, @errorName(err) });
         return showError("Because the launcher script could not be written, the shell was not opened.");
     };
-    file.writeAll(body.getWritten()) catch {};
-    file.close();
+    file.writeStreamingAll(io, body.buffered()) catch {};
+    file.close(io);
 
-    var settings = config.load(std.heap.c_allocator);
+    var settings = config.load(std.heap.c_allocator, io);
     defer settings.deinit();
 
     var cmd_buf: [std.fs.max_path_bytes * 3]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&cmd_buf);
-    commandLine(fbs.writer(), settings.rename_terminal, script) catch {
+    var fbs: std.Io.Writer = .fixed(&cmd_buf);
+    commandLine(&fbs, settings.rename_terminal, script) catch {
         return showError("Because the terminal command is too long, the shell was not opened.");
     };
     log.info("opening a shell in {s}", .{dir});
-    batch_rename.runDetached(fbs.getWritten());
+    batch_rename.runDetached(io, fbs.buffered());
 }
 
 pub const entries = [_]actions.Entry{
@@ -115,17 +117,17 @@ test "projectFolder is the folder of the project file" {
 
 test "the launcher script enters the quoted folder and starts a login shell" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeScript(fbs.writer(), "/music/it's here");
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeScript(&fbs, "/music/it's here");
     try std.testing.expectEqualStrings(
         "#!/bin/sh\ncd '/music/it'\\''s here' || exit 1\nexec \"${SHELL:-/bin/sh}\" -l\n",
-        fbs.getWritten(),
+        fbs.buffered(),
     );
 }
 
 test "commandLine gives the script to the terminal as its last argument" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try commandLine(fbs.writer(), "open -na Ghostty.app --args -e", "/r/shell.command");
-    try std.testing.expectEqualStrings("open -na Ghostty.app --args -e '/r/shell.command' >/dev/null 2>&1 &", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try commandLine(&fbs, "open -na Ghostty.app --args -e", "/r/shell.command");
+    try std.testing.expectEqualStrings("open -na Ghostty.app --args -e '/r/shell.command' >/dev/null 2>&1 &", fbs.buffered());
 }

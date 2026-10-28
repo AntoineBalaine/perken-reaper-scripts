@@ -11,6 +11,7 @@
 //! with tiny leftover notes, so the notes are snapped to a fixed grid of sixteenth
 //! notes and triplets first (the [abc] quantize setting). The CLI does the key handling.
 const std = @import("std");
+const globals = @import("globals.zig");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
@@ -87,9 +88,9 @@ pub fn writeVlq(w: anytype, value: u32) !void {
 /// the time signatures and note events interleaved in tick order. The
 /// caller sorts `events` first.
 pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []const Event) !void {
-    var track: std.ArrayList(u8) = .empty;
-    defer track.deinit(alloc);
-    const t = track.writer();
+    var track: std.Io.Writer.Allocating = .init(alloc);
+    defer track.deinit();
+    const t = &track.writer;
 
     const micros_per_qn: u24 = @intFromFloat(@round(60_000_000.0 / timing.bpm));
     try t.writeAll(&.{ 0x00, 0xFF, 0x51, 0x03 });
@@ -133,8 +134,8 @@ pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []
     try w.writeInt(u16, 1, .big);
     try w.writeInt(u16, timing.ticks_per_qn, .big);
     try w.writeAll("MTrk");
-    try w.writeInt(u32, @intCast(track.items.len), .big);
-    try w.writeAll(track.items);
+    try w.writeInt(u32, @intCast(track.written().len), .big);
+    try w.writeAll(track.written());
 }
 
 /// The widest gap, in ticks, between the end of a note and the start of a later
@@ -269,47 +270,47 @@ pub const Cli = struct {
     path_dir: ?[]const u8 = null,
 };
 
-pub fn fileExists(path: []const u8) bool {
-    std.fs.accessAbsolute(path, .{}) catch return false;
+pub fn fileExists(io: std.Io, path: []const u8) bool {
+    std.Io.Dir.accessAbsolute(io, path, .{}) catch return false;
     return true;
 }
 
 /// Looks for the abcls launcher in `dir`; on success the full path is
 /// written to `buf`.
-pub fn launcherIn(buf: []u8, dir: []const u8) ?[]const u8 {
+pub fn launcherIn(io: std.Io, buf: []u8, dir: []const u8) ?[]const u8 {
     const path = std.fmt.bufPrint(buf, "{s}/abcls", .{dir}) catch return null;
-    return if (fileExists(path)) path else null;
+    return if (fileExists(io, path)) path else null;
 }
 
 /// Searches for the CLI without any configuration: first the usual global
 /// install directories, then the version managers' directories under $HOME
 /// (the newest nvm node version wins), and at last the user's login shell,
 /// whose PATH is the one the user sees in a terminal.
-pub fn findCli(alloc: std.mem.Allocator, out: *std.ArrayList(u8)) ?Cli {
+pub fn findCli(alloc: std.mem.Allocator, io: std.Io, out: *std.ArrayList(u8)) ?Cli {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     for (global_bin_dirs) |dir| {
-        if (launcherIn(&path_buf, dir)) |p| return rememberCli(out, p);
+        if (launcherIn(io, &path_buf, dir)) |p| return rememberCli(alloc, out, p);
     }
-    const home = std.posix.getenv("HOME") orelse return findInLoginShell(alloc, out);
+    const home = getenv("HOME") orelse return findInLoginShell(alloc, io, out);
 
     var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
     for (home_bin_dirs) |rel| {
         const dir = std.fmt.bufPrint(&dir_buf, "{s}/{s}", .{ home, rel }) catch continue;
-        if (launcherIn(&path_buf, dir)) |p| return rememberCli(out, p);
+        if (launcherIn(io, &path_buf, dir)) |p| return rememberCli(alloc, out, p);
     }
 
     var nvm_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const nvm = std.fmt.bufPrint(&nvm_buf, "{s}/.nvm/versions/node", .{home}) catch return findInLoginShell(alloc, out);
-    if (newestNodeBin(alloc, nvm, &dir_buf)) |dir| {
-        if (launcherIn(&path_buf, dir)) |p| return rememberCli(out, p);
+    const nvm = std.fmt.bufPrint(&nvm_buf, "{s}/.nvm/versions/node", .{home}) catch return findInLoginShell(alloc, io, out);
+    if (newestNodeBin(alloc, io, nvm, &dir_buf)) |dir| {
+        if (launcherIn(io, &path_buf, dir)) |p| return rememberCli(alloc, out, p);
     }
-    return findInLoginShell(alloc, out);
+    return findInLoginShell(alloc, io, out);
 }
 
 /// Stores the launcher path as the command, and its directory as the PATH entry.
-pub fn rememberCli(out: *std.ArrayList(u8), launcher: []const u8) ?Cli {
+pub fn rememberCli(alloc: std.mem.Allocator, out: *std.ArrayList(u8), launcher: []const u8) ?Cli {
     out.clearRetainingCapacity();
-    out.appendSlice(launcher) catch return null;
+    out.appendSlice(alloc, launcher) catch return null;
     const dir = std.fs.path.dirname(out.items) orelse return null;
     return .{ .command = out.items, .path_dir = dir };
 }
@@ -317,14 +318,14 @@ pub fn rememberCli(out: *std.ArrayList(u8), launcher: []const u8) ?Cli {
 /// The bin directory of the highest node version under an nvm versions
 /// directory, written to `buf`. Version names compare as text, which is good
 /// enough to prefer a recent version.
-pub fn newestNodeBin(alloc: std.mem.Allocator, versions_dir: []const u8, buf: []u8) ?[]const u8 {
+pub fn newestNodeBin(alloc: std.mem.Allocator, io: std.Io, versions_dir: []const u8, buf: []u8) ?[]const u8 {
     _ = alloc;
-    var dir = std.fs.openDirAbsolute(versions_dir, .{ .iterate = true }) catch return null;
-    defer dir.close();
+    var dir = std.Io.Dir.openDirAbsolute(io, versions_dir, .{ .iterate = true }) catch return null;
+    defer dir.close(io);
     var best: [64]u8 = undefined;
     var best_len: usize = 0;
     var it = dir.iterate();
-    while (it.next() catch null) |entry| {
+    while (it.next(io) catch null) |entry| {
         if (entry.kind != .directory or entry.name.len > best.len) continue;
         if (best_len == 0 or std.mem.order(u8, entry.name, best[0..best_len]) == .gt) {
             @memcpy(best[0..entry.name.len], entry.name);
@@ -336,14 +337,14 @@ pub fn newestNodeBin(alloc: std.mem.Allocator, versions_dir: []const u8, buf: []
 }
 
 /// Asks the user's login shell where `abcls` is.
-pub fn findInLoginShell(alloc: std.mem.Allocator, out: *std.ArrayList(u8)) ?Cli {
-    const shell = std.posix.getenv("SHELL") orelse "/bin/sh";
-    var captured = runCapture(alloc, &.{ shell, "-lc", "command -v abcls" }) catch return null;
+pub fn findInLoginShell(alloc: std.mem.Allocator, io: std.Io, out: *std.ArrayList(u8)) ?Cli {
+    const shell = getenv("SHELL") orelse "/bin/sh";
+    var captured = runCapture(alloc, io, &.{ shell, "-lc", "command -v abcls" }) catch return null;
     defer captured.deinit(alloc);
     if (!captured.ok) return null;
     const line = std.mem.trim(u8, captured.stdout, " \t\r\n");
     if (line.len == 0 or line[0] != '/') return null;
-    return rememberCli(out, line);
+    return rememberCli(alloc, out, line);
 }
 
 pub const Captured = struct {
@@ -359,38 +360,35 @@ pub const Captured = struct {
 
 /// Runs a program, waits for it and returns what it wrote. A run is good when
 /// the exit code is zero.
-pub fn runCapture(alloc: std.mem.Allocator, argv: []const []const u8) !Captured {
-    var child = std.process.Child.init(argv, alloc);
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Pipe;
-    try child.spawn();
-    var out = std.ArrayListUnmanaged(u8){};
-    var err = std.ArrayListUnmanaged(u8){};
-    errdefer out.deinit(alloc);
-    errdefer err.deinit(alloc);
-    try child.collectOutput(alloc, &out, &err, max_abc_bytes);
-    const term = try child.wait();
+pub fn runCapture(alloc: std.mem.Allocator, io: std.Io, argv: []const []const u8) !Captured {
+    const result = try std.process.run(alloc, io, .{
+        .argv = argv,
+        .stdout_limit = .limited(max_abc_bytes),
+        .stderr_limit = .limited(max_abc_bytes),
+    });
     return .{
-        .stdout = try out.toOwnedSlice(alloc),
-        .stderr = try err.toOwnedSlice(alloc),
-        .ok = switch (term) {
-            .Exited => |code| code == 0,
-            else => false,
-        },
+        .stdout = result.stdout,
+        .stderr = result.stderr,
+        .ok = result.term.success(),
     };
 }
 
 /// Starts the clipboard program, feeds it the text on its standard input and
 /// waits for it.
-pub fn copyToClipboard(alloc: std.mem.Allocator, clipboard: []const u8, text: []const u8) !void {
-    var child = std.process.Child.init(&.{ "/bin/sh", "-c", clipboard }, alloc);
-    child.stdin_behavior = .Pipe;
-    try child.spawn();
-    child.stdin.?.writeAll(text) catch {};
-    child.stdin.?.close();
+pub fn copyToClipboard(io: std.Io, clipboard: []const u8, text: []const u8) !void {
+    var child = try std.process.spawn(io, .{ .argv = &.{ "/bin/sh", "-c", clipboard }, .stdin = .pipe });
+    child.stdin.?.writeStreamingAll(io, text) catch {};
+    child.stdin.?.close(io);
     child.stdin = null;
-    const term = try child.wait();
-    if (term != .Exited or term.Exited != 0) return error.ClipboardFailed;
+    const term = try child.wait(io);
+    if (!term.success()) return error.ClipboardFailed;
+}
+
+/// An environment variable of REAPER's process. Because REAPER loads the
+/// extension as a library, the environment that std.process.Init gives a
+/// program never reaches it, so the variable is read through libc.
+pub fn getenv(name: [*:0]const u8) ?[]const u8 {
+    return if (std.c.getenv(name)) |value| std.mem.span(value) else null;
 }
 
 pub fn showError(message: []const u8) void {
@@ -400,8 +398,8 @@ pub fn showError(message: []const u8) void {
 }
 
 pub fn tempPath(buf: []u8, name: []const u8) ?[]const u8 {
-    const dir = std.posix.getenv("TMPDIR") orelse "/tmp";
-    const trimmed = std.mem.trimRight(u8, dir, "/");
+    const dir = getenv("TMPDIR") orelse "/tmp";
+    const trimmed = std.mem.trimEnd(u8, dir, "/");
     return std.fmt.bufPrint(buf, "{s}/perken_abc_{s}", .{ trimmed, name }) catch null;
 }
 
@@ -525,7 +523,7 @@ pub fn itemSignatures(
 
 /// Writes the item's notes to `path` as a standard MIDI file. Returns false
 /// when the item holds no audible note, so there is nothing to convert.
-pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []const u8, quantize: bool) !bool {
+pub fn writeItemMidi(alloc: std.mem.Allocator, io: std.Io, item: *Reaper.MediaItem, path: []const u8, quantize: bool) !bool {
     const take = helpers.getActiveTake(item) orelse return false;
     const item_start = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
     const item_end = item_start + Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
@@ -541,27 +539,27 @@ pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []
     // the bar line before it, which keeps every note at its place in the bar.
     const bar_start_ppq = timemap.barStartPpq(take, ppq_start + 0.5);
     var events = try collectEvents(alloc, notes, ppq_start, ppq_end, @min(bar_start_ppq, ppq_start));
-    defer events.deinit();
+    defer events.deinit(alloc);
     if (events.items.len == 0) return false;
 
     const base_ppq = @min(bar_start_ppq, ppq_start);
     const sigs = try itemSignatures(alloc, take, timemap.reaperBarSource(), qn_start, timemap.timeToQn(item_end), base_ppq);
     defer alloc.free(sigs);
 
-    var bytes: std.ArrayList(u8) = .empty;
-    defer bytes.deinit(alloc);
-    try writeSmf(bytes.writer(), alloc, .{
+    var bytes: std.Io.Writer.Allocating = .init(alloc);
+    defer bytes.deinit();
+    try writeSmf(&bytes.writer, alloc, .{
         .ticks_per_qn = @intFromFloat(@round(ticks_per_qn)),
         .bpm = commit.tempoAt(item_start),
         .sigs = sigs,
     }, events.items);
-    try std.fs.cwd().writeFile(.{ .sub_path = path, .data = bytes.items });
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = bytes.written() });
     return true;
 }
 
 /// Converts every selected MIDI item and returns the joined ABC document, or
 /// null after telling the user why there is none.
-pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]u8 {
+pub fn convertSelection(alloc: std.mem.Allocator, io: std.Io, settings: config.Settings) ?[]u8 {
     var item_buf: [max_items]*Reaper.MediaItem = undefined;
     const selected = selectedMidiItems(&item_buf);
     if (selected.len == 0) {
@@ -574,18 +572,18 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
     const cli: Cli = if (settings.abc_command.len > 0)
         .{ .command = settings.abc_command }
     else
-        findCli(alloc, &found) orelse {
+        findCli(alloc, io, &found) orelse {
             showError("Because the abcls CLI was not found, nothing was converted.\n\nInstall it with `npm install -g abcls`, or set `command` in the [abc] section of perken-utilities.ini.");
             return null;
         };
 
-    var document: std.ArrayList(u8) = .empty;
-    errdefer document.deinit(alloc);
+    var document: std.Io.Writer.Allocating = .init(alloc);
+    errdefer document.deinit();
     var tunes: usize = 0;
     for (selected) |item| {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = tempPath(&path_buf, "item.mid") orelse continue;
-        const has_notes = writeItemMidi(alloc, item, path, settings.abc_quantize) catch |err| {
+        const has_notes = writeItemMidi(alloc, io, item, path, settings.abc_quantize) catch |err| {
             log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
             continue;
         };
@@ -593,9 +591,9 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
 
         const take = helpers.getActiveTake(item) orelse continue;
         var cmd_buf: [std.fs.max_path_bytes * 2 + 1024]u8 = undefined;
-        var fbs = std.io.fixedBufferStream(&cmd_buf);
-        writeConvertCommand(fbs.writer(), cli, path, std.mem.span(Reaper.GetTakeName(take))) catch continue;
-        var captured = runCapture(alloc, &.{ "/bin/sh", "-c", fbs.getWritten() }) catch |err| {
+        var fbs: std.Io.Writer = .fixed(&cmd_buf);
+        writeConvertCommand(&fbs, cli, path, std.mem.span(Reaper.GetTakeName(take))) catch continue;
+        var captured = runCapture(alloc, io, &.{ "/bin/sh", "-c", fbs.buffered() }) catch |err| {
             log.warn("cannot run the CLI: {s}", .{@errorName(err)});
             continue;
         };
@@ -604,28 +602,29 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
             var msg: [max_error_bytes + 128]u8 = undefined;
             const text = std.fmt.bufPrint(&msg, "Because the conversion failed, nothing was produced.\n\n{s}", .{captured.stderr}) catch "Because the conversion failed, nothing was produced.";
             showError(text);
-            document.deinit(alloc);
+            document.deinit();
             return null;
         }
-        appendTune(document.writer(), captured.stdout, tunes) catch continue;
+        appendTune(&document.writer, captured.stdout, tunes) catch continue;
         tunes += 1;
     }
     if (tunes == 0) {
-        document.deinit(alloc);
+        document.deinit();
         showError("Because the selected items hold no audible notes, there is nothing to convert.");
         return null;
     }
-    return document.toOwnedSlice(alloc) catch null;
+    return document.toOwnedSlice() catch null;
 }
 
 pub fn copyItemsAsAbc(_: *actions.RunCtx) void {
+    const io = globals.io();
     if (builtin.os.tag == .windows) return showError("Because this action runs through /bin/sh, it is not available on Windows.");
     const alloc = std.heap.c_allocator;
-    var settings = config.load(alloc);
+    var settings = config.load(alloc, io);
     defer settings.deinit();
-    const document = convertSelection(alloc, settings) orelse return;
+    const document = convertSelection(alloc, io, settings) orelse return;
     defer alloc.free(document);
-    copyToClipboard(alloc, settings.abc_clipboard, document) catch |err| {
+    copyToClipboard(io, settings.abc_clipboard, document) catch |err| {
         log.warn("copy to clipboard failed: {s}", .{@errorName(err)});
         showError("Because the clipboard program failed, nothing was copied.");
     };
@@ -634,27 +633,28 @@ pub fn copyItemsAsAbc(_: *actions.RunCtx) void {
 /// Writes the document to a temporary .abc file and opens it with the
 /// editor program, which for VS Code hands the file to the running window.
 pub fn openItemsAsAbc(_: *actions.RunCtx) void {
+    const io = globals.io();
     if (builtin.os.tag == .windows) return showError("Because this action runs through /bin/sh, it is not available on Windows.");
     const alloc = std.heap.c_allocator;
-    var settings = config.load(alloc);
+    var settings = config.load(alloc, io);
     defer settings.deinit();
-    const document = convertSelection(alloc, settings) orelse return;
+    const document = convertSelection(alloc, io, settings) orelse return;
     defer alloc.free(document);
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var name_buf: [64]u8 = undefined;
-    const name = conversionFileName(&name_buf, std.time.milliTimestamp()) orelse return;
+    const name = conversionFileName(&name_buf, std.Io.Timestamp.now(io, .real).toMilliseconds()) orelse return;
     const path = tempPath(&path_buf, name) orelse return;
-    std.fs.cwd().writeFile(.{ .sub_path = path, .data = document }) catch |err| {
+    std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = document }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
         return showError("Because the temporary ABC file could not be written, nothing was opened.");
     };
 
     var cmd_buf: [std.fs.max_path_bytes + 512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&cmd_buf);
-    fbs.writer().print("{s} ", .{settings.abc_editor}) catch return;
-    batch_rename.writeShellQuoted(fbs.writer(), path) catch return;
-    var captured = runCapture(alloc, &.{ "/bin/sh", "-c", fbs.getWritten() }) catch return;
+    var fbs: std.Io.Writer = .fixed(&cmd_buf);
+    fbs.print("{s} ", .{settings.abc_editor}) catch return;
+    batch_rename.writeShellQuoted(&fbs, path) catch return;
+    var captured = runCapture(alloc, io, &.{ "/bin/sh", "-c", fbs.buffered() }) catch return;
     defer captured.deinit(alloc);
     if (!captured.ok) showError("Because the editor could not be started, the file was not opened. Check `editor` in the [abc] section of perken-utilities.ini.");
 }
@@ -686,27 +686,28 @@ pub const open_link_prefix = "vscode://antoinebalaine.abc-ls/open?file=";
 /// Writes the document to a temporary .abc file, then asks the system to
 /// open the preview link for it.
 pub fn previewItemsAsAbc(_: *actions.RunCtx) void {
+    const io = globals.io();
     if (builtin.os.tag == .windows) return showError("Because this action runs through /bin/sh, it is not available on Windows.");
     const alloc = std.heap.c_allocator;
-    var settings = config.load(alloc);
+    var settings = config.load(alloc, io);
     defer settings.deinit();
-    const document = convertSelection(alloc, settings) orelse return;
+    const document = convertSelection(alloc, io, settings) orelse return;
     defer alloc.free(document);
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var name_buf: [64]u8 = undefined;
-    const name = conversionFileName(&name_buf, std.time.milliTimestamp()) orelse return;
+    const name = conversionFileName(&name_buf, std.Io.Timestamp.now(io, .real).toMilliseconds()) orelse return;
     const path = tempPath(&path_buf, name) orelse return;
-    std.fs.cwd().writeFile(.{ .sub_path = path, .data = document }) catch |err| {
+    std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = document }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
         return showError("Because the temporary ABC file could not be written, nothing was opened.");
     };
 
     var link_buf: [std.fs.max_path_bytes * 3 + 128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&link_buf);
-    writeOpenLink(fbs.writer(), path) catch return;
+    var fbs: std.Io.Writer = .fixed(&link_buf);
+    writeOpenLink(&fbs, path) catch return;
     const opener = if (builtin.os.tag == .macos) "open" else "xdg-open";
-    var captured = runCapture(alloc, &.{ opener, fbs.getWritten() }) catch return;
+    var captured = runCapture(alloc, io, &.{ opener, fbs.buffered() }) catch return;
     defer captured.deinit(alloc);
     if (!captured.ok) showError("Because the preview link could not be opened, the preview was not shown. VS Code and the abc-ls extension (a version with link support) must be installed.");
 }
@@ -737,11 +738,11 @@ pub const entries = [_]actions.Entry{
 
 test "writeVlq encodes the MIDI examples" {
     var buf: [8]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeVlq(fbs.writer(), 0);
-    try writeVlq(fbs.writer(), 0x80);
-    try writeVlq(fbs.writer(), 0x3FFF);
-    try std.testing.expectEqualSlices(u8, &.{ 0x00, 0x81, 0x00, 0xFF, 0x7F }, fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeVlq(&fbs, 0);
+    try writeVlq(&fbs, 0x80);
+    try writeVlq(&fbs, 0x3FFF);
+    try std.testing.expectEqualSlices(u8, &.{ 0x00, 0x81, 0x00, 0xFF, 0x7F }, fbs.buffered());
 }
 
 test "an item produces a one-track file with ordered events" {
@@ -754,59 +755,59 @@ test "an item produces a one-track file with ordered events" {
         .{ .selected = false, .muted = false, .start_ppq = 1440, .end_ppq = 1920, .chan = 0, .pitch = 60, .vel = 96 },
     };
     var events = try collectEvents(alloc, &notes, 960, 3840, 960);
-    defer events.deinit();
+    defer events.deinit(alloc);
     try std.testing.expectEqual(@as(usize, 4), events.items.len);
     // the first note ends where the second begins: its off comes before the on
     try std.testing.expect(!events.items[1].is_on);
     try std.testing.expect(events.items[2].is_on);
     try std.testing.expectEqual(@as(u32, 480), events.items[2].tick);
 
-    var out: std.ArrayList(u8) = .empty;
-    defer out.deinit(alloc);
-    try writeSmf(out.writer(), alloc, .{
+    var out: std.Io.Writer.Allocating = .init(alloc);
+    defer out.deinit();
+    try writeSmf(&out.writer, alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,
         .sigs = &.{.{ .tick = 0, .numerator = 4, .denominator = 4 }},
     }, events.items);
-    try std.testing.expectEqualSlices(u8, "MThd", out.items[0..4]);
-    try std.testing.expectEqual(@as(u16, 960), std.mem.readInt(u16, out.items[12..14], .big));
-    try std.testing.expectEqualSlices(u8, "MTrk", out.items[14..18]);
+    try std.testing.expectEqualSlices(u8, "MThd", out.written()[0..4]);
+    try std.testing.expectEqual(@as(u16, 960), std.mem.readInt(u16, out.written()[12..14], .big));
+    try std.testing.expectEqualSlices(u8, "MTrk", out.written()[14..18]);
     // tempo of 120 bpm is 500000 microseconds per quarter note
-    try std.testing.expectEqualSlices(u8, &.{ 0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }, out.items[22..29]);
+    try std.testing.expectEqualSlices(u8, &.{ 0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }, out.written()[22..29]);
 }
 
 test "tunes are numbered one after the other" {
     var buf: [128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try appendTune(fbs.writer(), "X:1\nK:C\nCDE\n", 0);
-    try appendTune(fbs.writer(), "X:1\nK:G\nGAB", 1);
-    try std.testing.expectEqualStrings("X:1\nK:C\nCDE\n\nX:2\nK:G\nGAB\n", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try appendTune(&fbs, "X:1\nK:C\nCDE\n", 0);
+    try appendTune(&fbs, "X:1\nK:G\nGAB", 1);
+    try std.testing.expectEqualStrings("X:1\nK:C\nCDE\n\nX:2\nK:G\nGAB\n", fbs.buffered());
 }
 
 test "the convert command quotes its arguments and extends PATH for a found CLI" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeConvertCommand(fbs.writer(), .{ .command = "/opt/bin/abcls", .path_dir = "/opt/bin" }, "/tmp/a.mid", "Joe's riff");
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeConvertCommand(&fbs, .{ .command = "/opt/bin/abcls", .path_dir = "/opt/bin" }, "/tmp/a.mid", "Joe's riff");
     try std.testing.expectEqualStrings(
         "PATH='/opt/bin':\"$PATH\" /opt/bin/abcls midi2abc '/tmp/a.mid' --title 'Joe'\\''s riff'",
-        fbs.getWritten(),
+        fbs.buffered(),
     );
 }
 
 test "a configured command is used as it is" {
     var buf: [128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeConvertCommand(fbs.writer(), .{ .command = "node cli.js" }, "/tmp/a.mid", "");
-    try std.testing.expectEqualStrings("node cli.js midi2abc '/tmp/a.mid'", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeConvertCommand(&fbs, .{ .command = "node cli.js" }, "/tmp/a.mid", "");
+    try std.testing.expectEqualStrings("node cli.js midi2abc '/tmp/a.mid'", fbs.buffered());
 }
 
 test "the preview link escapes the path" {
     var buf: [128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeOpenLink(fbs.writer(), "/var/T/my tune.abc");
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try writeOpenLink(&fbs, "/var/T/my tune.abc");
     try std.testing.expectEqualStrings(
         "vscode://antoinebalaine.abc-ls/open?file=%2Fvar%2FT%2Fmy%20tune.abc&preview=1",
-        fbs.getWritten(),
+        fbs.buffered(),
     );
 }
 
@@ -836,7 +837,7 @@ test "the one-tick gaps that Legato leaves are closed" {
         .{ .selected = false, .muted = false, .start_ppq = 1680, .end_ppq = 1900, .chan = 0, .pitch = 65, .vel = 90 },
     };
     var events = try collectEvents(alloc, &notes, 0, 9999, 0);
-    defer events.deinit();
+    defer events.deinit(alloc);
     var ends: std.ArrayList(u32) = .empty;
     defer ends.deinit(alloc);
     for (events.items) |e| if (!e.is_on) try ends.append(alloc, e.tick);
@@ -849,7 +850,7 @@ test "a last note one tick short of the item end is closed" {
         .{ .selected = false, .muted = false, .start_ppq = 0, .end_ppq = 1919, .chan = 0, .pitch = 60, .vel = 90 },
     };
     var events = try collectEvents(alloc, &notes, 0, 1920, 0);
-    defer events.deinit();
+    defer events.deinit(alloc);
     try std.testing.expectEqual(@as(u32, 1920), events.items[1].tick);
 }
 
@@ -860,7 +861,7 @@ test "an item that starts inside a bar keeps the offset of its notes in the bar"
     };
     // The item starts at tick 1920, one half note after its bar line at 0.
     var events = try collectEvents(alloc, &notes, 1920, 9999, 0);
-    defer events.deinit();
+    defer events.deinit(alloc);
     try std.testing.expectEqual(@as(u32, 1920), events.items[0].tick);
     try std.testing.expectEqual(@as(u32, 2400), events.items[1].tick);
 }
@@ -883,9 +884,9 @@ test "a meter change inside the item is written as a second signature event" {
         .{ .tick = 3840, .is_on = true, .channel = 0, .pitch = 62, .velocity = 96 },
         .{ .tick = 4320, .is_on = false, .channel = 0, .pitch = 62, .velocity = 0 },
     };
-    var out: std.ArrayList(u8) = .empty;
-    defer out.deinit(alloc);
-    try writeSmf(out.writer(), alloc, .{
+    var out: std.Io.Writer.Allocating = .init(alloc);
+    defer out.deinit();
+    try writeSmf(&out.writer, alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,
         .sigs = &.{
@@ -898,11 +899,11 @@ test "a meter change inside the item is written as a second signature event" {
     // and then 3/4 at the change.
     const four_four = [_]u8{ 0xFF, 0x58, 0x04, 4, 2, 24, 8 };
     const three_four = [_]u8{ 0xFF, 0x58, 0x04, 3, 2, 24, 8 };
-    try std.testing.expect(std.mem.indexOf(u8, out.items, &four_four) != null);
-    const at = std.mem.indexOf(u8, out.items, &three_four);
+    try std.testing.expect(std.mem.indexOf(u8, out.written(), &four_four) != null);
+    const at = std.mem.indexOf(u8, out.written(), &three_four);
     try std.testing.expect(at != null);
     // And the second one comes after the first note, not bunched at the top.
-    try std.testing.expect(at.? > std.mem.indexOf(u8, out.items, &four_four).?);
+    try std.testing.expect(at.? > std.mem.indexOf(u8, out.written(), &four_four).?);
 }
 
 test "a signature past the last note is still written, for the trailing bars" {
@@ -911,9 +912,9 @@ test "a signature past the last note is still written, for the trailing bars" {
         .{ .tick = 0, .is_on = true, .channel = 0, .pitch = 60, .velocity = 96 },
         .{ .tick = 480, .is_on = false, .channel = 0, .pitch = 60, .velocity = 0 },
     };
-    var out: std.ArrayList(u8) = .empty;
-    defer out.deinit(alloc);
-    try writeSmf(out.writer(), alloc, .{
+    var out: std.Io.Writer.Allocating = .init(alloc);
+    defer out.deinit();
+    try writeSmf(&out.writer, alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,
         .sigs = &.{
@@ -923,5 +924,5 @@ test "a signature past the last note is still written, for the trailing bars" {
     }, &events);
 
     const seven_eight = [_]u8{ 0xFF, 0x58, 0x04, 7, 3, 24, 8 };
-    try std.testing.expect(std.mem.indexOf(u8, out.items, &seven_eight) != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.written(), &seven_eight) != null);
 }

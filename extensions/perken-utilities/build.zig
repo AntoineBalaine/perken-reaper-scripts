@@ -9,21 +9,24 @@ pub fn build(b: *std.Build) void {
     const ini_dep = b.dependency("ini", .{ .target = target, .optimize = optimize });
     const qm_dep = b.dependency("qm_dsp", .{});
 
-    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .debug);
     // The release version, baked into the binary so that it knows which
     // release it came from. CI passes it from the <name>-v<version> tag.
     const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version);
 
-    const lib = b.addSharedLibrary(.{
+    const lib = b.addLibrary(.{
+        .linkage = .dynamic,
         .name = "reaper_perken_utilities",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .strip = strip,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .strip = strip,
+            .link_libc = true,
+        }),
     });
-    lib.linkLibC();
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
     reaziglib.addCsurf(b, reazig_dep, lib);
     addBeatTracker(b, qm_dep, lib);
@@ -41,11 +44,13 @@ pub fn build(b: *std.Build) void {
 
     const test_exe = b.addTest(.{
         .name = "perken_utilities_tests",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = .debug,
+            .link_libc = true,
+        }),
     });
-    test_exe.linkLibC();
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     reaziglib.addCsurf(b, reazig_dep, test_exe);
     addBeatTracker(b, qm_dep, test_exe);
@@ -54,27 +59,29 @@ pub fn build(b: *std.Build) void {
     test_exe.root_module.addOptions("build_options", build_options);
     // The sources that the API-list test scans: this extension's own, and
     // the shared reaper_helpers module it compiles in from reaziglib.
+    // Because the build script no longer resolves paths itself since Zig
+    // 0.17, the options receive them as tracked paths.
     const test_paths = b.addOptions();
-    test_paths.addOption([]const []const u8, "sources", &.{
-        b.pathFromRoot("src"),
-        reazig_dep.path("src/reaper_helpers.zig").getPath(b),
-    });
+    test_paths.addOptionPathDirectory("src_dir", b.path("src"));
+    test_paths.addOptionPath("reaper_helpers", reazig_dep.path("src/reaper_helpers.zig"));
     test_exe.root_module.addOptions("test_paths", test_paths);
 
     // Development tool: the beat tracker on a WAV file, outside REAPER
     // (`zig build analyze -- file.wav`).
     const analyze = b.addExecutable(.{
         .name = "analyze",
-        .root_source_file = b.path("tools/analyze.zig"),
-        .target = target,
-        .optimize = .ReleaseSafe,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/analyze.zig"),
+            .target = target,
+            .optimize = .safe,
+            .link_libc = true,
+        }),
     });
-    analyze.linkLibC();
     analyze.root_module.addImport("beat", b.createModule(.{ .root_source_file = b.path("src/beat/beat.zig") }));
     analyze.root_module.addImport("grid", b.createModule(.{ .root_source_file = b.path("src/beat/grid.zig") }));
     addBeatTracker(b, qm_dep, analyze);
     const run_analyze = b.addRunArtifact(analyze);
-    if (b.args) |args| run_analyze.addArgs(args);
+    run_analyze.addPassthruArgs();
     const analyze_step = b.step("analyze", "Run the beat tracker on a WAV file: zig build analyze -- file.wav");
     analyze_step.dependOn(&run_analyze.step);
 
@@ -138,9 +145,11 @@ fn addHegel(b: *std.Build, compile: *std.Build.Step.Compile) void {
     };
     const fetch_tool = b.addExecutable(.{
         .name = "fetch_hegel",
-        .root_source_file = b.path("tools/fetch_hegel.zig"),
-        .target = b.graph.host,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/fetch_hegel.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+        }),
     });
 
     const base = b.fmt("https://github.com/hegeldev/hegel/releases/download/{s}/{s}", .{ hegel_tag, asset });
@@ -162,14 +171,14 @@ fn addHegel(b: *std.Build, compile: *std.Build.Step.Compile) void {
         // running every time costs nothing and needs no network.
         run.has_side_effects = true;
         compile.step.dependOn(&run.step);
-        compile.addObjectFile(.{ .cwd_relative = path });
+        compile.root_module.addObjectFile(.{ .cwd_relative = path });
     } else {
-        compile.addObjectFile(run.addOutputFileArg(asset));
+        compile.root_module.addObjectFile(run.addOutputFileArg(asset));
     }
 
     if (target.os.tag != .windows) {
-        compile.linkSystemLibrary("pthread");
-        compile.linkSystemLibrary("dl");
+        compile.root_module.linkSystemLibrary("pthread", .{});
+        compile.root_module.linkSystemLibrary("dl", .{});
     }
 }
 
@@ -180,7 +189,7 @@ fn addHegel(b: *std.Build, compile: *std.Build.Step.Compile) void {
 fn hegelLibDir(b: *std.Build) ?[]const u8 {
     if (b.option([]const u8, "hegel-lib-dir", "Directory to keep the pinned libhegel archive in (test-only dependency)")) |dir|
         return dir;
-    return std.process.getEnvVarOwned(b.allocator, "HEGEL_LIB_DIR") catch null;
+    return b.graph.environ_map.get("HEGEL_LIB_DIR");
 }
 
 /// qm-dsp's own build defines kiss_fft_scalar=double. Its warnings are not
@@ -204,8 +213,8 @@ pub fn addBeatTracker(b: *std.Build, qm_dep: *std.Build.Dependency, compile: *st
     };
     for (qm_sources) |src| {
         const name = b.fmt("qm_{s}", .{std.fs.path.stem(src)});
-        compile.addObjectFile(reaziglib.reaperCxxObject(b, target, qm_dep.path(src), &includes, qm_flags, name));
+        compile.root_module.addObjectFile(reaziglib.reaperCxxObject(b, target, qm_dep.path(src), &includes, qm_flags, name));
     }
-    compile.addObjectFile(reaziglib.reaperCxxObject(b, target, b.path("src/beat/qm_bridge.cpp"), &includes, qm_flags, "qm_bridge"));
+    compile.root_module.addObjectFile(reaziglib.reaperCxxObject(b, target, b.path("src/beat/qm_bridge.cpp"), &includes, qm_flags, "qm_bridge"));
     reaziglib.linkReaperCxxRuntime(b, compile);
 }

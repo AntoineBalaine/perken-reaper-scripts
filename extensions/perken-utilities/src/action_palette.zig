@@ -130,7 +130,7 @@ fn loadEntries() bool {
         if (id == 0) break;
         const text = if (name) |n| std.mem.span(n) else "";
         if (text.len == 0) continue; // unnamed commands cannot be searched for
-        const owned = alloc.dupeZ(u8, text) catch return false;
+        const owned = alloc.dupeSentinel(u8, text, 0) catch return false;
         list.append(alloc, .{ .id = id, .name = owned }) catch return false;
     }
     state.entries = list.items;

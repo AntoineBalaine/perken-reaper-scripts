@@ -83,6 +83,7 @@ fn isStandardValue(d: Rational) bool {
 /// current node exactly. Appends rather than writing into a fixed buffer,
 /// so a span can never be silently truncated for want of room.
 fn tileInto(
+    gpa: std.mem.Allocator,
     h: meter.Hierarchy,
     node_start: Rational,
     node_len: Rational,
@@ -96,7 +97,7 @@ fn tileInto(
 
     const node_end = node_start.add(node_len);
     if (span_start.eq(node_start) and span_end.eq(node_end)) {
-        try out.append(.{
+        try out.append(gpa, .{
             .kind = kind,
             .dur = node_len,
             // depth 0 is the bar itself: a rest filling it is an empty bar.
@@ -106,7 +107,7 @@ fn tileInto(
     }
     if (depth >= h.divisions().len) {
         // Finer than the hierarchy goes: emit the remainder as it is.
-        try out.append(.{ .kind = kind, .dur = span_end.sub(span_start) });
+        try out.append(gpa, .{ .kind = kind, .dur = span_end.sub(span_start) });
         return;
     }
 
@@ -118,7 +119,7 @@ fn tileInto(
         const child_end = child_start.add(child_len);
         const s = Rational.max(span_start, child_start);
         const e = Rational.min(span_end, child_end);
-        if (s.lt(e)) try tileInto(h, child_start, child_len, depth + 1, s, e, kind, out);
+        if (s.lt(e)) try tileInto(gpa, h, child_start, child_len, depth + 1, s, e, kind, out);
         child_start = child_end;
     }
 }
@@ -160,7 +161,7 @@ fn dottedMergeInPlace(onset: Rational, items: *std.ArrayList(Event), from: usize
 /// each bar's portion against that bar's hierarchy. Note pieces are tied
 /// to each other, including across a barline, since a sustained note is
 /// still one attack; rests are not, because a tied rest does not exist.
-pub fn tileSpan(ctx: Context, onset: Rational, dur: Rational, kind: Kind, out: *std.ArrayList(Event)) !void {
+pub fn tileSpan(gpa: std.mem.Allocator, ctx: Context, onset: Rational, dur: Rational, kind: Kind, out: *std.ArrayList(Event)) !void {
     const first = out.items.len;
     const span_end = onset.add(dur);
     var pos = onset;
@@ -178,11 +179,11 @@ pub fn tileSpan(ctx: Context, onset: Rational, dur: Rational, kind: Kind, out: *
             // rather than spinning: wrong-looking beats unresponsive, and
             // nothing is dropped either way.
             std.debug.assert(false);
-            try out.append(.{ .kind = kind, .dur = span_end.sub(pos) });
+            try out.append(gpa, .{ .kind = kind, .dur = span_end.sub(pos) });
             break;
         }
         const bar_first = out.items.len;
-        try tileInto(bar.hierarchy, bar.start, bar.hierarchy.len, 0, pos, e, kind, out);
+        try tileInto(gpa, bar.hierarchy, bar.start, bar.hierarchy.len, 0, pos, e, kind, out);
         // Dotted values are a within-bar nicety; merge per bar so one can
         // never reach across the barline.
         dottedMergeInPlace(pos, out, bar_first);
@@ -200,7 +201,7 @@ pub fn isLegalSymbol(ctx: Context, onset: Rational, dur: Rational) bool {
     var list = std.ArrayList(Event).initCapacity(fba.allocator(), 32) catch return false;
     // Needing more than the buffer holds means it is certainly not one
     // symbol, so a failure here answers the question too.
-    tileSpan(ctx, onset, dur, .rest, &list) catch return false;
+    tileSpan(fba.allocator(), ctx, onset, dur, .rest, &list) catch return false;
     return list.items.len == 1;
 }
 
@@ -228,7 +229,7 @@ fn retilePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, event
                 onset = onset.add(events[i].dur);
                 i += 1;
             }
-            try tileSpan(ctx, run_onset, run_len, .rest, &out);
+            try tileSpan(allocator, ctx, run_onset, run_len, .rest, &out);
             if (differs(out.items[first..], events[run_start..i])) changed = true;
             continue;
         }
@@ -240,7 +241,7 @@ fn retilePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, event
             i += 1;
             continue;
         }
-        try tileSpan(ctx, onset, e.dur, .note, &out);
+        try tileSpan(allocator, ctx, onset, e.dur, .note, &out);
         // The last piece inherits whatever this note was tied to.
         out.items[out.items.len - 1].tied_to_next = e.tied_to_next;
         if (differs(out.items[first..], events[i .. i + 1])) changed = true;
@@ -271,7 +272,7 @@ fn differs(a: []const Event, b: []const Event) bool {
 /// one ends) — that invariant is never changed by this function.
 fn collapsePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, events: []const Event) !struct { out: []Event, changed: bool } {
     var out = try std.ArrayList(Event).initCapacity(allocator, events.len);
-    errdefer out.deinit();
+    errdefer out.deinit(allocator);
     var onset = start;
     var changed = false;
     var i: usize = 0;
@@ -282,7 +283,7 @@ fn collapsePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, eve
             if (a.kind == .note and !a.tied_to_next and b.kind == .rest and a.dur.eq(b.dur)) {
                 const merged_dur = a.dur.add(b.dur);
                 if (merged_dur.lte(ctx.barAt(onset).hierarchy.beat) and isLegalSymbol(ctx, onset, merged_dur)) {
-                    try out.append(.{ .kind = .note, .dur = merged_dur, .staccato = true });
+                    try out.append(allocator, .{ .kind = .note, .dur = merged_dur, .staccato = true });
                     onset = onset.add(merged_dur);
                     i += 2;
                     changed = true;
@@ -290,11 +291,11 @@ fn collapsePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, eve
                 }
             }
         }
-        try out.append(a);
+        try out.append(allocator, a);
         onset = onset.add(a.dur);
         i += 1;
     }
-    return .{ .out = try out.toOwnedSlice(), .changed = changed };
+    return .{ .out = try out.toOwnedSlice(allocator), .changed = changed };
 }
 
 /// Simplifies a run of events to a fixed point: re-tile every span into the

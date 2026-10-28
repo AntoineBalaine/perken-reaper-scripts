@@ -6,6 +6,8 @@
 //! from any keymap, including reavim-ext's bindings.ini. Actions flagged
 //! `midi_command` are registered in the MIDI editor section.
 const std = @import("std");
+const globals = @import("globals.zig");
+const host_io = @import("host_io");
 const build_options = @import("build_options");
 const Reaper = @import("reaper").reaper;
 const logger = @import("logger.zig");
@@ -100,6 +102,9 @@ const midi_editor_section: c_int = 32060;
 /// name strings live for the whole session, as REAPER requires.
 const registrations = blk: {
     var regs: [all_entries.len]Reaper.custom_action_register_t = undefined;
+    // Because Zig 0.17's formatter spends more branches per comptimePrint, the
+    // quota grows with the number of actions.
+    @setEvalBranchQuota(all_entries.len * 2000);
     for (all_entries, 0..) |e, i| {
         regs[i] = .{
             .section = if (e.def.midi_command) midi_editor_section else main_section,
@@ -121,8 +126,11 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         while (surface.holders > 0) surface.release();
         tempo_window.stopTimer();
         tempo_window.discardJob();
+        globals.io_threaded.deinit();
         return 0;
     }
+
+    globals.io_threaded = host_io.create();
 
     if (!Reaper.initSubset(rec.?, &reaper_api))
         return 0;
@@ -213,6 +221,7 @@ test "every action gets a unique command id string" {
 }
 
 test "every REAPER function the sources call is in reaper_api" {
+    const io = std.testing.io;
     // Because initSubset leaves an unlisted function as a null pointer, a
     // forgotten name compiles fine and then crashes REAPER when the action
     // runs. This test reads the sources and fails on such a name instead.
@@ -221,7 +230,7 @@ test "every REAPER function the sources call is in reaper_api" {
     var unlisted: std.ArrayList([]const u8) = .empty;
     defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
-    try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
+    try api.unlistedCallsInPaths(arena.allocator(), std.testing.allocator, io, &.{ @import("test_paths").src_dir, @import("test_paths").reaper_helpers }, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});
     try std.testing.expectEqual(@as(usize, 0), unlisted.items.len);
 }

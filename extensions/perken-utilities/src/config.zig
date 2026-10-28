@@ -89,12 +89,12 @@ pub fn parseBool(v: []const u8) ?bool {
     return null;
 }
 
-pub fn parse(gpa: std.mem.Allocator, reader: anytype) !Settings {
+pub fn parse(gpa: std.mem.Allocator, reader: *std.Io.Reader) !Settings {
     var settings = Settings{ .arena = std.heap.ArenaAllocator.init(gpa) };
     errdefer settings.deinit();
     const arena = settings.arena.allocator();
 
-    var parser = ini.parse(gpa, reader);
+    var parser = ini.parse(gpa, reader, ";#");
     defer parser.deinit();
 
     var section: Section = .unknown;
@@ -163,35 +163,37 @@ pub fn parse(gpa: std.mem.Allocator, reader: anytype) !Settings {
 /// unreadable file yields the defaults. Callers must not use this on Windows,
 /// where std.fs's *Absolute calls can overflow the stack at the depth REAPER
 /// calls into an extension (see reavim-ext's win_file.zig).
-pub fn load(gpa: std.mem.Allocator) Settings {
+pub fn load(gpa: std.mem.Allocator, io: std.Io) Settings {
     const defaults = Settings{ .arena = std.heap.ArenaAllocator.init(gpa) };
     const resource = std.mem.span(Reaper.GetResourcePath());
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ resource, file_rel }) catch return defaults;
-    const file = std.fs.openFileAbsolute(path, .{}) catch return defaults;
-    defer file.close();
-    return parse(gpa, file.reader()) catch |err| {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return defaults;
+    defer file.close(io);
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    return parse(gpa, &file_reader.interface) catch |err| {
         log.err("failed to parse {s}: {s} — using defaults", .{ path, @errorName(err) });
         return defaults;
     };
 }
 
 test "rename settings default and override" {
-    var fbs_d = std.io.fixedBufferStream("");
-    var d = try parse(std.testing.allocator, fbs_d.reader());
+    var fbs_d: std.Io.Reader = .fixed("");
+    var d = try parse(std.testing.allocator, &fbs_d);
     defer d.deinit();
     try std.testing.expectEqualStrings(default_terminal, d.rename_terminal);
     try std.testing.expectEqualStrings("", d.rename_editor);
     try std.testing.expectEqual(default_close_terminal, d.rename_close_terminal);
 
-    var fbs_o = std.io.fixedBufferStream(
+    var fbs_o: std.Io.Reader = .fixed(
         \\[rename]
         \\terminal = open -a iTerm
         \\editor = nvim -u NONE
         \\close_terminal = false
         \\
     );
-    var o = try parse(std.testing.allocator, fbs_o.reader());
+    var o = try parse(std.testing.allocator, &fbs_o);
     defer o.deinit();
     try std.testing.expectEqualStrings("open -a iTerm", o.rename_terminal);
     try std.testing.expectEqualStrings("nvim -u NONE", o.rename_editor);
@@ -199,21 +201,21 @@ test "rename settings default and override" {
 }
 
 test "abc settings default and override" {
-    var fbs_d = std.io.fixedBufferStream("");
-    var d = try parse(std.testing.allocator, fbs_d.reader());
+    var fbs_d: std.Io.Reader = .fixed("");
+    var d = try parse(std.testing.allocator, &fbs_d);
     defer d.deinit();
     try std.testing.expectEqualStrings(default_abc_command, d.abc_command);
     try std.testing.expectEqualStrings(default_abc_clipboard, d.abc_clipboard);
     try std.testing.expectEqualStrings(default_abc_editor, d.abc_editor);
 
-    var fbs_o = std.io.fixedBufferStream(
+    var fbs_o: std.Io.Reader = .fixed(
         \\[abc]
         \\command = /opt/bin/abcls
         \\clipboard = wl-copy
         \\editor = code
         \\
     );
-    var o = try parse(std.testing.allocator, fbs_o.reader());
+    var o = try parse(std.testing.allocator, &fbs_o);
     defer o.deinit();
     try std.testing.expectEqualStrings("/opt/bin/abcls", o.abc_command);
     try std.testing.expectEqualStrings("wl-copy", o.abc_clipboard);
