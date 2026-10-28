@@ -39,6 +39,8 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         log.err("couldn’t create midi out", .{});
     }
 
+    globals.online = globals.m_midi_in != null and globals.m_midi_out != null;
+
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
     return myCsurf;
@@ -46,6 +48,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
     var globals = MftGlobals.get();
+    globals.online = false;
     if (globals.m_midi_out) |mo| {
         midi_out.clearAll(mo);
         c.MidiOut_Destroy(mo);

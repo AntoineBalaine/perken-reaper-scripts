@@ -18,6 +18,9 @@ pub fn hostIo() std.Io {
 pub const MftGlobals = struct {
     m_midi_in: ?*reaper.midi_Input = null,
     m_midi_out: ?reaper.midi_Output = null,
+    /// Whether the controller is connected: both of its ports opened when REAPER created the surface, and the surface
+    /// has not been destroyed since. The surface sets it when it is created and clears it when it is destroyed.
+    online: bool = false,
     m_midi_in_dev: ?c_int = null,
     m_midi_out_dev: ?c_int = null,
     mft: MftState = .{},

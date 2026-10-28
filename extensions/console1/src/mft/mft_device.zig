@@ -127,6 +127,8 @@ pub const View = struct {
     press_lit: u8 = 0,
     /// The keys on the left that are held or were a moment ago.
     left_lit: [3]bool = @splat(false),
+    /// Whether the controller is connected, which the lamp of the header shows.
+    online: bool = false,
     collapsed: bool = false,
     value_mode: ValueMode = .popup,
 
@@ -668,8 +670,8 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     if (font != null) imgui.api.PopFont(ctx);
     const lamp = imgui.api.GetTextLineHeight(ctx);
     imgui.api.SetCursorScreenPos(ctx, cx - size.w / 2 - 8 - lamp, y + pad + (header_row_h - lamp) / 2);
-    widgets.lamp(kit, theme.green, true);
-    widgets.tooltip(kit, "online, mirroring the controller");
+    widgets.lamp(kit, if (view.online) theme.green else theme.amber, true);
+    widgets.tooltip(kit, if (view.online) "online, mirroring the controller" else "offline, the controller is not connected");
 }
 
 // ---- the whole device ----

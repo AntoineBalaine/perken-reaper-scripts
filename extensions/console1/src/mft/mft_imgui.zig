@@ -280,6 +280,7 @@ fn readView(globals: *MftGlobals) device.View {
         .knobs = readKnobInfo(globals, active),
         .held = globals.mft.held_encoders,
         .side_lit = readSideLit(globals),
+        .online = globals.online,
         .collapsed = folded,
     };
     return view;
