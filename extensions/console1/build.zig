@@ -5,6 +5,10 @@
 //! or on MacOS:
 //! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && zig build ui --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 //! zig build mft --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! For live reload of the UI library while REAPER runs, keep this running in one terminal:
+//! zig build ui -fincremental --watch --prefix "$HOME/.config/REAPER/UserPlugins"
+//! Only one such watcher may run at a time, because two incremental compilers patching the same cached library
+//! corrupt it and crash REAPER. Do not pass --cache-dir to it either.
 const std = @import("std");
 const reaziglib = @import("reaziglib");
 const tests = @import("build_tests.zig");
