@@ -158,21 +158,26 @@ local function draw_encoder(dl, cx, cy, e)
   ImGui.DrawList_AddCircle(dl, cx, cy, WELL_R, 0x000000FF, 0, 2)
   ImGui.DrawList_AddCircle(dl, cx, cy + 1, WELL_R + 1, 0xFFFFFF18, 0, 1)
 
-  -- The cap is rubber: matte, with a soft dome and fine ribs around its edge. It stands out of the well with a
-  -- shadow under it, and sinks a little when it is pressed.
+  -- The cap has the layers of the knobs of the shared panel kit, which give it its volume. From the back to the front: a
+  -- shadow, the body, a lighter dome shifted toward the upper left, a veil of the mode's color, the edge, three fine
+  -- grooves, a lit arc on the upper left of the edge, and a shine. It stands out of the well and sinks a little when it is
+  -- pressed, and its edge takes the color of the mode under the mouse.
+  local th = env.theme
   local sink = e.pressed and 1.5 or 0
   local r = CAP_R - sink * 0.5
   local y = cy + sink
-  ImGui.DrawList_AddCircleFilled(dl, cx + 1, cy + 3 - sink, r + 1, 0x000000AA)
-  ImGui.DrawList_AddCircleFilled(dl, cx, y, r, 0x161617FF)
-  ImGui.DrawList_AddCircleFilled(dl, cx - 1, y - 1, r - 3, 0x222224FF)
-  ImGui.DrawList_AddCircleFilled(dl, cx - r * 0.3, y - r * 0.35, r * 0.45, 0xFFFFFF0A)
-  for i = 0, 23 do
-    local a = i * math.pi / 12
-    ImGui.DrawList_AddLine(dl, cx + math.cos(a) * (r - 3), y + math.sin(a) * (r - 3), cx + math.cos(a) * r, y + math.sin(a) * r, 0xFFFFFF0C, 1)
-  end
-  if e.pressed then ImGui.DrawList_AddCircleFilled(dl, cx, y, r - 3, faded(color, 0x30)) end
-  ImGui.DrawList_AddCircle(dl, cx, y, r, (e.hot or e.pressed) and color or 0x0A0A0BFF, 0, 1)
+  ImGui.DrawList_AddCircleFilled(dl, cx + 1, cy + 3 - sink, r + 1, 0x00000099)
+  ImGui.DrawList_AddCircleFilled(dl, cx, y, r, th.knob_body)
+  ImGui.DrawList_AddCircleFilled(dl, cx - 1, y - 1, r - 4, th.knob_top)
+  ImGui.DrawList_AddCircleFilled(dl, cx - 1.5, y - 2, r - 9, 0xFFFFFF0C)
+  ImGui.DrawList_AddCircleFilled(dl, cx, y, r - 4, faded(color, e.pressed and 0x3A or 0x14))
+  ImGui.DrawList_AddCircle(dl, cx, y, r, (e.hot or e.pressed) and color or th.knob_edge, 0, 1)
+  ImGui.DrawList_AddCircle(dl, cx, y, r - 3, 0xFFFFFF14, 0, 1)
+  ImGui.DrawList_AddCircle(dl, cx, y, r - 6, 0x00000040, 0, 1)
+  ImGui.DrawList_AddCircle(dl, cx, y, r - 9, 0xFFFFFF0C, 0, 1)
+  ImGui.DrawList_PathArcTo(dl, cx, y, r - 0.5, math.pi, math.pi * 1.5)
+  ImGui.DrawList_PathStroke(dl, 0xFFFFFF40, ImGui.DrawFlags_None, 1.5)
+  ImGui.DrawList_AddCircleFilled(dl, cx - r * 0.35, y - r * 0.4, r * 0.22, 0xFFFFFF1E)
 
   if e.icon then
     -- The cap carries the icon of the function.
