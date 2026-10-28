@@ -26,7 +26,6 @@ pub const ModeAction = @import("action_types.zig").ModeAction;
 
 // Top-level update function
 pub fn dispatch(app: *Globals, action: ModeAction) void {
-    const io = Globals.hostIo();
     // log.debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
@@ -92,7 +91,10 @@ pub fn dispatch(app: *Globals, action: ModeAction) void {
                 .track_list => |tr_action| trackListAction(app, tr_action),
                 .midi_out => |m_out_action| midi_out.sendMidiFeedback(app, m_out_action),
                 .transport => |trspt_act| transportAction(app, trspt_act),
-                .save_theme => theme_dump.saveThemeToFile(io),
+                .save_theme => {
+                    const io = Globals.hostIo();
+                    theme_dump.saveThemeToFile(io);
+                },
                 else => unreachable,
             }
         },

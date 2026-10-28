@@ -9,8 +9,6 @@ const log = std.log.scoped(.settings);
 pub const SettingsActions = @import("action_types.zig").SettingsActions;
 
 pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
-    const io = Globals.hostIo();
-
     switch (set_action) {
         .open => {
             if (globals.settings_panel == null) {
@@ -29,6 +27,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
             if (globals.settings_panel) |*panel| {
                 globals.preferences = panel.temp_settings;
                 if (!comptime @import("builtin").is_test) {
+                    const io = Globals.hostIo();
                     globals.preferences.saveToDisk(io, globals.resource_path) catch {
                         log.err("save settings to disk failed", .{});
                     };

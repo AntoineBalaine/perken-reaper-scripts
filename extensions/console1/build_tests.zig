@@ -93,8 +93,10 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Create and configure the test step
     const run_test = b.addRunArtifact(test_exe);
 
-    // Add a no-run option to build tests without running them
-    const no_run = b.option(bool, "no-run", "Build tests without running them") orelse false;
+    // Add a no-run option to build tests without running them. Because the
+    // test step always installs the test binary, it is then found at
+    // <prefix>/bin/reaper_zig_tests (zig-out/bin by default).
+    const no_run = b.option(bool, "no-run", "Build tests without running them; the binary is installed in <prefix>/bin") orelse false;
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&install_test.step);
@@ -102,12 +104,5 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     if (!no_run) {
         // Only run tests if no-run is not specified
         test_step.dependOn(&run_test.step);
-    } else {
-        // When no-run is specified, add a step to print the test executable path.
-        // Because the build script no longer resolves install paths since Zig
-        // 0.17, the path is passed to echo as the installed artifact.
-        const print_path = b.addSystemCommand(&.{ "echo", "Test executable path:" });
-        print_path.addArtifactArg(test_exe);
-        test_step.dependOn(&print_path.step);
     }
 }

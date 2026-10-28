@@ -388,6 +388,57 @@ test "getMap with .STRIP loads a ChannelStripMapping" {
     }
 }
 
+test "Integration - a saved strip mapping loads back with every field" {
+    const io = std.testing.io;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
+
+    var cur_config = try settings.init(allocator, io, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
+    var store = try MapStore.init(allocator, io, config_path_z, &ml, &cur_config.default_fx);
+    defer store.deinit();
+
+    const test_fx = "VST: TestStrip";
+    const test_mapping_name = "test_strip";
+
+    // Because saveStripToFile writes through a buffered writer, the fields written last are the ones a
+    // missing flush would lose, so the test sets the first and the last field of the mapping.
+    const test_strip = MapStore.ChannelStripMapping{
+        .Inpt_Gain = 3,
+        .Tr_order = 77,
+    };
+
+    // Because saveStripToFile only creates the FX's own folder, maps/STRIP must exist.
+    var strip_dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const strip_dir = try std.fmt.bufPrint(&strip_dir_buf, "{s}/maps/STRIP", .{config_path_z});
+    try std.Io.Dir.cwd().createDirPath(io, strip_dir);
+
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps(io);
+    try store.saveStripToFile(io, fs_ops, test_fx, test_strip, test_mapping_name, null);
+
+    var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const save_path = try std.mem.printSentinel(&save_path_buf, "{s}/maps/STRIP/VST_ TestStrip/{s}.ini", .{ config_path_z, test_mapping_name }, 0);
+    try ml.registerPath(.STRIP, test_fx, test_mapping_name, save_path);
+
+    // A fresh store reads the file from disk, as after a restart.
+    var store2 = MapStore.empty(allocator, config_path_z);
+    defer store2.deinit();
+    const loaded = try store2.getMap(io, test_fx, .STRIP, test_mapping_name, &ml);
+
+    try testing.expect(std.meta.activeTag(loaded) == .STRIP);
+    try testing.expectEqual(test_strip.Inpt_Gain, loaded.STRIP.Inpt_Gain);
+    try testing.expectEqual(test_strip.Tr_order, loaded.STRIP.Tr_order);
+
+    // Clean up
+    std.Io.Dir.deleteFileAbsolute(io, save_path) catch {};
+    var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/STRIP/VST_ TestStrip", .{config_path_z});
+    std.Io.Dir.deleteDirAbsolute(io, dir_path) catch {};
+}
+
 test "forward/reverse maps populated correctly for multi-fx" {
     const allocator = testing.allocator;
 
