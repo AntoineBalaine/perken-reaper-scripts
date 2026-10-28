@@ -149,7 +149,7 @@ If the keyboard ignores the plugin's messages, try "Send SysEx without its F0 an
 
 ## Debugging from a Lua script
 
-Because the plugin registers a ReaScript function when it loads, a script running in REAPER can query and drive it, for instance through the Lua bridge of `debug-bridge`:
+The scripting API is for development, and the released plugin does not have it: `build.zig` builds it only with `-Ddebug_api=true`, which `build-install.sh vr09` passes, and the release builds of the CI do not. A plugin built with it registers a ReaScript function when it loads, so that a script running in REAPER can query and drive the plugin, for instance through the Lua bridge of `debug-bridge`:
 
 ```
 reaper.VR09_Command(track, fxindex, command, arg)   -- returns a JSON string

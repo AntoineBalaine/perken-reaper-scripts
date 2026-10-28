@@ -5,10 +5,11 @@ const clap = @import("clap.zig");
 const c = clap.c;
 const plugin = @import("plugin.zig");
 const discovery = @import("discovery.zig");
-const debug_api = @import("debug_api.zig");
+const build_options = @import("build_options");
+const debug_api = if (build_options.debug_api) @import("debug_api.zig") else @import("debug_api_off.zig");
 
-/// The log goes to the default destination and to a ring that `VR09_Command`
-/// can read.
+/// The log goes to the default destination, and in a development build also to a ring that `VR09_Command` can
+/// read.
 pub const std_options: std.Options = .{ .logFn = debug_api.logFn };
 
 var init_count: u32 = 0;

@@ -159,25 +159,6 @@ fn writeError(w: anytype, message: []const u8) !void {
 
 // ---- finding the instance ----
 
-fn contextFn(host: [*c]const c.clap_host_t) ?*const fn ([*c]const c.clap_host_t, c_int) callconv(.C) ?*anyopaque {
-    const get_ext = host.*.get_extension orelse return null;
-    const ptr = get_ext(host, "cockos.reaper_extension") orelse return null;
-    const info: *Reaper.plugin_info_t = @constCast(@ptrCast(@alignCast(ptr)));
-    const get_func = info.getFunc orelse return null;
-    const f = get_func("clap_get_reaper_context") orelse return null;
-    return @ptrCast(@alignCast(f));
-}
-
-/// The plugin's index in its track's FX chain, or null when REAPER does not
-/// say. REAPER answers with the index plus one, cast to a pointer, so that
-/// zero means unknown.
-pub fn fxIndexOf(p: *Plugin) ?u32 {
-    const f = contextFn(p.host) orelse return null;
-    const v = @intFromPtr(f(p.host, @intFromEnum(glue.Context.fx_index)));
-    if (v == 0) return null;
-    return @intCast((v - 1) & 0xFFFFFF);
-}
-
 /// The instance for a track and an FX index: the one on that track at that
 /// index, else the first on that track. A null track gives the first
 /// instance. Null when the track holds none.
@@ -190,7 +171,7 @@ fn findInstance(track: ?*anyopaque, fx_index: c_int) ?*Plugin {
         const mine: ?*anyopaque = @ptrCast(p.track);
         if (mine != track) continue;
         if (on_track == null) on_track = p;
-        if (fx_index >= 0 and fxIndexOf(p) == @as(u32, @intCast(fx_index & 0xFFFFFF))) return p;
+        if (fx_index >= 0 and glue.fxIndexOf(p.host) == @as(u32, @intCast(fx_index & 0xFFFFFF))) return p;
     }
     return on_track;
 }
@@ -213,7 +194,7 @@ fn cmdState(w: anytype, p: *Plugin) !void {
         try w.print(",\"midi_in_is_midi\":{},\"midi_in_all_devices\":{},\"midi_in_channel\":{d},", .{ in.is_midi, in.all_devices, in.channel });
         try w.print("\"armed\":{},\"monitoring\":{d},", .{ glue.trackArmed(p.track), glue.trackMonitoring(p.track) });
     }
-    if (fxIndexOf(p)) |i| try w.print("\"fx_index\":{d},", .{i});
+    if (glue.fxIndexOf(p.host)) |i| try w.print("\"fx_index\":{d},", .{i});
     try w.print("\"pass_midi\":{},\"split\":{},\"sysex_bare\":{},\"autoconnect_done\":{},", .{
         st.pass_midi.load(.monotonic),
         st.split.load(.monotonic),

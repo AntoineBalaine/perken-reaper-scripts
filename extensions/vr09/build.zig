@@ -12,8 +12,17 @@ pub fn build(b: *std.Build) void {
     // The release version, baked into the binary so that it knows which
     // release it came from. CI passes it from the <name>-v<version> tag.
     const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
+    // The scripting API (`VR09_Command`), for development: a script can drive the plugin through it, and some of
+    // its commands write and delete files. The releases are built without it, and the install script for development
+    // (`build-install.sh`) builds with it.
+    const debug_api = b.option(bool, "debug_api", "Build the VR09_Command scripting API (for development)") orelse false;
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version);
+    build_options.addOption(bool, "debug_api", debug_api);
+    // The tests drive the plugin through that API, so they always have it.
+    const test_build_options = b.addOptions();
+    test_build_options.addOption([]const u8, "version", version);
+    test_build_options.addOption(bool, "debug_api", true);
 
     const lib = b.addSharedLibrary(.{
         .name = "vr09",
@@ -56,7 +65,7 @@ pub fn build(b: *std.Build) void {
     test_exe.linkLibC();
     test_exe.addIncludePath(clap_dep.path("include"));
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
-    test_exe.root_module.addOptions("build_options", build_options);
+    test_exe.root_module.addOptions("build_options", test_build_options);
     // The sources that the API-list test scans.
     const test_paths = b.addOptions();
     test_paths.addOption([]const []const u8, "sources", &.{b.pathFromRoot("src")});

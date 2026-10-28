@@ -62,7 +62,8 @@ jobs:
             read -r name tgt <<<"$row"
             echo "::group::$name ($tgt)"
             rm -rf zig-out
-            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}
+            # The scripting API (VR09_Command) is a development tool, so the release is built without it.
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe -Ddebug_api=false -Dversion=${{ steps.version.outputs.version }}
             pkg="dist/vr09-$name"
             mkdir -p "$pkg"
             # macOS gets a bundle (a folder), the others a single file.

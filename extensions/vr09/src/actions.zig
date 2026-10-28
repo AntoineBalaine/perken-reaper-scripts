@@ -10,7 +10,6 @@ const Reaper = @import("reaper").reaper;
 const glue = @import("reaper_glue.zig");
 const plugin = @import("plugin.zig");
 const scenes = @import("scenes.zig");
-const debug_api = @import("debug_api.zig");
 
 const log = std.log.scoped(.actions);
 
@@ -131,7 +130,7 @@ fn tell(message: [:0]const u8) void {
 fn scenePointsFromMarkers() void {
     const p = pickInstance() orelse return tell("There is no VR-09 plugin.");
     if (p.track == null) return tell("The plugin has not found its track yet.");
-    const fx = debug_api.fxIndexOf(p) orelse return tell("REAPER did not say where the plugin is on its track.");
+    const fx = glue.fxIndexOf(p.host) orelse return tell("REAPER did not say where the plugin is on its track.");
     const param: c_int = @intCast(plugin.sceneParamIndex());
 
     // The markers and region starts whose name stands for a scene, in time order.

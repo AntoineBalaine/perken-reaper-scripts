@@ -8,7 +8,6 @@ const Reaper = @import("reaper").reaper;
 const plugin = @import("plugin.zig");
 const scenes = @import("scenes.zig");
 const actions = @import("actions.zig");
-const debug_api = @import("debug_api.zig");
 const glue = @import("reaper_glue.zig");
 
 const Plugin = plugin.Plugin;
@@ -24,7 +23,7 @@ const square_shape: c_int = 1;
 pub fn target(p: *Plugin) ?Target {
     if (p.track == null) p.track = glue.trackOf(p.host);
     if (p.track == null) return null;
-    const fx = debug_api.fxIndexOf(p) orelse return null;
+    const fx = glue.fxIndexOf(p.host) orelse return null;
     return .{ .track = p.track, .fx = @intCast(fx), .param = @intCast(plugin.sceneParamIndex()) };
 }
 

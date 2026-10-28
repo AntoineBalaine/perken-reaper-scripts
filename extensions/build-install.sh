@@ -147,7 +147,8 @@ for name in "$@"; do
       # first, because a bundle is a folder and would not be replaced.
       mkdir -p "$CLAP_DIR"
       rm -rf "$CLAP_DIR/vr09.clap"
-      "$ZIG" build -Doptimize=ReleaseSafe --prefix "$CLAP_DIR"
+      # The scripting API is for development, and this install is one: the releases are built without it.
+      "$ZIG" build -Doptimize=ReleaseSafe -Ddebug_api=true --prefix "$CLAP_DIR"
       # The keyboard's Registrations (dumps named <bank>-<slot>_<Name>.json)
       # from the roland-vr09 project, copied read-only from its dumps folder.
       # A file already in the destination is kept, so edits survive. Set

@@ -20,7 +20,8 @@ const state = @import("state.zig");
 const glue = @import("reaper_glue.zig");
 const outbuf = @import("outbuf.zig");
 const ui = @import("ui.zig");
-const debug_api = @import("debug_api.zig");
+/// The scripting API (`VR09_Command`) is built only for development: see `build.zig`.
+const debug_api = if (build_options.debug_api) @import("debug_api.zig") else @import("debug_api_off.zig");
 const dispatch = @import("dispatch.zig");
 const actions = @import("actions.zig");
 const split = @import("split.zig");

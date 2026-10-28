@@ -104,6 +104,16 @@ pub fn trackOf(host: [*c]const c.clap_host_t) Reaper.MediaTrack {
     return @ptrCast(f(host, @intFromEnum(Context.track)));
 }
 
+/// The plugin's index in its track's FX chain, or null when REAPER does not say. REAPER answers with the index
+/// plus one, cast to a pointer, so that zero means unknown.
+pub fn fxIndexOf(host: [*c]const c.clap_host_t) ?u32 {
+    if (!ready) return null;
+    const f = get_context orelse return null;
+    const v = @intFromPtr(f(host, @intFromEnum(Context.fx_index)));
+    if (v == 0) return null;
+    return @intCast((v - 1) & 0xFFFFFF);
+}
+
 pub fn resourcePath() []const u8 {
     return std.mem.span(Reaper.GetResourcePath());
 }
