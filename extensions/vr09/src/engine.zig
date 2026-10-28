@@ -493,6 +493,7 @@ pub const Engine = struct {
 
         const block_start = self.now;
         const block_end = block_start + frames;
+        var last_offset: u32 = 0;
         while (self.next_send < block_end) {
             const msg = self.nextMessage() orelse break;
             const offset: u32 = if (self.next_send > block_start) @intCast(self.next_send - block_start) else 0;
@@ -502,17 +503,20 @@ pub const Engine = struct {
             }
             self.afterSend(block_start + offset);
             self.next_send = block_start + offset + self.gap;
+            last_offset = offset;
         }
-        self.flushNotifications(sink);
+        // Because CLAP wants the output events in the order of their time, the notifications come after the
+        // last message of the block, and not at its start, where they would follow messages sent at a later time.
+        self.flushNotifications(sink, last_offset);
         self.now = block_end;
         self.publish();
     }
 
-    pub fn flushNotifications(self: *Engine, sink: Sink) void {
+    pub fn flushNotifications(self: *Engine, sink: Sink, time: u32) void {
         for (0..param_count) |i| {
             if (!self.notify_pending[i]) continue;
             self.notify_pending[i] = false;
-            sink.param(sink.ctx, 0, @intCast(i), self.notify_list[i], self.notify_gesture[i]);
+            sink.param(sink.ctx, time, @intCast(i), self.notify_list[i], self.notify_gesture[i]);
         }
     }
 
@@ -520,7 +524,7 @@ pub const Engine = struct {
         while (self.shared.commands.pop()) |command| {
             switch (command) {
                 .read_all => self.startRead(.nothing),
-                .recall => self.recallNow(),
+                .recall => self.recallWhenFree(),
                 .capture => self.capture(),
                 .capture_keyboard => self.startRead(.capture),
                 .reconnect => {
@@ -550,7 +554,20 @@ pub const Engine = struct {
     pub fn checkScene(self: *Engine) void {
         const gen = self.shared.scene_gen.load(.acquire);
         if (gen == self.applied_gen) return;
+        // A read that is going on is not interrupted: `recallNow` would replace the job, and the read would never
+        // end, so the save or the start-up that waits for it would not either. The change is looked at again at
+        // each block, and is recalled once the read has ended.
+        if (self.job == .reading) return;
         self.applied_gen = gen;
+        self.recallNow();
+    }
+
+    /// Recalls the desired state now, or after the read that is going on.
+    pub fn recallWhenFree(self: *Engine) void {
+        if (self.job == .reading) {
+            self.applied_gen = self.shared.scene_gen.load(.acquire) -% 1;
+            return;
+        }
         self.recallNow();
     }
 
@@ -899,9 +916,13 @@ const Harness = struct {
     midi_seen: std.ArrayList([3]u8),
     block_start: u64 = 0,
     frames: u32 = 512,
+    /// The time of the last message of the block, and how many parameter events came before it.
+    block_last_sysex: u32 = 0,
+    out_of_order: usize = 0,
 
     pub fn sinkSysex(ctx: *anyopaque, time: u32, bytes: []const u8) bool {
         const self: *Harness = @ptrCast(@alignCast(ctx));
+        self.block_last_sysex = @max(self.block_last_sysex, time);
         self.keyboard.receive(bytes, self.block_start + time) catch unreachable;
         return true;
     }
@@ -914,9 +935,9 @@ const Harness = struct {
     }
 
     pub fn sinkParam(ctx: *anyopaque, time: u32, index: u32, value: u8, gesture: bool) void {
-        _ = time;
         _ = gesture;
         const self: *Harness = @ptrCast(@alignCast(ctx));
+        if (time < self.block_last_sysex) self.out_of_order += 1;
         self.params_seen.append(.{ .index = index, .value = value }) catch unreachable;
     }
 
@@ -925,6 +946,7 @@ const Harness = struct {
     }
 
     pub fn step(self: *Harness) void {
+        self.block_last_sysex = 0;
         // The keyboard's answers to the last block reach the engine first.
         for (self.keyboard.outbox.items) |m| {
             self.engine.onSysex(m);
@@ -1214,6 +1236,63 @@ test "loading a preset from the interface recalls it at once" {
     _ = shared.scene_gen.fetchAdd(1, .release);
     h.runSeconds(0.5);
     try std.testing.expectEqual(@as(u8, 11), h.keyboard.state.get(.kb, 0x60).?);
+}
+
+test "the host's events come in the order of their time, with the notifications after the messages" {
+    const allocator = std.testing.allocator;
+    var shared = try allocator.create(Shared);
+    defer allocator.destroy(shared);
+    shared.* = .{};
+    var h = makeHarness(allocator, shared);
+    defer h.keyboard.deinit();
+    defer h.params_seen.deinit();
+    defer h.midi_seen.deinit();
+    fillKeyboard(&h.keyboard.state, 3);
+    h.runSeconds(2.0);
+
+    // A whole patch is recalled (many messages, spread over the blocks) while a knob moves in the same block.
+    var preset: dump.Dump = undefined;
+    shared.desiredSnapshot(&preset);
+    for (0..dump.total_bytes) |i| preset.values[i] +%= 1;
+    shared.loadDesired(&preset);
+    _ = shared.scene_gen.fetchAdd(1, .release);
+    const drawbar = paramIndexOfId(hashId("organ-lower-d4")).?;
+    h.params_seen.clearRetainingCapacity();
+    try std.testing.expect(shared.changeParam(drawbar, 3));
+    h.runSeconds(1.0);
+    try std.testing.expect(h.keyboard.writes > 4);
+    try std.testing.expect(h.params_seen.items.len >= 1);
+    try std.testing.expectEqual(@as(usize, 0), h.out_of_order);
+}
+
+test "a scene change during a read waits for the read, which still ends" {
+    const allocator = std.testing.allocator;
+    var shared = try allocator.create(Shared);
+    defer allocator.destroy(shared);
+    shared.* = .{};
+    var h = makeHarness(allocator, shared);
+    defer h.keyboard.deinit();
+    defer h.params_seen.deinit();
+    defer h.midi_seen.deinit();
+    fillKeyboard(&h.keyboard.state, 3);
+    h.runSeconds(2.0);
+
+    try std.testing.expect(shared.sendCommand(.capture_keyboard));
+    var blocks: usize = 0;
+    while (shared.job.load(.monotonic) != @intFromEnum(JobKind.reading) and blocks < 50) : (blocks += 1) h.step();
+    try std.testing.expectEqual(@intFromEnum(JobKind.reading), shared.job.load(.monotonic));
+
+    // A scene is selected while the keyboard is being read.
+    var scene: dump.Dump = undefined;
+    shared.desiredSnapshot(&scene);
+    _ = scene.set(.kb, 0x02 << 14 | 5, 9);
+    shared.loadDesired(&scene);
+    _ = shared.scene_gen.fetchAdd(1, .release);
+    h.runSeconds(3.0);
+
+    // The read ended and was counted, and the engine is free again.
+    try std.testing.expectEqual(@as(u32, 1), shared.captures_done.load(.acquire));
+    try std.testing.expectEqual(@intFromEnum(JobKind.idle), shared.job.load(.monotonic));
 }
 
 test "parameter ids are stable hashes and unique" {

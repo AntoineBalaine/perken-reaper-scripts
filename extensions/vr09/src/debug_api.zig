@@ -25,7 +25,6 @@ const registrations = @import("registrations.zig");
 const scenes = @import("scenes.zig");
 const types = @import("action_types.zig");
 const effects = @import("dispatch.zig");
-const library = @import("library.zig");
 const dump = @import("dump.zig");
 
 const Plugin = plugin.Plugin;
@@ -306,9 +305,7 @@ fn cmdSet(w: anytype, p: *Plugin, arg: []const u8) !void {
 
 fn cmdReconnect(w: anytype, p: *Plugin) !void {
     // As the panel's button does.
-    const queued = p.shared.sendCommand(.reconnect);
-    p.settings.autoconnect_done.store(false, .monotonic);
-    p.ticks = 0;
+    const queued = effects.requestReconnect(p);
     try w.print("{{\"ok\":true,\"queued\":{}}}", .{queued});
 }
 
@@ -370,12 +367,7 @@ fn cmdLoadPreset(w: anytype, p: *Plugin, arg: []const u8) !void {
 fn cmdDeletePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "delete_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return writeError(w, "the folder is too long");
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = state.presetPath(&path_buf, folder, name) catch return writeError(w, "the path is too long");
-    fileio.deleteFile(path) catch |err| return writeError(w, @errorName(err));
-    library.removePreset(p, name);
+    effects.deletePreset(p, name) catch |err| return writeError(w, effects.describe(err));
     try w.writeAll("{\"ok\":true}");
 }
 
@@ -548,7 +540,7 @@ fn cmdSceneSelect(w: anytype, p: *Plugin, arg: []const u8) !void {
 
 fn cmdSceneClear(w: anytype, p: *Plugin) !void {
     p.scene_list.clear();
-    p.scene.store(0, .monotonic);
+    p.setScene(0);
     p.rescanParamValues();
     try w.writeAll("{\"ok\":true}");
 }
@@ -561,7 +553,7 @@ fn cmdOpenPanel(w: anytype, p: *Plugin) !void {
 /// Reads every block of the keyboard into the plugin's state, as the panel's
 /// "Read the keyboard" button does. `job` and `progress` tell when it is done.
 fn cmdCapture(w: anytype, p: *Plugin) !void {
-    const queued = p.shared.sendCommand(.capture_keyboard);
+    const queued = effects.requestRead(p);
     try w.print("{{\"ok\":true,\"queued\":{}}}", .{queued});
 }
 
@@ -574,11 +566,7 @@ fn cmdJob(w: anytype, p: *Plugin) !void {
 /// Writes the plugin's state to an absolute path, in the JSON of vr09.py, so
 /// that the research repo's `vr09.py diff` can compare two of them.
 fn cmdExport(w: anytype, p: *Plugin, arg: []const u8) !void {
-    if (arg.len == 0 or !std.fs.path.isAbsolute(arg)) return writeError(w, "export: give an absolute path");
-    const scene = try plugin.allocator.create(@import("dump.zig").Dump);
-    defer plugin.allocator.destroy(scene);
-    p.shared.desiredSnapshot(scene);
-    state.savePresetFile(plugin.allocator, arg, scene) catch |err| return writeError(w, @errorName(err));
+    effects.exportFile(p, arg) catch |err| return writeError(w, effects.describe(err));
     try w.writeAll("{\"ok\":true}");
 }
 

@@ -272,7 +272,16 @@ pub fn patchOf(p: *Plugin, row: Row) types.Patch {
             break :blk .{ .tone = .{ .part = p.strings.intern(part), .number = tone.number, .msb = tone.msb, .lsb = tone.lsb } };
         },
     };
-    return .{ .source = source, .name = row.name, .id = @intCast(row.value), .label = row.name };
+    return .{ .source = source, .name = row.name, .id = @intCast(row.value), .label = labelOf(p, row) };
+}
+
+/// The label of a scene made from a row: the name under which the patch's split is remembered. For a registration
+/// that is "<bank>-<slot> <Name>", the name that loading it directly gives, and for the others it is the name.
+fn labelOf(p: *Plugin, row: Row) strings.Ref {
+    if (row.kind != .registration) return row.name;
+    const parsed = registrations.parseFileName(p.strings.get(row.file)) orelse return row.name;
+    var buf: [strings.max_text]u8 = undefined;
+    return p.strings.internSlice(registrations.patchName(&buf, parsed));
 }
 
 /// The row with this patch ID, found in the rows of the table, or null when there is none. A scene template

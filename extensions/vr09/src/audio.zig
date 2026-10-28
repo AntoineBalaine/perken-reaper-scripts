@@ -114,6 +114,9 @@ pub const Slot = struct {
 };
 
 pub const max_slots = 16;
+const slot_free: u8 = 0;
+const slot_preparing: u8 = 1;
+const slot_claimed: u8 = 2;
 
 /// What the hook needs from REAPER's `audio_hook_register_t`, so that the
 /// tests can stand in for it.
@@ -128,7 +131,9 @@ pub const HostBuffers = struct {
 /// serves them.
 pub const Bridge = struct {
     slots: [max_slots]Slot = [_]Slot{.{}} ** max_slots,
-    claimed: [max_slots]Atomic(bool) = [_]Atomic(bool){Atomic(bool).init(false)} ** max_slots,
+    /// The state of each slot: free, being made ready by `claim`, or claimed. Because the hook acts on a slot as
+    /// soon as it sees it claimed, `claim` resets the slot while it is only being prepared.
+    claimed: [max_slots]Atomic(u8) = [_]Atomic(u8){Atomic(u8).init(slot_free)} ** max_slots,
     /// Counts the hook's post callbacks, so that a plugin can tell whether the
     /// audio device is running (it is not during an offline render).
     ticks: Atomic(u32) = Atomic(u32).init(0),
@@ -147,8 +152,9 @@ pub const Bridge = struct {
 
     pub fn claim(self: *Bridge) ?*Slot {
         for (&self.claimed, 0..) |*c, i| {
-            if (c.cmpxchgStrong(false, true, .acq_rel, .monotonic) == null) {
+            if (c.cmpxchgStrong(slot_free, slot_preparing, .acq_rel, .monotonic) == null) {
                 self.slots[i].reset();
+                c.store(slot_claimed, .release);
                 return &self.slots[i];
             }
         }
@@ -158,7 +164,7 @@ pub const Bridge = struct {
     pub fn release(self: *Bridge, slot: *Slot) void {
         slot.active.store(false, .release);
         for (&self.slots, 0..) |*s, i| {
-            if (s == slot) self.claimed[i].store(false, .release);
+            if (s == slot) self.claimed[i].store(slot_free, .release);
         }
     }
 
@@ -167,7 +173,7 @@ pub const Bridge = struct {
     pub fn onBuffer(self: *Bridge, is_post: bool, len: usize, host: HostBuffers) void {
         if (len == 0 or len > self.scratch_l.len) return;
         for (&self.slots, 0..) |*slot, i| {
-            if (!self.claimed[i].load(.acquire)) continue;
+            if (self.claimed[i].load(.acquire) != slot_claimed) continue;
             if (!slot.active.load(.acquire)) {
                 // The hook is the consumer of `out_ring` and owns `out_primed`, so it is the one that forgets what
                 // the plugin pushed before it stopped, which would otherwise play late when the loop starts again.
@@ -606,6 +612,23 @@ test "a measurement is asked for by any thread and begins in the audio thread" {
     var out_r: [16]f32 = undefined;
     loop.process(true, &block, &block, &out_l, &out_r);
     try std.testing.expect(!loop.ping_requested.load(.acquire));
+}
+
+test "the hook leaves a slot alone while it is being prepared" {
+    const allocator = std.testing.allocator;
+    const bridge = try Bridge.create(allocator);
+    defer allocator.destroy(bridge);
+    // A claim that has reserved the slot and has not finished resetting it: the hook must not clear its ring.
+    bridge.claimed[0].store(slot_preparing, .release);
+    const block = [_]f32{0.5} ** 32;
+    try std.testing.expect(bridge.slots[0].out_ring.push(&block, &block));
+    var unused: u8 = 0;
+    bridge.onBuffer(true, 32, .{ .ctx = &unused, .input_nch = 0, .output_nch = 0, .get = noBuffers });
+    try std.testing.expectEqual(@as(usize, 32), bridge.slots[0].out_ring.available());
+    // Once the slot is claimed, an inactive one is cleared by the hook.
+    bridge.claimed[0].store(slot_claimed, .release);
+    bridge.onBuffer(true, 32, .{ .ctx = &unused, .input_nch = 0, .output_nch = 0, .get = noBuffers });
+    try std.testing.expectEqual(@as(usize, 0), bridge.slots[0].out_ring.available());
 }
 
 test "slots are claimed and released" {

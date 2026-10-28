@@ -9,6 +9,7 @@
 //! name per line.
 
 const std = @import("std");
+const fileio = @import("fileio.zig");
 
 /// Middle C (C4). The keyboard always splits there.
 pub const split_note: u8 = 60;
@@ -68,7 +69,7 @@ fn partFor(split: bool, pitch: u8) u8 {
 
 pub fn isSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8) bool {
     if (name.len == 0) return false;
-    const text = std.fs.cwd().readFileAlloc(allocator, path, 1 << 20) catch return false;
+    const text = fileio.readAll(allocator, path) catch return false;
     defer allocator.free(text);
     var lines = std.mem.splitScalar(u8, text, '\n');
     while (lines.next()) |line| {
@@ -80,7 +81,7 @@ pub fn isSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8)
 /// Adds the patch to the list, or removes it, rewriting the file.
 pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8, on: bool) !void {
     if (name.len == 0) return;
-    const old = std.fs.cwd().readFileAlloc(allocator, path, 1 << 20) catch |err| switch (err) {
+    const old = fileio.readAll(allocator, path) catch |err| switch (err) {
         error.FileNotFound => try allocator.dupe(u8, ""),
         else => return err,
     };
@@ -98,8 +99,8 @@ pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8
         try out.appendSlice(name);
         try out.append('\n');
     }
-    if (std.fs.path.dirname(path)) |dir| try std.fs.cwd().makePath(dir);
-    try std.fs.cwd().writeFile(.{ .sub_path = path, .data = out.items });
+    if (std.fs.path.dirname(path)) |dir| try fileio.makePath(dir);
+    try fileio.writeAll(path, out.items);
 }
 
 test "without a split every note goes to the upper part" {

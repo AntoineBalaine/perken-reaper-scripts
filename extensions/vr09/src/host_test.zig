@@ -1003,6 +1003,86 @@ test "automation of the loop leaves the track's flag to the main thread" {
     try std.testing.expect(!self.loop_flag_dirty.load(.acquire));
 }
 
+fn newTestPlugin(host: *MockHost) *plugin.Plugin {
+    host.init();
+    return plugin.Plugin.from(createPlugin(host));
+}
+
+test "a template gives back what it can and says what it could not" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    const self = newTestPlugin(&host);
+    defer destroyPlugin(@ptrCast(&self.clap));
+    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "Kept 1"));
+    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 2, 0, 0, "Kept 2"));
+
+    // A template whose patches are all gone does not take the session's scenes away.
+    try std.testing.expectError(error.EmptyTemplate, dispatch.loadTemplateText(self, "Gone\t99999\nDamaged\n", false));
+    try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
+    try std.testing.expectEqualStrings("Kept 1", self.scene_list.get(1).?.name());
+
+    // One that gives some back replaces the scenes, and counts what it left out: a patch that is gone, a damaged line.
+    const result = try dispatch.loadTemplateText(self, "Pad A\t101\nGone\t99999\nDamaged\nSynth B\t300\n", false);
+    try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
+    try std.testing.expectEqualStrings("Pad A", self.scene_list.get(1).?.name());
+    try std.testing.expectEqualStrings("Synth B", self.scene_list.get(2).?.name());
+    try std.testing.expectEqual(@as(usize, 1), result.missing);
+    try std.testing.expectEqual(@as(usize, 1), result.failed);
+
+    // Added to a full list, the lines that do not fit are counted as not added.
+    while (self.scene_list.count < 127) _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 3, 0, 0, "Fill"));
+    const full = try dispatch.loadTemplateText(self, "More\t101\nMore\t102\n", true);
+    try std.testing.expectEqual(@as(usize, 2), full.failed);
+    try std.testing.expectEqual(@as(u8, 127), self.scene_list.count);
+}
+
+test "loading a patch that is not a scene sets the Scene parameter to none, and a scene keeps its split under its patch" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    const self = newTestPlugin(&host);
+    defer destroyPlugin(@ptrCast(&self.clap));
+
+    // A scene whose label is the key of its patch's split, and whose name the player has changed.
+    const patch = tonePatch(self, "upper_piano", 1, 0, 0, "Intro");
+    var scene_patch = patch;
+    scene_patch.label = self.strings.intern("2-1 Sweet_Dream");
+    _ = try dispatch.addScene(self, scene_patch);
+    try self.selectScene(1);
+    try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
+    try std.testing.expectEqualStrings("Intro", self.settings.presetName());
+    try std.testing.expectEqualStrings("2-1 Sweet_Dream", self.settings.splitKey());
+
+    // A patch of the library is not a scene: the parameter goes to none, and the split key is the patch's name.
+    dispatch.dispatch(self, .{ .send_patch = tonePatch(self, "upper_piano", 5, 0, 0, "Grand") });
+    try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
+    try std.testing.expectEqualStrings("Grand", self.settings.splitKey());
+}
+
+test "a scene clear leaves no scene to go back to, and a full command queue is told" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    const self = newTestPlugin(&host);
+    defer destroyPlugin(@ptrCast(&self.clap));
+    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
+    try self.selectScene(1);
+    var out: [256]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_clear", "");
+    // Automation asks for a scene that does not exist: the number goes back to none, and not to the cleared scene.
+    self.requestScene(9);
+    self.applyPendingScene();
+    try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
+
+    // The engine's queue takes a few commands, and the panel says so when it is full.
+    while (self.shared.sendCommand(.read_all)) {}
+    dispatch.dispatch(self, .read_keyboard);
+    try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "busy") != null);
+    try std.testing.expect(self.ui.notice_is_error);
+}
+
 test "a control change parameter sends a CC and nothing else" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();

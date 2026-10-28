@@ -50,6 +50,9 @@ pub const Settings = struct {
     /// decides the part each note goes to (see split.zig).
     split: Atomic(bool) = Atomic(bool).init(false),
     preset_name: [64:0]u8 = [_:0]u8{0} ** 64,
+    /// The name under which the current patch's split is remembered. It is the patch's name, except for a scene
+    /// of the library, whose name the player may change while its patch keeps the key it was loaded under.
+    split_key: [64:0]u8 = [_:0]u8{0} ** 64,
 
     pub fn sendDb(self: *const Settings) f32 {
         return @bitCast(self.send_db_bits.load(.monotonic));
@@ -67,10 +70,22 @@ pub const Settings = struct {
         self.return_db_bits.store(@bitCast(db), .monotonic);
     }
 
+    /// Names the current patch, and takes the name as the key of its split.
     pub fn setPresetName(self: *Settings, name: []const u8) void {
         @memset(&self.preset_name, 0);
         const n = @min(name.len, self.preset_name.len - 1);
         @memcpy(self.preset_name[0..n], name[0..n]);
+        self.setSplitKey(name);
+    }
+
+    pub fn setSplitKey(self: *Settings, key: []const u8) void {
+        @memset(&self.split_key, 0);
+        const n = @min(key.len, self.split_key.len - 1);
+        @memcpy(self.split_key[0..n], key[0..n]);
+    }
+
+    pub fn splitKey(self: *const Settings) [:0]const u8 {
+        return std.mem.sliceTo(&self.split_key, 0);
     }
 
     pub fn presetName(self: *const Settings) [:0]const u8 {

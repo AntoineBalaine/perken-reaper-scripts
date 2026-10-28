@@ -344,11 +344,21 @@ pub const Plugin = struct {
     // ---- presets ----
 
     /// Replaces the scene with a dump and has the engine recall it.
-    pub fn loadScene(self: *Plugin, scene: *const dump.Dump, name: []const u8) void {
+    pub fn loadScene(self: *Plugin, scene: *const dump.Dump, name: []const u8, split_key: []const u8) void {
         self.shared.loadDesired(scene);
         self.settings.setPresetName(name);
-        self.settings.split.store(patchSplits(name), .monotonic);
+        self.settings.setSplitKey(split_key);
+        self.settings.split.store(patchSplits(split_key), .monotonic);
         _ = self.shared.scene_gen.fetchAdd(1, .release);
+    }
+
+    /// Loads a patch that is not one of the session's scenes (a registration, a preset, a tone of the library).
+    /// Because the keyboard then plays something that no scene stands for, the Scene parameter goes to none, and the
+    /// host is told, with the Split parameter, which the patch may have changed.
+    pub fn loadPatch(self: *Plugin, patch: *const dump.Dump, name: []const u8) void {
+        self.loadScene(patch, name, name);
+        self.setScene(0);
+        self.rescanParamValues();
     }
 
     /// Writes the bytes that a dump knows (a tone's three, for one) and has the engine recall them, without
@@ -402,7 +412,10 @@ pub const Plugin = struct {
     pub fn selectScene(self: *Plugin, position: u8) error{NoSuchScene}!void {
         const scene = self.scene_list.get(position) orelse return error.NoSuchScene;
         self.setScene(position);
-        self.loadScene(&scene.patch, scene.name());
+        // A scene of the library remembers its split under the name of its patch, which is its label. The name is the
+        // player's, and may have been changed.
+        const key = if (scene.label().len > 0) scene.label() else scene.name();
+        self.loadScene(&scene.patch, scene.name(), key);
         self.rescanParamValues();
     }
 
@@ -487,7 +500,7 @@ pub const Plugin = struct {
         defer allocator.destroy(scene);
         scene.* = .{};
         try state.loadPresetFile(allocator, path, scene);
-        self.loadScene(scene, name);
+        self.loadPatch(scene, name);
     }
 
     // ---- once per timer tick, on the main thread ----
@@ -799,7 +812,7 @@ pub fn setPatchSplit(self: *Plugin, on: bool) void {
     if (!glue.ready) return;
     var buf: [1024]u8 = undefined;
     const path = state.splitsPath(&buf, glue.resourcePath()) catch return;
-    split.setSplit(allocator, path, self.settings.presetName(), on) catch |err| log.warn("could not save the split list: {s}", .{@errorName(err)});
+    split.setSplit(allocator, path, self.settings.splitKey(), on) catch |err| log.warn("could not save the split list: {s}", .{@errorName(err)});
 }
 
 /// A parameter of the plugin itself changed, from automation.
@@ -1159,6 +1172,10 @@ fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.C) bool {
         return false;
     };
     self.applyLoopSettings();
+    // Because the scenes that were read replace the list, the Scene parameter that pointed into the old one
+    // goes to none.
+    self.setScene(0);
+    self.rescanParamValues();
     return true;
 }
 

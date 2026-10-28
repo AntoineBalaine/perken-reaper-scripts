@@ -63,6 +63,26 @@ fn chooseTone(p: *Plugin, c: types.ChooseTone) void {
     say(p, "Sent \"{s}\" to the keyboard.", .{c.tone.name}, false);
 }
 
+/// What a command that the engine's queue did not take says to the player.
+pub const busy_text = "the plugin is busy; try again";
+
+/// The commands to the keyboard that the panel and the debug API both send. Each returns whether the engine's queue
+/// took the command.
+pub fn requestRead(p: *Plugin) bool {
+    return p.shared.sendCommand(.capture_keyboard);
+}
+
+pub fn requestWrite(p: *Plugin) bool {
+    return p.shared.sendCommand(.recall);
+}
+
+pub fn requestReconnect(p: *Plugin) bool {
+    if (!p.shared.sendCommand(.reconnect)) return false;
+    p.settings.autoconnect_done.store(false, .monotonic);
+    p.ticks = 0;
+    return true;
+}
+
 /// What a save that could not begin says to the player.
 pub fn saveErrorText(err: Plugin.SaveError) []const u8 {
     return switch (err) {
@@ -92,6 +112,8 @@ pub fn describe(err: anyerror) []const u8 {
         error.EmptyName => "give it a name first",
         error.BadFileName => "the file name does not look like a registration's",
         error.NeedFullPath => "type the full path of the file to write",
+        error.EmptyTemplate => "none of its patches could be found, so the scenes were left as they are",
+        error.NothingToSave => "none of the scenes came from the library, so a template would hold nothing",
         else => @errorName(err),
     };
 }
@@ -104,12 +126,18 @@ pub fn dispatch(p: *Plugin, action: Action) void {
         },
 
         .read_keyboard => {
-            _ = p.shared.sendCommand(.capture_keyboard);
-            say(p, "Reading the keyboard's state into this plugin.", .{}, false);
+            if (requestRead(p)) {
+                say(p, "Reading the keyboard's state into this plugin.", .{}, false);
+            } else {
+                say(p, "The keyboard was not read: {s}.", .{busy_text}, true);
+            }
         },
         .send_to_keyboard => {
-            _ = p.shared.sendCommand(.recall);
-            say(p, "Writing this plugin's state to the keyboard.", .{}, false);
+            if (requestWrite(p)) {
+                say(p, "Writing this plugin's state to the keyboard.", .{}, false);
+            } else {
+                say(p, "The keyboard was not written: {s}.", .{busy_text}, true);
+            }
         },
         .save_keyboard => |name| p.startSave(p.strings.get(name)) catch |err| say(p, "The keyboard was not saved: {s}.", .{saveErrorText(err)}, true),
         .send_patch => |patch| {
@@ -227,10 +255,11 @@ pub fn dispatch(p: *Plugin, action: Action) void {
         .set_pass_midi => |on| p.settings.pass_midi.store(on, .monotonic),
         .set_sysex_bare => |on| p.settings.sysex_bare.store(on, .monotonic),
         .reconnect => {
-            _ = p.shared.sendCommand(.reconnect);
-            p.settings.autoconnect_done.store(false, .monotonic);
-            p.ticks = 0;
-            say(p, "Asking the keyboard who it is.", .{}, false);
+            if (requestReconnect(p)) {
+                say(p, "Asking the keyboard who it is.", .{}, false);
+            } else {
+                say(p, "The keyboard was not asked: {s}.", .{busy_text}, true);
+            }
         },
 
         .choose_tone => |c| chooseTone(p, c),
@@ -295,7 +324,7 @@ pub fn sendPatch(p: *Plugin, patch: Patch) !void {
             defer plugin.allocator.destroy(patch_dump);
             patch_dump.* = .{};
             try loadPatchDump(p, patch.source, patch_dump);
-            p.loadScene(patch_dump, p.strings.get(patch.name));
+            p.loadPatch(patch_dump, p.strings.get(patch.name));
         },
         .current, .unsupported => return error.NotSupported,
     }
@@ -320,7 +349,7 @@ fn loadPreset(p: *Plugin, file_name: []const u8) !void {
     try p.loadPresetFile(path, state.displayName(file_name));
 }
 
-fn deletePreset(p: *Plugin, file_name: []const u8) !void {
+pub fn deletePreset(p: *Plugin, file_name: []const u8) !void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .presets);
     var path_buf: [fileio.max_path]u8 = undefined;
@@ -366,7 +395,7 @@ fn importFile(p: *Plugin) !?strings.Ref {
     return p.strings.intern(base);
 }
 
-fn exportFile(p: *Plugin, target: []const u8) !void {
+pub fn exportFile(p: *Plugin, target: []const u8) !void {
     if (target.len == 0 or !std.fs.path.isAbsolute(target)) return error.NeedFullPath;
     const snapshot = try plugin.allocator.create(dump.Dump);
     defer plugin.allocator.destroy(snapshot);
@@ -461,20 +490,19 @@ fn saveTemplate(p: *Plugin, wanted: []const u8) !SavedTemplate {
     var clean_buf: [name_cap]u8 = undefined;
     const clean = cleanTemplateName(&clean_buf, wanted);
     if (clean.len == 0) return error.EmptyName;
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = try folderOf(&folder_buf, .templates);
-    try fileio.makePath(folder);
     var text = std.ArrayList(u8).init(plugin.allocator);
     defer text.deinit();
     const written = try templateText(p.scene_list, &text);
+    // Because a template of no scenes would replace a good one of the same name, it is not written.
+    if (written == 0) return error.NothingToSave;
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = try folderOf(&folder_buf, .templates);
+    try fileio.makePath(folder);
     var path_buf: [fileio.max_path]u8 = undefined;
     try fileio.writeAll(try templatePath(&path_buf, folder, clean), text.items);
     return .{ .name = p.strings.intern(clean), .scenes = written };
 }
 
-/// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
-/// library, by the patch ID that the template holds. Returns how many lines were left out because their patch
-/// is not in the library.
 /// What a template could not give back: the scenes whose patch is not in the library any more, and the lines
 /// that did not become a scene for another reason (the list was full, a preset file was gone, a line was damaged).
 pub const TemplateResult = struct { missing: usize = 0, failed: usize = 0 };
@@ -487,11 +515,14 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !TemplateResult {
     var path_buf: [fileio.max_path]u8 = undefined;
     const text = try fileio.readAll(plugin.allocator, try templatePath(&path_buf, folder, name));
     defer plugin.allocator.free(text);
-    if (!append) {
-        p.scene_list.clear();
-        p.setScene(0);
-        p.rescanParamValues();
-    }
+    return loadTemplateText(p, text, append);
+}
+
+/// Makes the scenes of a template's text. Every line is looked up first, so that a template that gives nothing
+/// back does not take the scenes away.
+pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateResult {
+    var patches = std.ArrayList(Patch).init(plugin.allocator);
+    defer patches.deinit();
     var result = TemplateResult{};
     var lines = std.mem.tokenizeScalar(u8, text, '\n');
     while (lines.next()) |line| {
@@ -509,6 +540,18 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !TemplateResult {
         };
         // Because a line is a piece of the file, its name is not terminated, and is copied to be stored.
         patch.name = p.strings.internSlice(line[0..tab]);
+        patches.append(patch) catch {
+            result.failed += 1;
+            continue;
+        };
+    }
+    if (!append) {
+        if (patches.items.len == 0) return error.EmptyTemplate;
+        p.scene_list.clear();
+        p.setScene(0);
+        p.rescanParamValues();
+    }
+    for (patches.items) |patch| {
         _ = addScene(p, patch) catch {
             result.failed += 1;
             continue;
