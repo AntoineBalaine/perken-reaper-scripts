@@ -1,4 +1,5 @@
 const std = @import("std");
+const mft_globals = @import("../mft_globals.zig");
 const builtin = @import("builtin");
 // The C declarations, translated by the build from src/csurf/c_bindings.h.
 const c = @import("c");
@@ -37,6 +38,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
 }
 
 fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     if (cc >= 8) return;
     const slot: u3 = @intCast(cc);
 
@@ -47,7 +49,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
         .TRANSPORT => {
-            globals.mft.activity.markTurn(slot, std.time.milliTimestamp());
+            globals.mft.activity.markTurn(slot, std.Io.Timestamp.now(io, .awake).toMilliseconds());
             // Knob 3 held + turned does vertical zoom instead of horizontal.
             if (slot == 2 and globals.mft.isHeld(2)) {
                 globals.mft.transport_turned = true;
@@ -108,7 +110,7 @@ fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
     // The six colors come first, in the order of the modules, then the sensitivity; the rest are plugin-name rows,
     // which only the keyboard edits. The mouse of the panel changes the same values through the same functions.
     if (cursor < 6) {
-        const module: MftActiveModule = @enumFromInt(cursor);
+        const module: MftActiveModule = @fromBackingInt(@intCast(cursor));
         const hue = wrapHue(globals.preferences.colorForModule(module), delta);
         mft_settings.setHue(globals, module, hue);
     } else if (cursor == 6) {
@@ -146,13 +148,14 @@ fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
 }
 
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     const pressed = val == 127;
     if (cc < 8) {
         // Presses on the top two rows depend on the active mode. In a mappable
         // module they arm fine-tune; in transport mode they drive transport.
         switch (globals.mft.active_module) {
             .TRANSPORT => {
-                globals.mft.activity.markPress(cc, pressed, std.time.milliTimestamp());
+                globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
                 transportButton(globals, @intCast(cc), pressed);
             },
             .SETTINGS => {},
@@ -186,9 +189,10 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
 }
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     // The panel lights a key while it is down and for a moment after, so the release counts too.
     for (mft.SIDE_BUTTON_CCS, 0..) |key_cc, key| {
-        if (key_cc == cc) globals.mft.activity.markSide(key, val == 127, std.time.milliTimestamp());
+        if (key_cc == cc) globals.mft.activity.markSide(key, val == 127, std.Io.Timestamp.now(io, .awake).toMilliseconds());
     }
     if (val != 127) return;
     // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3. L2 (panel toggle)

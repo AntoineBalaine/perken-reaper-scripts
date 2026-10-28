@@ -49,8 +49,8 @@ pub const value_linger_ms: i64 = @import("mft_state.zig").linger_ms;
 /// value changed. Because the panel mirrors the controller, a turn is only known by the value changing between two
 /// frames.
 pub const Activity = struct {
-    last: [8]f64 = [_]f64{0.0} ** 8,
-    engaged_at: [8]i64 = [_]i64{never} ** 8,
+    last: [8]f64 = @splat(0.0),
+    engaged_at: [8]i64 = @splat(never),
     module: ?MftActiveModule = null,
     track: reaper.MediaTrack = null,
 
@@ -68,7 +68,7 @@ pub const Activity = struct {
             self.module = module;
             self.track = track;
             self.last = info.vals;
-            self.engaged_at = [_]i64{never} ** 8;
+            self.engaged_at = @splat(never);
         }
         var bits: u8 = 0;
         for (0..8) |slot| {
@@ -97,8 +97,8 @@ fn reaperFormat(track: reaper.MediaTrack, fx: c_int, param: c_int, buf: *[format
 /// out of the frame's data until the panel copies them in.
 pub const FormattedValues = struct {
     bufs: [8][formatted_len:0]u8 = undefined,
-    ok: [8]bool = [_]bool{false} ** 8,
-    asked_for: [8]f64 = [_]f64{-1.0} ** 8,
+    ok: [8]bool = @splat(false),
+    asked_for: [8]f64 = @splat(-1.0),
     module: ?MftActiveModule = null,
     track: reaper.MediaTrack = null,
     source: FormatSource = &reaperFormat,
@@ -111,8 +111,8 @@ pub const FormattedValues = struct {
         if (self.module != module or self.track != track) {
             self.module = module;
             self.track = track;
-            self.ok = [_]bool{false} ** 8;
-            self.asked_for = [_]f64{-1.0} ** 8;
+            self.ok = @splat(false);
+            self.asked_for = @splat(-1.0);
         }
         const track_ptr = track orelse return;
         for (0..8) |slot| {
@@ -135,10 +135,10 @@ pub const FormattedValues = struct {
 
 pub fn register() void {
     if (comptime builtin.is_test) return;
-    _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
 }
 
-fn onTimer() callconv(.C) void {
+fn onTimer() callconv(.c) void {
     if (disabled) return;
     // Skip the first tick so other extensions (ReaImGui) finish loading.
     if (!ready) {
@@ -162,7 +162,7 @@ fn onTimer() callconv(.C) void {
         imgui.init(reaper.plugin_getapi) catch {
             log.err("ReaImGui not available; disabling MFT panel", .{});
             disabled = true;
-            _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+            _ = reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
             return;
         };
         ctx = imgui.CreateContext(.{plugin_name}) catch {
@@ -200,6 +200,7 @@ const window_rounding: f64 = 16;
 const cards_gap: f64 = 10;
 
 fn draw(globals: *MftGlobals) !void {
+    const io = mft_globals.hostIo();
     // Only called while the panel is visible: onTimer owns the hide/show cycle by
     // dropping the context when hidden, so draw always submits the window.
     kit.ctx = ctx;
@@ -231,7 +232,7 @@ fn draw(globals: *MftGlobals) !void {
     const active = globals.mft.active_module;
     std.debug.assert(moduleColor(globals, active) != 0);
     var view = readView(globals);
-    const now_ms = std.time.milliTimestamp();
+    const now_ms = std.Io.Timestamp.now(io, .awake).toMilliseconds();
     for (0..8) |i| {
         const bit = @as(u8, 1) << @intCast(i);
         if (globals.mft.activity.turnLit(i, now_ms)) view.turn_lit |= bit;
@@ -269,8 +270,8 @@ fn draw(globals: *MftGlobals) !void {
 /// are held, and the state of the track's mute, solo and phase.
 fn readView(globals: *MftGlobals) device.View {
     var module_colors: [6]c_int = undefined;
-    inline for (@typeInfo(MftActiveModule).@"enum".fields, 0..) |field, i| {
-        module_colors[i] = moduleColor(globals, @enumFromInt(field.value));
+    inline for (@typeInfo(MftActiveModule).@"enum".field_values, 0..) |field_value, i| {
+        module_colors[i] = moduleColor(globals, @fromBackingInt(@intCast(field_value)));
     }
     const active = globals.mft.active_module;
     const view = device.View{
@@ -286,7 +287,7 @@ fn readView(globals: *MftGlobals) device.View {
 
 // Reads whether the track is muted, soloed and phase-inverted, which the keys on the right of the device show.
 fn readSideLit(globals: *MftGlobals) [3]bool {
-    const track = globals.current_track orelse return [_]bool{false} ** 3;
+    const track = globals.current_track orelse return @splat(false);
     return .{
         reaper.GetMediaTrackInfo_Value(track, "B_MUTE") != 0,
         reaper.GetMediaTrackInfo_Value(track, "I_SOLO") != 0,
@@ -338,7 +339,7 @@ fn drawWizard(globals: *MftGlobals) void {
     const result = w.results[w.current];
 
     var buf: [128:0]u8 = undefined;
-    widgets.display(&kit, std.fmt.bufPrintZ(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }) catch "Calibration", theme.amber, 200);
+    widgets.display(&kit, std.mem.printSentinel(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }, 0) catch "Calibration", theme.amber, 200);
     imgui.api.Text(ctx, wizard.describe(step, &buf));
     imgui.api.TextColored(ctx, theme.grey, wizard.expectedText(step, &buf));
     imgui.api.Text(ctx, wizard.observedText(result, &buf));
@@ -481,7 +482,7 @@ test "the mouse over a knob is found, and a folded device has no knob to hover" 
     defer mock.restore();
 
     var panel = widgets.Panel{};
-    var view = device.View{ .active = .IO, .colors = [_]c_int{0x11} ** 6 };
+    var view = device.View{ .active = .IO, .colors = @splat(0x11) };
     // The mock's cursor is at the origin, so that the second knob of the first row is at this place.
     const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h, view.value_mode);
     mock.mouse_x = cell.cx;
@@ -497,7 +498,7 @@ const FakeFormat = struct {
     fn format(_: reaper.MediaTrack, _: c_int, param: c_int, buf: *[formatted_len:0]u8) bool {
         calls += 1;
         if (empty) return true;
-        _ = std.fmt.bufPrintZ(buf, "{d}.0 dB", .{param}) catch return false;
+        _ = std.mem.printSentinel(buf, "{d}.0 dB", .{param}, 0) catch return false;
         return true;
     }
 };
@@ -539,6 +540,7 @@ test "the plugin's text is asked for the knobs that show a value, once per value
 }
 
 test "a transport turn, a press and a left key light the panel while they last, and the stacks balance" {
+    const io = std.testing.io;
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -546,7 +548,7 @@ test "a transport turn, a press and a left key light the panel while they last, 
 
     var globals: MftGlobals = .{};
     globals.mft.active_module = .TRANSPORT;
-    const now = std.time.milliTimestamp();
+    const now = std.Io.Timestamp.now(io, .awake).toMilliseconds();
     globals.mft.activity.markTurn(0, now);
     globals.mft.activity.markPress(1, true, now);
     globals.mft.activity.markSide(2, true, now);

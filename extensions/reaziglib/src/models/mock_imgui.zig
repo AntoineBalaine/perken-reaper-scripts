@@ -335,7 +335,7 @@ pub const MockImGui = struct {
             .double_click_targets = .empty,
             .drag_targets = .empty,
             .key_press_targets = .empty,
-            .input_text_enter = .{},
+            .input_text_enter = .empty,
             .allocator = allocator,
             .orig_funcs = undefined,
             .orig_get_error = undefined,
@@ -364,8 +364,8 @@ pub const MockImGui = struct {
         imgui.getError = @constCast(&mockGetError);
 
         // First pass: set all api fields to the name-reporting panic stub
-        inline for (@typeInfo(imgui.API).@"struct".fields) |field| {
-            @field(imgui.api, field.name) = @ptrCast(@alignCast(@as(*anyopaque, @ptrCast(@constCast(&makeNamedPanic(field.name))))));
+        inline for (@typeInfo(imgui.API).@"struct".field_names) |field_name| {
+            @field(imgui.api, field_name) = @ptrCast(@alignCast(@as(*anyopaque, @ptrCast(@constCast(&makeNamedPanic(field_name))))));
         }
 
         // Second pass: set all enum/constant decl vars to 0
@@ -376,15 +376,15 @@ pub const MockImGui = struct {
         }
 
         // Third pass: save originals and install mocks
-        inline for (std.meta.fields(ImguiMocks)) |field| {
-            @field(self.orig_funcs, field.name) = @field(imgui.api, field.name);
-            @field(imgui.api, field.name) = @constCast(@field(@This(), field.name));
+        inline for (@typeInfo(ImguiMocks).@"struct".field_names) |field_name| {
+            @field(self.orig_funcs, field_name) = @field(imgui.api, field_name);
+            @field(imgui.api, field_name) = @constCast(@field(@This(), field_name));
         }
     }
 
     pub fn restore(self: *MockImGui) void {
-        inline for (std.meta.fields(ImguiMocks)) |field| {
-            @field(imgui.api, field.name) = @field(self.orig_funcs, field.name);
+        inline for (@typeInfo(ImguiMocks).@"struct".field_names) |field_name| {
+            @field(imgui.api, field_name) = @field(self.orig_funcs, field_name);
         }
         imgui.getError = self.orig_get_error;
         g_mock = null;
@@ -668,49 +668,49 @@ pub const MockImGui = struct {
 // Queries answer with a fixed, plausible value, so that the widgets lay out as they would in a window. The tooltip is
 // never shown, because the mouse is never over an item here.
 
-fn mockAttach(_: imgui.ContextPtr, _: imgui.ResourcePtr) callconv(.C) void {
+fn mockAttach(_: imgui.ContextPtr, _: imgui.ResourcePtr) callconv(.c) void {
     trace(.attach_font, "");
 }
 
-fn mockBeginTooltip(_: imgui.ContextPtr) callconv(.C) bool {
+fn mockBeginTooltip(_: imgui.ContextPtr) callconv(.c) bool {
     trace(.begin_tooltip, "");
     return false;
 }
 
-fn mockEndTooltip(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndTooltip(_: imgui.ContextPtr) callconv(.c) void {
     trace(.end_tooltip, "");
 }
 
 var mock_font_byte: u8 = 0;
 
-fn mockCreateFont(_: [*:0]const u8, _: c_int, _: ?*c_int) callconv(.C) imgui.FontPtr {
+fn mockCreateFont(_: [*:0]const u8, _: c_int, _: ?*c_int) callconv(.c) imgui.FontPtr {
     trace(.create_font, "");
     return @ptrCast(&mock_font_byte);
 }
 
-fn mockCreateFontFromMem(_: [*:0]const u8, _: c_int, _: c_int, _: ?*c_int) callconv(.C) imgui.FontPtr {
+fn mockCreateFontFromMem(_: [*:0]const u8, _: c_int, _: c_int, _: ?*c_int) callconv(.c) imgui.FontPtr {
     trace(.create_font, "");
     return @ptrCast(&mock_font_byte);
 }
 
-fn mockDL_AddRectFilledMultiColor(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: c_int, _: c_int, _: c_int) callconv(.C) void {
+fn mockDL_AddRectFilledMultiColor(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: c_int, _: c_int, _: c_int) callconv(.c) void {
     trace(.draw_list_add_rect_filled_multi_color, "");
 }
 
-fn mockDL_PathLineTo(_: imgui.DrawListPtr, _: f64, _: f64) callconv(.C) void {
+fn mockDL_PathLineTo(_: imgui.DrawListPtr, _: f64, _: f64) callconv(.c) void {
     trace(.draw_list_path_line_to, "");
 }
 
-fn mockGetContentRegionAvail(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.C) void {
+fn mockGetContentRegionAvail(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.c) void {
     w.* = 400.0;
     h.* = 300.0;
 }
 
-fn mockGetKeyMods(_: imgui.ContextPtr) callconv(.C) c_int {
+fn mockGetKeyMods(_: imgui.ContextPtr) callconv(.c) c_int {
     return 0;
 }
 
-fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     const m = g_mock orelse {
         x.* = 0.0;
         y.* = 0.0;
@@ -720,60 +720,60 @@ fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
     y.* = m.mouse_y;
 }
 
-fn mockIsMouseHoveringRect(_: imgui.ContextPtr, x1: f64, y1: f64, x2: f64, y2: f64, _: ?*bool) callconv(.C) bool {
+fn mockIsMouseHoveringRect(_: imgui.ContextPtr, x1: f64, y1: f64, x2: f64, y2: f64, _: ?*bool) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.mouse_x >= x1 and m.mouse_x <= x2 and m.mouse_y >= y1 and m.mouse_y <= y2;
 }
 
-fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
+fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
     return true;
 }
 
-fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
 }
 
-fn mockGetTextLineHeight(_: imgui.ContextPtr) callconv(.C) f64 {
+fn mockGetTextLineHeight(_: imgui.ContextPtr) callconv(.c) f64 {
     // The same height that `mockCalcTextSize` gives a line of text.
     return 16.0;
 }
 
-fn mockIsItemActivated(_: imgui.ContextPtr) callconv(.C) bool {
+fn mockIsItemActivated(_: imgui.ContextPtr) callconv(.c) bool {
     return false;
 }
 
-fn mockIsItemClicked(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
+fn mockIsItemClicked(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
     return false;
 }
 
-fn mockPushTextWrapPos(_: imgui.ContextPtr, _: ?*f64) callconv(.C) void {
+fn mockPushTextWrapPos(_: imgui.ContextPtr, _: ?*f64) callconv(.c) void {
     trace(.push_text_wrap_pos, "");
     pushPair(.text_wrap);
 }
 
-fn mockPopTextWrapPos(_: imgui.ContextPtr) callconv(.C) void {
+fn mockPopTextWrapPos(_: imgui.ContextPtr) callconv(.c) void {
     trace(.pop_text_wrap_pos, "");
     popPair(.text_wrap);
 }
 
-fn mockSetMouseCursor(_: imgui.ContextPtr, _: c_int) callconv(.C) void {
+fn mockSetMouseCursor(_: imgui.ContextPtr, _: c_int) callconv(.c) void {
     trace(.set_mouse_cursor, "");
 }
 
-fn mockSetNextWindowPos(_: imgui.ContextPtr, _: f64, _: f64, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.C) void {
+fn mockSetNextWindowPos(_: imgui.ContextPtr, _: f64, _: f64, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.c) void {
     trace(.set_next_window_pos, "");
 }
 
 // -- Panic stub for unmocked functions --
 
-fn unmockedPanic() callconv(.C) noreturn {
+fn unmockedPanic() callconv(.c) noreturn {
     @panic("unmocked ImGui function called in test");
 }
 
-fn makeNamedPanic(comptime name: []const u8) fn () callconv(.C) noreturn {
+fn makeNamedPanic(comptime name: []const u8) fn () callconv(.c) noreturn {
     return struct {
-        fn panic() callconv(.C) noreturn {
+        fn panic() callconv(.c) noreturn {
             std.debug.print("UNMOCKED: {s}\n", .{name});
             @panic("unmocked ImGui function: " ++ name);
         }
@@ -782,53 +782,53 @@ fn makeNamedPanic(comptime name: []const u8) fn () callconv(.C) noreturn {
 
 // -- Mock getError: always returns null (no error) --
 
-fn mockGetError() callconv(.C) ?[*:0]const u8 {
+fn mockGetError() callconv(.c) ?[*:0]const u8 {
     return null;
 }
 
 // -- Generic reusable stubs --
 
-fn mockVoidCtx(_: imgui.ContextPtr) callconv(.C) void {}
+fn mockVoidCtx(_: imgui.ContextPtr) callconv(.c) void {}
 
-fn mockBoolCtxFalse(_: imgui.ContextPtr) callconv(.C) bool {
+fn mockBoolCtxFalse(_: imgui.ContextPtr) callconv(.c) bool {
     return false;
 }
 
 // -- Window mocks --
 
-fn mockBegin(_: imgui.ContextPtr, name: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.C) bool {
+fn mockBegin(_: imgui.ContextPtr, name: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.c) bool {
     trace(.begin_window, std.mem.span(name));
     pushPair(.window);
     return true;
 }
 
-fn mockEnd(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEnd(_: imgui.ContextPtr) callconv(.c) void {
     trace(.end_window, "");
     popPair(.window);
 }
 
-fn mockBeginChild(_: imgui.ContextPtr, name: [*:0]const u8, _: ?*f64, _: ?*f64, _: ?*c_int, _: ?*c_int) callconv(.C) bool {
+fn mockBeginChild(_: imgui.ContextPtr, name: [*:0]const u8, _: ?*f64, _: ?*f64, _: ?*c_int, _: ?*c_int) callconv(.c) bool {
     trace(.begin_child, std.mem.span(name));
     pushPair(.child);
     return true;
 }
 
-fn mockEndChild(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndChild(_: imgui.ContextPtr) callconv(.c) void {
     trace(.end_child, "");
     popPair(.child);
 }
 
 // -- Text mocks --
 
-fn mockText(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.C) void {
+fn mockText(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.c) void {
     trace(.text, std.mem.span(txt));
 }
 
-fn mockTextColored(_: imgui.ContextPtr, _: c_int, txt: [*:0]const u8) callconv(.C) void {
+fn mockTextColored(_: imgui.ContextPtr, _: c_int, txt: [*:0]const u8) callconv(.c) void {
     trace(.text_colored, std.mem.span(txt));
 }
 
-fn mockTextDisabled(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.C) void {
+fn mockTextDisabled(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.c) void {
     trace(.text_disabled, std.mem.span(txt));
 }
 
@@ -843,28 +843,28 @@ fn traceAndConsumeClick(kind: WidgetKind, label: [*:0]const u8) bool {
 
 // -- Button mocks --
 
-fn mockButton(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*f64, _: ?*f64) callconv(.C) bool {
+fn mockButton(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*f64, _: ?*f64) callconv(.c) bool {
     return traceAndConsumeClick(.button, label);
 }
 
-fn mockSmallButton(_: imgui.ContextPtr, label: [*:0]const u8) callconv(.C) bool {
+fn mockSmallButton(_: imgui.ContextPtr, label: [*:0]const u8) callconv(.c) bool {
     return traceAndConsumeClick(.small_button, label);
 }
 
-fn mockInvisibleButton(_: imgui.ContextPtr, label: [*:0]const u8, _: f64, _: f64, _: ?*c_int) callconv(.C) bool {
+fn mockInvisibleButton(_: imgui.ContextPtr, label: [*:0]const u8, _: f64, _: f64, _: ?*c_int) callconv(.c) bool {
     const m = g_mock orelse @panic("g_mock is null");
     const lbl = std.mem.span(label);
     m.last_invisible_button_label = m.frame_arena.allocator().dupe(u8, lbl) catch @panic("dupe OOM");
     return traceAndConsumeClick(.invisible_button, label);
 }
 
-fn mockArrowButton(_: imgui.ContextPtr, label: [*:0]const u8, _: c_int) callconv(.C) bool {
+fn mockArrowButton(_: imgui.ContextPtr, label: [*:0]const u8, _: c_int) callconv(.c) bool {
     return traceAndConsumeClick(.arrow_button, label);
 }
 
 // -- Input widget mocks --
 
-fn mockCheckbox(_: imgui.ContextPtr, label: [*:0]const u8, v: *bool) callconv(.C) bool {
+fn mockCheckbox(_: imgui.ContextPtr, label: [*:0]const u8, v: *bool) callconv(.c) bool {
     const label_str = std.mem.span(label);
     trace(.checkbox, label_str);
     const m = g_mock.?;
@@ -875,13 +875,13 @@ fn mockCheckbox(_: imgui.ContextPtr, label: [*:0]const u8, v: *bool) callconv(.C
     return false;
 }
 
-fn mockSelectable(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.C) bool {
+fn mockSelectable(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.c) bool {
     const label_str = std.mem.span(label);
     trace(.selectable, label_str);
     return g_mock.?.selectable_targets.fetchRemove(label_str) != null;
 }
 
-fn mockBeginCombo(_: imgui.ContextPtr, label: [*:0]const u8, _: [*:0]const u8, _: ?*c_int) callconv(.C) bool {
+fn mockBeginCombo(_: imgui.ContextPtr, label: [*:0]const u8, _: [*:0]const u8, _: ?*c_int) callconv(.c) bool {
     const label_str = std.mem.span(label);
     trace(.begin_combo, label_str);
     const opened = g_mock.?.combo_open_targets.contains(label_str);
@@ -889,101 +889,101 @@ fn mockBeginCombo(_: imgui.ContextPtr, label: [*:0]const u8, _: [*:0]const u8, _
     return opened;
 }
 
-fn mockEndCombo(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndCombo(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.combo);
 }
 
-fn mockColorButton(_: imgui.ContextPtr, label: [*:0]const u8, _: c_int, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.C) bool {
+fn mockColorButton(_: imgui.ContextPtr, label: [*:0]const u8, _: c_int, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.c) bool {
     trace(.color_button, std.mem.span(label));
     return false;
 }
 
-fn mockColorPicker4(_: imgui.ContextPtr, label: [*:0]const u8, _: *c_int, _: ?*c_int, _: ?*c_int) callconv(.C) bool {
+fn mockColorPicker4(_: imgui.ContextPtr, label: [*:0]const u8, _: *c_int, _: ?*c_int, _: ?*c_int) callconv(.c) bool {
     trace(.color_picker4, std.mem.span(label));
     return false;
 }
 
 // -- Menu/popup mocks --
 
-fn mockBeginGroup(_: imgui.ContextPtr) callconv(.C) void {
+fn mockBeginGroup(_: imgui.ContextPtr) callconv(.c) void {
     pushPair(.group);
 }
 
-fn mockEndGroup(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndGroup(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.group);
 }
 
-fn mockBeginMenu(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool) callconv(.C) bool {
+fn mockBeginMenu(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool) callconv(.c) bool {
     trace(.begin_menu, std.mem.span(label));
     // Conditional: EndMenu only called if this returns true.
     // We return false, so we do not push.
     return false;
 }
 
-fn mockEndMenu(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndMenu(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.menu);
 }
 
-fn mockBeginPopup(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*c_int) callconv(.C) bool {
+fn mockBeginPopup(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*c_int) callconv(.c) bool {
     trace(.begin_popup, std.mem.span(label));
     // Conditional: returns false, no push.
     return false;
 }
 
-fn mockEndPopup(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndPopup(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.popup);
 }
 
-fn mockOpenPopup(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*c_int) callconv(.C) void {
+fn mockOpenPopup(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*c_int) callconv(.c) void {
     trace(.open_popup, std.mem.span(label));
 }
 
-fn mockBeginDisabled(_: imgui.ContextPtr, _: ?*bool) callconv(.C) void {
+fn mockBeginDisabled(_: imgui.ContextPtr, _: ?*bool) callconv(.c) void {
     trace(.begin_disabled, "");
     pushPair(.disabled);
 }
 
-fn mockEndDisabled(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndDisabled(_: imgui.ContextPtr) callconv(.c) void {
     trace(.end_disabled, "");
     popPair(.disabled);
 }
 
 // -- Layout mocks --
 
-fn mockSameLine(_: imgui.ContextPtr, _: ?*f64, _: ?*f64) callconv(.C) void {
+fn mockSameLine(_: imgui.ContextPtr, _: ?*f64, _: ?*f64) callconv(.c) void {
     trace(.same_line, "");
 }
 
-fn mockDummy(_: imgui.ContextPtr, _: f64, _: f64) callconv(.C) void {
+fn mockDummy(_: imgui.ContextPtr, _: f64, _: f64) callconv(.c) void {
     trace(.dummy, "");
 }
 
-fn mockIndent(_: imgui.ContextPtr, _: ?*f64) callconv(.C) void {
+fn mockIndent(_: imgui.ContextPtr, _: ?*f64) callconv(.c) void {
     trace(.indent, "");
 }
 
-fn mockUnindent(_: imgui.ContextPtr, _: ?*f64) callconv(.C) void {
+fn mockUnindent(_: imgui.ContextPtr, _: ?*f64) callconv(.c) void {
     trace(.unindent, "");
 }
 
 // -- Font/style mocks --
 
-fn mockPushFont(_: imgui.ContextPtr, _: imgui.FontPtr) callconv(.C) void {
+fn mockPushFont(_: imgui.ContextPtr, _: imgui.FontPtr) callconv(.c) void {
     trace(.push_font, "");
     pushPair(.font);
 }
 
-fn mockPopFont(_: imgui.ContextPtr) callconv(.C) void {
+fn mockPopFont(_: imgui.ContextPtr) callconv(.c) void {
     trace(.pop_font, "");
     popPair(.font);
 }
 
-fn mockPushStyleColor(_: imgui.ContextPtr, _: c_int, _: c_int) callconv(.C) void {
+fn mockPushStyleColor(_: imgui.ContextPtr, _: c_int, _: c_int) callconv(.c) void {
     trace(.push_style_color, "");
     pushPair(.style_color);
 }
 
-fn mockPopStyleColor(_: imgui.ContextPtr, count: ?*c_int) callconv(.C) void {
+fn mockPopStyleColor(_: imgui.ContextPtr, count: ?*c_int) callconv(.c) void {
     trace(.pop_style_color, "");
     // PopStyleColor can pop multiple at once via the count parameter
     const n: i32 = if (count) |c| c.* else 1;
@@ -993,53 +993,53 @@ fn mockPopStyleColor(_: imgui.ContextPtr, count: ?*c_int) callconv(.C) void {
     }
 }
 
-fn mockPushID(_: imgui.ContextPtr, label: [*:0]const u8) callconv(.C) void {
+fn mockPushID(_: imgui.ContextPtr, label: [*:0]const u8) callconv(.c) void {
     trace(.push_id, std.mem.span(label));
     pushPair(.id);
 }
 
-fn mockPopID(_: imgui.ContextPtr) callconv(.C) void {
+fn mockPopID(_: imgui.ContextPtr) callconv(.c) void {
     trace(.pop_id, "");
     popPair(.id);
 }
 
-fn mockSetNextItemWidth(_: imgui.ContextPtr, _: f64) callconv(.C) void {}
+fn mockSetNextItemWidth(_: imgui.ContextPtr, _: f64) callconv(.c) void {}
 
-fn mockPushItemWidth(_: imgui.ContextPtr, _: f64) callconv(.C) void {
+fn mockPushItemWidth(_: imgui.ContextPtr, _: f64) callconv(.c) void {
     trace(.push_item_width, "");
     pushPair(.item_width);
 }
 
-fn mockPopItemWidth(_: imgui.ContextPtr) callconv(.C) void {
+fn mockPopItemWidth(_: imgui.ContextPtr) callconv(.c) void {
     trace(.pop_item_width, "");
     popPair(.item_width);
 }
 
 // -- Cursor mocks --
 
-fn mockSetCursorPosX(_: imgui.ContextPtr, _: f64) callconv(.C) void {
+fn mockSetCursorPosX(_: imgui.ContextPtr, _: f64) callconv(.c) void {
     trace(.set_cursor_pos_x, "");
 }
 
-fn mockSetCursorPosY(_: imgui.ContextPtr, _: f64) callconv(.C) void {
+fn mockSetCursorPosY(_: imgui.ContextPtr, _: f64) callconv(.c) void {
     trace(.set_cursor_pos_y, "");
 }
 
-fn mockGetCursorPosX(_: imgui.ContextPtr) callconv(.C) f64 {
+fn mockGetCursorPosX(_: imgui.ContextPtr) callconv(.c) f64 {
     return 0.0;
 }
 
-fn mockGetCursorPosY(_: imgui.ContextPtr) callconv(.C) f64 {
+fn mockGetCursorPosY(_: imgui.ContextPtr) callconv(.c) f64 {
     return 0.0;
 }
 
-fn mockGetCursorScreenPos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetCursorScreenPos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     trace(.get_cursor_screen_pos, "");
     x.* = 0.0;
     y.* = 0.0;
 }
 
-fn mockSetCursorScreenPos(_: imgui.ContextPtr, _: f64, _: f64) callconv(.C) void {
+fn mockSetCursorScreenPos(_: imgui.ContextPtr, _: f64, _: f64) callconv(.c) void {
     trace(.set_cursor_screen_pos, "");
 }
 
@@ -1050,18 +1050,18 @@ fn mockSetCursorScreenPos(_: imgui.ContextPtr, _: f64, _: f64) callconv(.C) void
 // C function. A sentinel address avoids the "attempt to use null value" safety check.
 var dummy_draw_list_storage: u8 = 0;
 
-fn mockGetWindowDrawList(_: imgui.ContextPtr) callconv(.C) imgui.DrawListPtr {
+fn mockGetWindowDrawList(_: imgui.ContextPtr) callconv(.c) imgui.DrawListPtr {
     trace(.get_window_draw_list, "");
     return @ptrCast(&dummy_draw_list_storage);
 }
 
-fn mockGetWindowPos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetWindowPos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     trace(.get_window_pos, "");
     x.* = 0.0;
     y.* = 0.0;
 }
 
-fn mockGetWindowSize(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.C) void {
+fn mockGetWindowSize(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.c) void {
     trace(.get_window_size, "");
     w.* = 800.0;
     h.* = 600.0;
@@ -1071,131 +1071,131 @@ fn mockGetWindowSize(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.C) void {
 // Each signature must exactly match the corresponding API field.
 
 // DrawList_AddRect: (DrawListPtr, f64, f64, f64, f64, c_int, ?*f64, ?*c_int, ?*f64) void
-fn mockDL_AddRect(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int, _: ?*f64) callconv(.C) void {
+fn mockDL_AddRect(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int, _: ?*f64) callconv(.c) void {
     trace(.draw_list_add_rect, "");
 }
 
 // DrawList_AddRectFilled: (DrawListPtr, f64, f64, f64, f64, c_int, ?*f64, ?*c_int) void
-fn mockDL_AddRectFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int) callconv(.C) void {
+fn mockDL_AddRectFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int) callconv(.c) void {
     trace(.draw_list_add_rect_filled, "");
 }
 
 // DrawList_AddText: (DrawListPtr, f64, f64, c_int, [*:0]const u8) void
-fn mockDL_AddText(_: imgui.DrawListPtr, _: f64, _: f64, _: c_int, txt: [*:0]const u8) callconv(.C) void {
+fn mockDL_AddText(_: imgui.DrawListPtr, _: f64, _: f64, _: c_int, txt: [*:0]const u8) callconv(.c) void {
     trace(.draw_list_add_text, std.mem.span(txt));
 }
 
 // DrawList_AddTextEx: (DrawListPtr, FontPtr, f64, f64, f64, c_int, [*:0]const u8, ?*f64, ?*f64, ?*f64, ?*f64, ?*f64) void
-fn mockDL_AddTextEx(_: imgui.DrawListPtr, _: imgui.FontPtr, _: f64, _: f64, _: f64, _: c_int, txt: [*:0]const u8, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64) callconv(.C) void {
+fn mockDL_AddTextEx(_: imgui.DrawListPtr, _: imgui.FontPtr, _: f64, _: f64, _: f64, _: c_int, txt: [*:0]const u8, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64) callconv(.c) void {
     trace(.draw_list_add_text_ex, std.mem.span(txt));
 }
 
 // DrawList_AddQuadFilled: (DrawListPtr, f64, f64, f64, f64, f64, f64, f64, f64, c_int) void
-fn mockDL_AddQuadFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int) callconv(.C) void {
+fn mockDL_AddQuadFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int) callconv(.c) void {
     trace(.draw_list_add_quad_filled, "");
 }
 
 // DrawList_AddCircleFilled: (DrawListPtr, f64, f64, f64, c_int, ?*c_int) void
-fn mockDL_AddCircleFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: c_int, _: ?*c_int) callconv(.C) void {
+fn mockDL_AddCircleFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: c_int, _: ?*c_int) callconv(.c) void {
     trace(.draw_list_add_circle_filled, "");
 }
 
 // DrawList_AddCircle: (DrawListPtr, f64, f64, f64, c_int, ?*c_int, ?*f64) void
-fn mockDL_AddCircle(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: c_int, _: ?*c_int, _: ?*f64) callconv(.C) void {
+fn mockDL_AddCircle(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: c_int, _: ?*c_int, _: ?*f64) callconv(.c) void {
     trace(.draw_list_add_circle, "");
 }
 
 // DrawList_AddLine: (DrawListPtr, f64, f64, f64, f64, c_int, ?*f64) void
-fn mockDL_AddLine(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64) callconv(.C) void {
+fn mockDL_AddLine(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64) callconv(.c) void {
     trace(.draw_list_add_line, "");
 }
 
 // DrawList_AddTriangleFilled: (DrawListPtr, f64, f64, f64, f64, f64, f64, c_int) void
-fn mockDL_AddTriangleFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int) callconv(.C) void {
+fn mockDL_AddTriangleFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int) callconv(.c) void {
     trace(.draw_list_add_triangle_filled, "");
 }
 
 // DrawList_AddTriangle: (DrawListPtr, f64, f64, f64, f64, f64, f64, c_int, ?*f64) void
-fn mockDL_AddTriangle(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64) callconv(.C) void {
+fn mockDL_AddTriangle(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64) callconv(.c) void {
     trace(.draw_list_add_triangle, "");
 }
 
 // DrawList_PathArcTo: (DrawListPtr, f64, f64, f64, f64, f64, ?*c_int) void
-fn mockDL_PathArcTo(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: ?*c_int) callconv(.C) void {
+fn mockDL_PathArcTo(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: ?*c_int) callconv(.c) void {
     trace(.draw_list_path_arc_to, "");
 }
 
 // DrawList_PathStroke: (DrawListPtr, c_int, ?*c_int, ?*f64) void
-fn mockDL_PathStroke(_: imgui.DrawListPtr, _: c_int, _: ?*c_int, _: ?*f64) callconv(.C) void {
+fn mockDL_PathStroke(_: imgui.DrawListPtr, _: c_int, _: ?*c_int, _: ?*f64) callconv(.c) void {
     trace(.draw_list_path_stroke, "");
 }
 
 // DrawList_PathClear: (DrawListPtr) void
-fn mockDL_PathClear(_: imgui.DrawListPtr) callconv(.C) void {
+fn mockDL_PathClear(_: imgui.DrawListPtr) callconv(.c) void {
     trace(.draw_list_path_clear, "");
 }
 
 // -- Misc mocks --
 
-fn mockSetTooltip(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.C) void {
+fn mockSetTooltip(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.c) void {
     trace(.set_tooltip, std.mem.span(txt));
 }
 
-fn mockCalcTextSize(_: imgui.ContextPtr, _: [*:0]const u8, w: *f64, h: *f64, _: ?*bool, _: ?*f64) callconv(.C) void {
+fn mockCalcTextSize(_: imgui.ContextPtr, _: [*:0]const u8, w: *f64, h: *f64, _: ?*bool, _: ?*f64) callconv(.c) void {
     trace(.calc_text_size, "");
     w.* = 50.0;
     h.* = 16.0;
 }
 
-fn mockSetScrollHereY(_: imgui.ContextPtr, _: ?*f64) callconv(.C) void {
+fn mockSetScrollHereY(_: imgui.ContextPtr, _: ?*f64) callconv(.c) void {
     trace(.scroll_here_y, "");
 }
 
-fn mockSetNextWindowSize(_: imgui.ContextPtr, _: f64, _: f64, _: ?*c_int) callconv(.C) void {
+fn mockSetNextWindowSize(_: imgui.ContextPtr, _: f64, _: f64, _: ?*c_int) callconv(.c) void {
     trace(.set_next_window_size, "");
 }
 
-fn mockSetNextWindowDockID(_: imgui.ContextPtr, _: c_int, _: ?*c_int) callconv(.C) void {
+fn mockSetNextWindowDockID(_: imgui.ContextPtr, _: c_int, _: ?*c_int) callconv(.c) void {
     trace(.set_next_window_dock_id, "");
 }
 
-fn mockIsItemHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
+fn mockIsItemHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.double_click_targets.contains(m.last_invisible_button_label);
 }
 
-fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.C) bool {
+fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.double_click_targets.contains(m.last_invisible_button_label);
 }
 
-fn mockIsItemActive(_: imgui.ContextPtr) callconv(.C) bool {
+fn mockIsItemActive(_: imgui.ContextPtr) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.drag_targets.contains(m.last_invisible_button_label);
 }
 
-fn mockIsKeyDown(_: imgui.ContextPtr, key: c_int) callconv(.C) bool {
+fn mockIsKeyDown(_: imgui.ContextPtr, key: c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.key_press_targets.contains(key);
 }
 
-fn mockIsKeyPressed(_: imgui.ContextPtr, key: c_int, _: ?*bool) callconv(.C) bool {
+fn mockIsKeyPressed(_: imgui.ContextPtr, key: c_int, _: ?*bool) callconv(.c) bool {
     trace(.is_key_pressed, "");
     const m = g_mock orelse return false;
     return m.key_press_targets.contains(key);
 }
 
-fn mockSetKeyboardFocusHere(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) void {
+fn mockSetKeyboardFocusHere(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) void {
     trace(.set_keyboard_focus_here, "");
 }
 
-fn mockInputText(_: imgui.ContextPtr, label: [*:0]const u8, _: [*]u8, _: c_int, _: ?*c_int, _: imgui.FunctionPtr) callconv(.C) bool {
+fn mockInputText(_: imgui.ContextPtr, label: [*:0]const u8, _: [*]u8, _: c_int, _: ?*c_int, _: imgui.FunctionPtr) callconv(.c) bool {
     trace(.input_text, std.mem.span(label));
     const m = g_mock orelse return false;
     return m.input_text_enter.contains(std.mem.span(label));
 }
 
-fn mockGetMouseDragDelta(_: imgui.ContextPtr, x: *f64, y: *f64, _: ?*c_int, _: ?*f64) callconv(.C) void {
+fn mockGetMouseDragDelta(_: imgui.ContextPtr, x: *f64, y: *f64, _: ?*c_int, _: ?*f64) callconv(.c) void {
     const m = g_mock orelse {
         x.* = 0;
         y.* = 0;
@@ -1205,63 +1205,63 @@ fn mockGetMouseDragDelta(_: imgui.ContextPtr, x: *f64, y: *f64, _: ?*c_int, _: ?
     y.* = if (m.drag_targets.get(m.last_invisible_button_label)) |delta| delta else 0;
 }
 
-fn mockResetMouseDragDelta(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) void {}
+fn mockResetMouseDragDelta(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) void {}
 
-fn mockGetItemRectMax(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetItemRectMax(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
 }
 
-fn mockGetStyleColor(_: imgui.ContextPtr, _: c_int) callconv(.C) c_int {
+fn mockGetStyleColor(_: imgui.ContextPtr, _: c_int) callconv(.c) c_int {
     return 0;
 }
 
-fn mockGetStyleVar(_: imgui.ContextPtr, _: c_int, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetStyleVar(_: imgui.ContextPtr, _: c_int, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
 }
 
-fn mockGetTextLineHeightWithSpacing(_: imgui.ContextPtr) callconv(.C) f64 {
+fn mockGetTextLineHeightWithSpacing(_: imgui.ContextPtr) callconv(.c) f64 {
     return 20.0;
 }
 
-fn mockPushClipRect(_: imgui.ContextPtr, _: f64, _: f64, _: f64, _: f64, _: bool) callconv(.C) void {
+fn mockPushClipRect(_: imgui.ContextPtr, _: f64, _: f64, _: f64, _: f64, _: bool) callconv(.c) void {
     trace(.push_clip_rect, "");
     pushPair(.clip_rect);
 }
 
-fn mockPopClipRect(_: imgui.ContextPtr) callconv(.C) void {
+fn mockPopClipRect(_: imgui.ContextPtr) callconv(.c) void {
     trace(.pop_clip_rect, "");
     popPair(.clip_rect);
 }
 
-fn mockSetConfigVar(_: imgui.ContextPtr, _: c_int, _: f64) callconv(.C) void {
+fn mockSetConfigVar(_: imgui.ContextPtr, _: c_int, _: f64) callconv(.c) void {
     trace(.set_config_var, "");
 }
 
-fn mockColorConvertNative(color: c_int) callconv(.C) c_int {
+fn mockColorConvertNative(color: c_int) callconv(.c) c_int {
     return color;
 }
 
-fn mockBeginDragDropTarget(_: imgui.ContextPtr) callconv(.C) bool {
+fn mockBeginDragDropTarget(_: imgui.ContextPtr) callconv(.c) bool {
     // Conditional: returns false, no push.
     return false;
 }
 
-fn mockEndDragDropTarget(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndDragDropTarget(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.drag_drop_target);
 }
 
-fn mockAcceptDragDropPayloadRGB(_: imgui.ContextPtr, _: *c_int, _: ?*c_int) callconv(.C) bool {
+fn mockAcceptDragDropPayloadRGB(_: imgui.ContextPtr, _: *c_int, _: ?*c_int) callconv(.c) bool {
     return false;
 }
 
 // PushStyleVar: (ContextPtr, c_int, f64, ?*f64) void
-fn mockPushStyleVar(_: imgui.ContextPtr, _: c_int, _: f64, _: ?*f64) callconv(.C) void {
+fn mockPushStyleVar(_: imgui.ContextPtr, _: c_int, _: f64, _: ?*f64) callconv(.c) void {
     pushPair(.style_var);
 }
 
-fn mockPopStyleVar(_: imgui.ContextPtr, count: ?*c_int) callconv(.C) void {
+fn mockPopStyleVar(_: imgui.ContextPtr, count: ?*c_int) callconv(.c) void {
     const n: i32 = if (count) |c| c.* else 1;
     var i: i32 = 0;
     while (i < n) : (i += 1) {
@@ -1270,75 +1270,75 @@ fn mockPopStyleVar(_: imgui.ContextPtr, count: ?*c_int) callconv(.C) void {
 }
 
 // SetNextWindowSizeConstraints: (ContextPtr, f64, f64, f64, f64, FunctionPtr) void
-fn mockSetNextWindowSizeConstraints(_: imgui.ContextPtr, _: f64, _: f64, _: f64, _: f64, _: imgui.FunctionPtr) callconv(.C) void {}
+fn mockSetNextWindowSizeConstraints(_: imgui.ContextPtr, _: f64, _: f64, _: f64, _: f64, _: imgui.FunctionPtr) callconv(.c) void {}
 
 // Debug panel mocks
-fn mockGetFramerate(_: imgui.ContextPtr) callconv(.C) f64 {
+fn mockGetFramerate(_: imgui.ContextPtr) callconv(.c) f64 {
     return 60.0;
 }
 
-fn mockBeginTable(_: imgui.ContextPtr, _: [*:0]const u8, _: c_int, _: ?*c_int, _: ?*f64, _: ?*f64, _: ?*f64) callconv(.C) bool {
+fn mockBeginTable(_: imgui.ContextPtr, _: [*:0]const u8, _: c_int, _: ?*c_int, _: ?*f64, _: ?*f64, _: ?*f64) callconv(.c) bool {
     pushPair(.table);
     return true;
 }
 
-fn mockEndTable(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndTable(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.table);
 }
 
-fn mockTableSetupColumn(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*c_int, _: ?*f64, _: ?*c_int) callconv(.C) void {}
+fn mockTableSetupColumn(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*c_int, _: ?*f64, _: ?*c_int) callconv(.c) void {}
 
-fn mockTextWrapped(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.C) void {
+fn mockTextWrapped(_: imgui.ContextPtr, txt: [*:0]const u8) callconv(.c) void {
     trace(.text_wrapped, std.mem.span(txt));
 }
 
-fn mockCollapsingHeader(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.C) bool {
+fn mockCollapsingHeader(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.c) bool {
     return false; // collapsed by default
 }
 
-fn mockTableNextRow(_: imgui.ContextPtr, _: ?*c_int, _: ?*f64) callconv(.C) void {}
+fn mockTableNextRow(_: imgui.ContextPtr, _: ?*c_int, _: ?*f64) callconv(.c) void {}
 
 // DrawListSplitter mocks
 var dummy_splitter_storage: u8 = 0;
 
-fn mockCreateDrawListSplitter(_: imgui.DrawListPtr) callconv(.C) imgui.DrawListSplitterPtr {
+fn mockCreateDrawListSplitter(_: imgui.DrawListPtr) callconv(.c) imgui.DrawListSplitterPtr {
     return @ptrCast(&dummy_splitter_storage);
 }
 
-fn mockDLSplitterSplit(_: imgui.DrawListSplitterPtr, _: c_int) callconv(.C) void {}
-fn mockDLSplitterMerge(_: imgui.DrawListSplitterPtr) callconv(.C) void {}
-fn mockDLSplitterSetChannel(_: imgui.DrawListSplitterPtr, _: c_int) callconv(.C) void {}
+fn mockDLSplitterSplit(_: imgui.DrawListSplitterPtr, _: c_int) callconv(.c) void {}
+fn mockDLSplitterMerge(_: imgui.DrawListSplitterPtr) callconv(.c) void {}
+fn mockDLSplitterSetChannel(_: imgui.DrawListSplitterPtr, _: c_int) callconv(.c) void {}
 
-fn mockValidatePtr(_: *anyopaque, _: [*:0]const u8) callconv(.C) bool {
+fn mockValidatePtr(_: *anyopaque, _: [*:0]const u8) callconv(.c) bool {
     return true; // all pointers are considered valid in tests
 }
 
-fn mockGetItemRectMin(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+fn mockGetItemRectMin(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
 }
 
 // Tab bar mocks
-fn mockBeginTabBar(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*c_int) callconv(.C) bool {
+fn mockBeginTabBar(_: imgui.ContextPtr, _: [*:0]const u8, _: ?*c_int) callconv(.c) bool {
     pushPair(.tab_bar);
     return true;
 }
 
-fn mockEndTabBar(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndTabBar(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.tab_bar);
 }
 
-fn mockBeginTabItem(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.C) bool {
+fn mockBeginTabItem(_: imgui.ContextPtr, label: [*:0]const u8, _: ?*bool, _: ?*c_int) callconv(.c) bool {
     _ = label;
     pushPair(.tab_item);
     return true;
 }
 
-fn mockEndTabItem(_: imgui.ContextPtr) callconv(.C) void {
+fn mockEndTabItem(_: imgui.ContextPtr) callconv(.c) void {
     popPair(.tab_item);
 }
 
-fn mockColorEdit4(_: imgui.ContextPtr, _: [*:0]const u8, _: *c_int, _: ?*c_int) callconv(.C) bool {
+fn mockColorEdit4(_: imgui.ContextPtr, _: [*:0]const u8, _: *c_int, _: ?*c_int) callconv(.c) bool {
     return false;
 }
 

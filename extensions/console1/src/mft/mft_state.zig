@@ -17,12 +17,12 @@ pub const InputActivity = struct {
     pub const never: i64 = std.math.minInt(i64) / 2;
 
     /// The last turn of each of the eight top encoders.
-    turned_at: [8]i64 = [_]i64{never} ** 8,
+    turned_at: [8]i64 = @splat(never),
     /// The last press or release of each of the eight top encoders, and which of them are down.
-    pressed_at: [8]i64 = [_]i64{never} ** 8,
+    pressed_at: [8]i64 = @splat(never),
     encoders_down: u8 = 0,
     /// The same for the six side keys, in the order of their CCs: L1 to L3, then R1 to R3.
-    side_at: [6]i64 = [_]i64{never} ** 6,
+    side_at: [6]i64 = @splat(never),
     sides_down: u8 = 0,
 
     pub fn markTurn(self: *InputActivity, encoder: usize, now_ms: i64) void {

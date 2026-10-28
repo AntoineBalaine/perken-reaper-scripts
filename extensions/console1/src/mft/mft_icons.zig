@@ -248,8 +248,8 @@ test "every icon draws flat and with volume, and leaves the stacks balanced" {
     mock.install();
     defer mock.restore();
 
-    inline for (@typeInfo(Icon).@"enum".fields) |field| {
-        const icon: Icon = @enumFromInt(field.value);
+    inline for (@typeInfo(Icon).@"enum".field_values) |field_value| {
+        const icon: Icon = @fromBackingInt(@intCast(field_value));
         draw(null, icon, 50, 50, 14, rgba(0xD6D2C6FF), rgba(0xD6D2C6FF), false, null);
         draw(null, icon, 50, 50, 14, rgba(0xD6D2C6FF), rgba(0x4FD68AFF), true, rgba(0x4FD68AFF));
     }

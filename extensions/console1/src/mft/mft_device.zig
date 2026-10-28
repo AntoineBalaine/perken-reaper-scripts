@@ -88,17 +88,17 @@ pub const formatted_len = 31;
 
 /// The eight top encoders of the active module, as the panel reads them each frame.
 pub const KnobInfo = struct {
-    vals: [8]f64 = [_]f64{0.0} ** 8,
-    mapped: [8]bool = [_]bool{false} ** 8,
+    vals: [8]f64 = @splat(0.0),
+    mapped: [8]bool = @splat(false),
     name_bufs: [8][64:0]u8 = undefined,
-    has_name: [8]bool = [_]bool{false} ** 8,
+    has_name: [8]bool = @splat(false),
     /// Where each mapped parameter lives, so that the panel can ask the plugin for its formatted value.
-    fx_index: [8]c_int = [_]c_int{0} ** 8,
-    param: [8]c_int = [_]c_int{0} ** 8,
+    fx_index: [8]c_int = @splat(0),
+    param: [8]c_int = @splat(0),
     /// The value as the plugin formats it ("-12.0 dB"), for the encoders that show one. An encoder without one shows
     /// the percentage.
     formatted_bufs: [8][formatted_len:0]u8 = undefined,
-    has_formatted: [8]bool = [_]bool{false} ** 8,
+    has_formatted: [8]bool = @splat(false),
 
     pub fn formatted(self: *const KnobInfo, slot: usize) [:0]const u8 {
         return std.mem.sliceTo(&self.formatted_bufs[slot], 0);
@@ -121,17 +121,17 @@ pub const View = struct {
     /// have just been turned, and those that were a moment ago.
     show_value: u8 = 0,
     /// Whether mute, solo and phase are on for the track, in the order of the keys on the right.
-    side_lit: [3]bool = [_]bool{false} ** 3,
+    side_lit: [3]bool = @splat(false),
     /// The transport encoders whose turn and whose press are lit, one bit each: the controller was used lately.
     turn_lit: u8 = 0,
     press_lit: u8 = 0,
     /// The keys on the left that are held or were a moment ago.
-    left_lit: [3]bool = [_]bool{false} ** 3,
+    left_lit: [3]bool = @splat(false),
     collapsed: bool = false,
     value_mode: ValueMode = .popup,
 
     pub fn color(self: *const View, module: MftActiveModule) c_int {
-        return self.colors[@intFromEnum(module)];
+        return self.colors[@backingInt(module)];
     }
 };
 
@@ -527,11 +527,11 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
                 return;
             }
             var name_buf: [16:0]u8 = undefined;
-            const name: [:0]const u8 = if (info.has_name[idx]) info.name(idx) else std.fmt.bufPrintZ(&name_buf, "K{d}", .{idx + 1}) catch "K";
+            const name: [:0]const u8 = if (info.has_name[idx]) info.name(idx) else std.mem.printSentinel(&name_buf, "K{d}", .{idx + 1}, 0) catch "K";
             // The plugin's own text is shown when the panel has it, and the percentage otherwise.
             var value_buf: [16:0]u8 = undefined;
             const percent: i32 = @intFromFloat(@round(value * 100.0));
-            const percent_text = std.fmt.bufPrintZ(&value_buf, "{d}%", .{percent}) catch "?";
+            const percent_text = std.mem.printSentinel(&value_buf, "{d}%", .{percent}, 0) catch "?";
             const value_text: [:0]const u8 = if (info.has_formatted[idx]) info.formatted(idx) else percent_text;
             switch (view.value_mode) {
                 .above => {
@@ -653,8 +653,8 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     const ctx = kit.ctx;
     const pushed = widgets.pushLabelFont(kit);
     var widest: f64 = 0;
-    inline for (@typeInfo(MftActiveModule).@"enum".fields) |field| {
-        widest = @max(widest, widgets.textSize(kit, field.name).w);
+    inline for (@typeInfo(MftActiveModule).@"enum".field_names) |field_name| {
+        widest = @max(widest, widgets.textSize(kit, field_name).w);
     }
     widgets.popFont(kit, pushed);
     imgui.api.SetCursorScreenPos(ctx, x + pad, y + pad);
