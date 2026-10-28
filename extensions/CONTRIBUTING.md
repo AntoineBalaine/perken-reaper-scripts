@@ -9,7 +9,7 @@ first.
 You need:
 
 - **Zig**, in the series pinned by each extension's `.zigversion` (currently
-  0.14.x; any patch release works). The install scripts refuse a mismatching
+  0.17.x; any patch release works). The install scripts refuse a mismatching
   compiler; pass one with `-z /path/to/zig`.
 - **REAPER's own C++ compiler**, for the extensions that contain C++
   (`perken-utilities`, `console1`): Apple clang on macOS, `gcc` on Linux,

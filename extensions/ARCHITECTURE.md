@@ -65,7 +65,7 @@ How they depend on each other:
   has no C++ and cross-compiles every target from one runner; perken-utilities
   and console1 build natively on each OS.
 - **Zig version.** Every extension pins its series in `.zigversion`
-  (currently 0.14.x), and the install scripts check it.
+  (currently 0.17.x), and the install scripts check it.
 
 ## What was ported from Lua, and what was not
 

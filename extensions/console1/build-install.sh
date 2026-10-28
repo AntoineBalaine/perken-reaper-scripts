@@ -47,7 +47,7 @@ fi
 
 # We refuse to build with anything other than zig $REQUIRED_ZIG because other
 # versions are known to break the build. We only pin to the major.minor series,
-# so any patch release (0.14.0, 0.14.1, ...) is accepted.
+# so any patch release (0.17.0, 0.17.1, ...) is accepted.
 REQUIRED_SERIES="${REQUIRED_ZIG%.*}"
 ZIG_VERSION="$("$ZIG" version)"
 case "$ZIG_VERSION" in

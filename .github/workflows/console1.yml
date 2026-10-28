@@ -72,9 +72,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.14.0
+          version: 0.17.0
 
       # The C++ is compiled with MSVC's cl, which is only on PATH inside a
       # Visual Studio developer environment.

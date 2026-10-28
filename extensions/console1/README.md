@@ -42,7 +42,7 @@ Default resource path locations:
 
 ### Building from source
 
-Requirements: Zig 0.14.0, clang (macOS) or gcc (Linux/Windows).
+Requirements: Zig 0.17.x, clang (macOS) or gcc (Linux/Windows).
 
 ```bash
 # macOS

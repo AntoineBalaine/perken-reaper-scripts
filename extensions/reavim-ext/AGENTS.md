@@ -9,7 +9,7 @@ headlessly so changes can be verified without a human at the keyboard.
 
 ## Toolchain
 
-- Zig: the series pinned in `.zigversion` (0.14.x; any patch release works).
+- Zig: the series pinned in `.zigversion` (0.17.x; any patch release works).
   Put a matching `zig` on `PATH`, or pass `-z /path/to/zig` to the install
   scripts.
 - The extension lives in the `perken-reaper-scripts` monorepo

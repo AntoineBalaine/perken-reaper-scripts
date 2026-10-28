@@ -13,7 +13,7 @@ The keyboard's own Registrations cannot be selected, read or edited over MIDI. A
 
 ## Build and install
 
-You need Zig 0.14.x. There is no C++ and no other dependency to install: the CLAP headers are fetched by `zig build`.
+You need Zig 0.17.x. There is no C++ and no other dependency to install: the CLAP headers are fetched by `zig build`.
 
 ```
 extensions/build-install.sh vr09

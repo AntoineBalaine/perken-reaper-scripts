@@ -54,7 +54,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.14.1
+          version: 0.17.0
 
       # cl is only on PATH inside a Visual Studio developer environment.
       - name: Set up MSVC (Windows)

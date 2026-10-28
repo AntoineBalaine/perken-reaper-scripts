@@ -130,7 +130,7 @@ zig build                      # → zig-out/reaper_reavim.so
 zig build test
 ```
 
-Zig 0.14.1 (a toolchain lives at `/tank/projects/.toolchains/zig-x86_64-linux-0.14.1/`).
+Zig 0.17.x.
 Deploy by copying `zig-out/reaper_reavim.so` to REAPER's `UserPlugins` directory and
 restarting REAPER.
 
