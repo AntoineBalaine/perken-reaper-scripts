@@ -692,11 +692,11 @@ function M.draw(ctx, S)
   draw_side_keys(ctx, dl, S, x + PAD, x + body_w - PAD - SIDE_W, gy)
   draw_cells(ctx, dl, S, gx, gy)
 
-  -- What follows the device starts under it.
-  ImGui.SetCursorScreenPos(ctx, x, y + body_h + 10)
-  ImGui.Dummy(ctx, 1, 1)
-  -- The settings form and the calibration card belong to the settings mode, and are not shown in the others.
+  -- The settings form and the calibration card belong to the settings mode, and are not shown in the others. They start a
+  -- little under the device. In the other modes nothing follows the device, so that the window ends where it ends.
   if mode.id == "SETTINGS" then
+    ImGui.SetCursorScreenPos(ctx, x, y + body_h + 10)
+    ImGui.Dummy(ctx, 1, 1)
     draw_settings(ctx, S)
     draw_calibration(ctx, S)
   end

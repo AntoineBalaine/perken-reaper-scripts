@@ -211,7 +211,17 @@ local function draw_frame()
   -- The window has no title bar: the panel has its own close and fold buttons, and the window moves when the mouse drags
   -- an empty part of it. It sizes itself to what the panel shows, so that folding the panel shrinks the window.
   local flags = ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoSavedSettings | ImGui.WindowFlags_NoTitleBar | ImGui.WindowFlags_AlwaysAutoResize
+  -- The device fills the window to its edges: while the window begins, it has no padding and no border, and its corners
+  -- are rounded like the box's. The style is popped right after `Begin`, because the window keeps what it read there, and
+  -- the cards inside it need their own padding and corners.
+  local tight = not failed
+  if tight then
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 0, 0)
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowBorderSize, 0)
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 16)
+  end
   local visible, open = ImGui.Begin(ctx, "MFT design lab###mftlab", true, flags)
+  if tight then ImGui.PopStyleVar(ctx, 3) end
   if visible then
     local x, y = ImGui.GetWindowPos(ctx)
     local w, h = ImGui.GetWindowSize(ctx)
