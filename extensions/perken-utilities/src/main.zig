@@ -32,10 +32,10 @@ const terminal = @import("terminal.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
-        .Debug => .debug,
-        .ReleaseSafe => .info,
-        .ReleaseFast => .warn,
-        .ReleaseSmall => .err,
+        .debug => .debug,
+        .safe => .info,
+        .fast => .warn,
+        .small => .err,
     },
     .logFn = logger.logFn,
 };
@@ -127,6 +127,8 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         tempo_window.stopTimer();
         tempo_window.discardJob();
         globals.io_threaded.deinit();
+        // Because a freed instance must not be used again, the single-threaded default takes its place.
+        globals.io_threaded = .init_single_threaded;
         return 0;
     }
 

@@ -155,7 +155,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
     categoryNames.deinit(allocator);
 }
 
-fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
+fn parseFXTags(allocator: std.mem.Allocator, io: std.Io) !FxTags {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = @import("fs_helpers").joinStrings(&path_buffer, &.{
         std.mem.span(reaper.GetResourcePath()),
@@ -324,10 +324,10 @@ fn parseTrackTemplates(allocator: std.mem.Allocator) !Directory {
     return try directoryInit(allocator, fxChainsPath, ".RTrackTemplate");
 }
 
-pub fn init(allocator: std.mem.Allocator) !void {
+pub fn init(allocator: std.mem.Allocator, io: std.Io) !void {
     pluginList = try initPluginList(allocator);
     pluginsByType = try toPluginsByType(allocator, pluginList);
-    fx_tags = try parseFXTags(allocator);
+    fx_tags = try parseFXTags(allocator, io);
     // TODO: implement parseCustomCategories - this is really tricky to do
     // const custom_categories = try parseCustomCategories();
     const fxChains = try parseFxChains(allocator);

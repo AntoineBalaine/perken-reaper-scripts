@@ -25,7 +25,7 @@ pub fn substituteFirst(buf: [:0]u8, template: [:0]const u8, replacement: []const
     return buf[0..total :0];
 }
 
-fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.Io.Dir, filename: []const u8) ![:0]const u8 {
+fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, filename: []const u8) ![:0]const u8 {
     const file = try dir.openFile(io, filename, .{});
     defer file.close(io);
 
@@ -63,7 +63,7 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.Io.Dir,
     return allocator.dupeSentinel(u8, code, 0);
 }
 
-pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
+pub fn getAvailableLanguages(g_arena: std.mem.Allocator, io: std.Io, resource_path: []const u8) ![]LanguageInfo {
     var languages: std.ArrayList(LanguageInfo) = .empty;
 
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
@@ -94,7 +94,7 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
             if (entry.kind != .file) continue;
             if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
 
-            const display_name = getLanguageDisplayNameFromFile(g_arena, dir, entry.name) catch continue;
+            const display_name = getLanguageDisplayNameFromFile(g_arena, io, dir, entry.name) catch continue;
             const code = g_arena.dupeSentinel(u8, entry.name[0 .. entry.name.len - 4], 0) catch {
                 log.warn("Failed to allocate memory for language code: {s}", .{entry.name});
                 continue;
@@ -131,7 +131,7 @@ pub fn TranslationEngine(
 
             pub fn init() StringStore {
                 return .{
-                    .strings = .{},
+                    .strings = .empty,
                     .entries = std.enums.directEnumArrayDefault(Key, Entry, Entry{}, 1000, .{}),
                 };
             }
@@ -144,7 +144,7 @@ pub fn TranslationEngine(
             }
 
             pub fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
-                inline for (@typeInfo(Key).@"struct".field_names) |field_name| {
+                inline for (@typeInfo(Key).@"enum".field_names) |field_name| {
                     const key = @field(Key, field_name);
                     if (default_strings.get(field_name)) |value| {
                         try self.addString(g_arena, key, value);
@@ -162,7 +162,7 @@ pub fn TranslationEngine(
                 };
             }
 
-            pub fn loadFromFile(self: *StringStore, g_arena: std.mem.Allocator, path: []const u8) !void {
+            pub fn loadFromFile(self: *StringStore, g_arena: std.mem.Allocator, io: std.Io, path: []const u8) !void {
                 var loaded_keys = std.enums.EnumArray(Key, bool).initFill(false);
 
                 const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
@@ -261,8 +261,8 @@ pub fn TranslationEngine(
                 return self;
             }
 
-            pub fn init(g_arena: std.mem.Allocator, resource_path: []const u8, language: []const u8) !TranslationStore {
-                const languages = try getAvailableLanguages(g_arena, resource_path);
+            pub fn init(g_arena: std.mem.Allocator, io: std.Io, resource_path: []const u8, language: []const u8) !TranslationStore {
+                const languages = try getAvailableLanguages(g_arena, io, resource_path);
 
                 const requested_lang = blk: {
                     for (languages) |lang| {
@@ -286,7 +286,7 @@ pub fn TranslationEngine(
                     ".ini",
                 });
 
-                store.loadFromFile(g_arena, lang_file_path) catch {
+                store.loadFromFile(g_arena, io, lang_file_path) catch {
                     try store.loadDefaults(g_arena);
                 };
 
@@ -310,7 +310,7 @@ pub fn TranslationEngine(
             return store.getString(key);
         }
 
-        pub fn exportDefaultTranslations(allocator: std.mem.Allocator, path: []const u8) !void {
+        pub fn exportDefaultTranslations(allocator: std.mem.Allocator, io: std.Io, path: []const u8) !void {
             var store = StringStore.init();
             try store.loadDefaults(allocator);
 

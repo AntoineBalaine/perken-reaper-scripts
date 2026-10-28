@@ -7596,7 +7596,7 @@ fn returnType(comptime func: anytype) type {
     return Error!@typeInfo(funcType(func)).@"fn".return_type.?;
 }
 
-fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.Inline) returnType(func) {
+fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.@"inline") returnType(func) {
     return struct {
         inline fn wrapper(args: anytype) returnType(func) {
             var cast_args: @Tuple(arg_types) = undefined;

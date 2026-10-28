@@ -68,10 +68,10 @@ const reaper_api = [_][:0]const u8{
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
-        .Debug => .debug,
-        .ReleaseSafe => .info,
-        .ReleaseFast => .warn,
-        .ReleaseSmall => .err,
+        .debug => .debug,
+        .safe => .info,
+        .fast => .warn,
+        .small => .err,
     },
     .logFn = logger.logFn,
 };
@@ -160,6 +160,8 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
 
     if (rec == null) {
         state.io_threaded.deinit();
+        // Because a freed instance must not be used again, the single-threaded default takes its place.
+        state.io_threaded = .init_single_threaded;
         return 0; // cleanup
     }
 

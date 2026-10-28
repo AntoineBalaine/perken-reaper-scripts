@@ -28,6 +28,8 @@ fn entryDeinit() callconv(.c) void {
     if (init_count == 0) {
         plugin.shutdown();
         plugin.io_threaded.deinit();
+        // Because a freed instance must not be used again, the single-threaded default takes its place.
+        plugin.io_threaded = .init_single_threaded;
     }
 }
 
