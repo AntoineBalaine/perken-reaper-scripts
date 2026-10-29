@@ -13,6 +13,7 @@ const getGlobals = @import("../console1_extension.zig").getGlobals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
+const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
 const log = std.log.scoped(.csurf);
 
 pub var ignore_notifications = false;
@@ -162,6 +163,7 @@ export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
     var globals = getGlobals();
     _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_mute, mute);
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.c) void {
@@ -176,6 +178,7 @@ export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.c) void {
     var globals = getGlobals();
     _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_solo, solo);
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 

@@ -13,7 +13,6 @@ const reapack = @import("reapack.zig");
 const HotReloader = @import("hotreload.zig").HotReloader;
 const UiState = @import("ui_state.zig").UiState;
 const fx_parser = @import("fx_parser");
-const MidiEvtsFxCtrl = @import("csurf/midi_events_fxctrl.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
@@ -135,9 +134,6 @@ fn onTimer() callconv(.c) void {
         .MainStyle = &styles.MainStyle,
         .ConfigStyle = &styles.ConfigStyle,
     };
-
-    MidiEvtsFxCtrl.syncTrackToggles(globals);
-    MidiEvtsFxCtrl.syncTrackColors(globals);
 
     var ui_state = UiState{
         .state = &globals.state,

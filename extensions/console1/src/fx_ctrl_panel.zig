@@ -100,6 +100,12 @@ fn moduleTitle(mode: Mode, card: ModuleCard) [:0]const u8 {
     };
 }
 
+/// The accent color of the theme of REAPER, made opaque: the color that a selected row or a header has.
+fn themeAccent(ctx: imgui.ContextPtr) !c_int {
+    const color: u32 = @bitCast(try imgui.GetStyleColor(.{ ctx, imgui.Col_Header }));
+    return @bitCast(color | 0xFF);
+}
+
 fn renderMappableButton(
     ctx: imgui.ContextPtr,
     plate: Plate,
@@ -244,7 +250,7 @@ const Plate = module_plate.Plate;
 // and in which column of the module. A slot is named after the control it holds.
 
 const input_slots = struct {
-    const Inpt_disp_on = Slot{ .kind = .button, .col = 0, .y = 378 };
+    const Inpt_disp_on = Slot{ .kind = .button, .col = 0, .y = 378, .at_left = true };
     const Inpt_disp_mode = Slot{ .kind = .button, .col = 1, .y = 378 };
     const Inpt_Gain = Slot{ .kind = .knob, .col = 0, .y = 553 };
     const Inpt_HiCut = Slot{ .kind = .knob, .col = 1, .y = 447 };
@@ -314,8 +320,13 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
+    // The display button is named "FX" in the FX modes and "Hide C1" in the transport mode, and is in the accent of
+    // the theme. Both names are the same in every language, and so are not translated.
+    const disp_on_fx_label: [:0]const u8 = "FX";
+    const disp_on_transport_label: [:0]const u8 = "Hide C1";
+
     // The labels of the buttons are translations of the panel, and so are the same in every mode.
-    const labels = [_][:0]const u8{ try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_on), tr(translations, .trsprt_Inpt_disp_on) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .fx_ctrl_Inpt_preset) };
+    const labels = [_][:0]const u8{ try widestOf(ctx, &.{ disp_on_fx_label, disp_on_transport_label }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .fx_ctrl_Inpt_preset) };
     const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input), .title_alternatives = &moduleTitles(.input), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
 
     const disp_on_key: ?TranslationKey = switch (mode) {
@@ -324,9 +335,11 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         else => null,
     };
     const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
-    const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
+    const disp_on_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+    const disp_on_display_label: [:0]const u8 = if (disp_on_fx_mode) disp_on_fx_label else if (mode == .transport) disp_on_transport_label else disp_on_label orelse "-";
     try plate.button(ctx, input_slots.Inpt_disp_on, disp_on_display_label, .right);
-    if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null })) {
+    const disp_on_color: ?c_int = if (disp_on_label == null) null else try themeAccent(ctx);
+    if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null, disp_on_color, disp_on_fx_mode and fx_state.display != null })) {
         rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
     }
 

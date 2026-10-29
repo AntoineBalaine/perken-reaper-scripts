@@ -148,6 +148,26 @@ fn measure(ctx: imgui.ContextPtr, spec: Spec, plate: *Plate, k: f64) !Extent {
     return .{ .left = left, .right = right, .top = top, .bottom = bottom, .y_top = y_top, .y_bottom = y_bottom };
 }
 
+/// The widest that each plate has been. Because the widths come from labels that the plugin of the track gives
+/// them, and an empty label is narrower than a long one, a plate that could shrink would move its knobs when the
+/// track or the mode changes. A plate never gets narrower than it has been, until the panel is loaded again.
+const Memory = struct { key: usize, knob_w: f64, pitch: f64, width: f64 };
+var memory: [16]Memory = undefined;
+var memory_len: usize = 0;
+
+/// The memory of the plate of this spec, made if there is none yet. Null for a plate that has no slots.
+fn memoryOf(spec: Spec) ?*Memory {
+    if (spec.slots.len == 0) return null;
+    const key = @intFromPtr(spec.slots.ptr);
+    for (memory[0..memory_len]) |*entry| {
+        if (entry.key == key) return entry;
+    }
+    if (memory_len == memory.len) return null;
+    memory[memory_len] = .{ .key = key, .knob_w = 0, .pitch = 0, .width = 0 };
+    memory_len += 1;
+    return &memory[memory_len - 1];
+}
+
 pub const Plate = struct {
     start: Point,
     origin: Point,
@@ -183,6 +203,13 @@ pub const Plate = struct {
         var plate: Plate = undefined;
         plate.knob_w = @max(Knobs.knob_size, text_w);
         plate.pitch = @max(plate.knob_w + spacing_x + spec.column_gap, spec.min_pitch);
+        const remembered = memoryOf(spec);
+        if (remembered) |m| {
+            plate.knob_w = @max(plate.knob_w, m.knob_w);
+            plate.pitch = @max(plate.pitch, m.pitch);
+            m.knob_w = plate.knob_w;
+            m.pitch = plate.pitch;
+        }
         plate.line_h = line_h;
 
         // The rows are first as close as the squeeze makes them. When some other plate needs more height, the rows
@@ -218,6 +245,10 @@ pub const Plate = struct {
             title_w = @max(title_w, alternative_w);
         }
         plate.width = @max(@max(right - left, spec.min_width), title_w);
+        if (remembered) |m| {
+            plate.width = @max(plate.width, m.width);
+            m.width = plate.width;
+        }
 
         // The plates are all as tall as the tallest, which is measured with the rows as close as they come.
         frame_tallest = @max(frame_tallest, natural);

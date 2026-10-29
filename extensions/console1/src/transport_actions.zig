@@ -5,6 +5,8 @@ const pReaper = @import("pReaper.zig");
 const log = std.log.scoped(.transport);
 const utils = @import("utils");
 const actions = @import("actions.zig");
+const constants = @import("constants.zig");
+const MidiEvtsFxCtrl = @import("csurf/midi_events_fxctrl.zig");
 const track_list_actions = @import("tracklist_actions.zig");
 const RprCmds = @import("reaper_cmds.zig");
 const Globals = @import("globals.zig").Globals;
@@ -207,6 +209,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
 
                 _ = track_list_actions.setReaperTrackSelection(globals, new_tr_id);
                 globals.state.current_tr_id = new_tr_id;
+                MidiEvtsFxCtrl.readTrackToggles(globals, reaper.CSurf_TrackFromID(new_tr_id, constants.g_csurf_mcpmode));
 
                 if (new_pos != globals.state.transport.tr_sel) {
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = globals.state.transport.tr_sel } } });

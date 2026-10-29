@@ -50,7 +50,9 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 .Out_mute => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        reaper.CSurf_SetSurfaceMute(media_track, reaper.CSurf_OnMuteChange(media_track, -1), @ptrCast(csurf.my_csurf));
+                        const muted = reaper.CSurf_OnMuteChange(media_track, -1);
+                        reaper.CSurf_SetSurfaceMute(media_track, muted, @ptrCast(csurf.my_csurf));
+                        MidiEvts.setTrackToggle(globals, .Out_mute, muted);
                         // Send MIDI feedback
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
@@ -58,7 +60,9 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 .Out_solo => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        reaper.CSurf_SetSurfaceSolo(media_track, reaper.CSurf_OnSoloChange(media_track, -1), @ptrCast(csurf.my_csurf));
+                        const soloed = reaper.CSurf_OnSoloChange(media_track, -1);
+                        reaper.CSurf_SetSurfaceSolo(media_track, soloed, @ptrCast(csurf.my_csurf));
+                        MidiEvts.setTrackToggle(globals, .Out_solo, soloed);
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
                 },
@@ -175,6 +179,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
             const phase = reaper.GetMediaTrackInfo_Value(media_track, "B_PHASE");
             const phase_val: f64 = if (phase == 0) 1 else 0;
             _ = pReaper.SetMediaTrackInfo_Value(.{ media_track, "B_PHASE", phase_val });
+            MidiEvts.setTrackToggle(globals, .Inpt_phase_inv, phase_val != 0);
         },
         .fx_win_disp => |media_track| {
             globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
@@ -280,6 +285,7 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
     const io = Globals.hostIo();
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
+    MidiEvts.readTrackToggles(globals, media_track);
 
     globals.state.fx_ctrl.validateTrack(
         null,

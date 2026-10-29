@@ -3,6 +3,7 @@ const c1 = @import("c1.zig");
 const reaper = @import("reaper").reaper;
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
+const MidiEvtsFxCtrl = @import("csurf/midi_events_fxctrl.zig");
 const log = std.log.scoped(.track_list);
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const constants = @import("constants.zig");
@@ -136,6 +137,7 @@ fn updateTrackNames(globals: *Globals) void {
         // ASSUMPTION: csurf track ids are sequential, start 0 for master track
         const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);
         globals.state.fx_ctrl.track_list.track_names[i].id = track_id;
+        globals.state.fx_ctrl.track_list.track_names[i].color = MidiEvtsFxCtrl.trackListColor(track_id);
         _ = reaper.GetTrackName(track, &globals.state.fx_ctrl.track_list.track_names[i].name, TrackList.TrackNameSize);
         globals.state.fx_ctrl.track_list.name_count += 1;
     }

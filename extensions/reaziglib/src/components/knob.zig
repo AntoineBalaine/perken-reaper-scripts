@@ -160,9 +160,11 @@ pub fn drawWidget(
         const center_x = widget_rect.min_x + total_width / 2; // centered based on total width
         const center_y = widget_rect.min_y + centerOffsetY(label_size.h);
 
-        try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
+        // The knob answers the mouse over the whole of its widget: the label, the ring of LEDs and the cap, so that
+        // a click or a drag that starts on the label turns the knob, and the cap lights up when the mouse is on it.
+        try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
 
-        const rv = try YControl(ctx, label_id.id, value, radius * 2, radius * 2, MINVAL, MAXVAL, .{
+        const rv = try YControl(ctx, label_id.id, value, total_width, widget_rect.max_y - widget_rect.min_y, MINVAL, MAXVAL, .{
             .invisible = true,
             .increment = false,
             .scale = .logarithmic,

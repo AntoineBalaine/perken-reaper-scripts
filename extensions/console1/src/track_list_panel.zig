@@ -179,7 +179,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     const button_r = @import("components/button.zig").default_radius;
     var page_w: f64 = 0;
     var line_h: f64 = undefined;
-    inline for (.{ "Page 99", pg_dn_label, pg_up_label }, 0..) |text, line| {
+    // The buttons show "-" in the modes that do not change the page, so their width is that of the labels of the
+    // mode that does: it must not change when the mode does.
+    const pg_dn_widest = tr(translations, .fx_ctrl_Tr_pg_dn);
+    const pg_up_widest = tr(translations, .fx_ctrl_Tr_pg_up);
+    inline for (.{ "Page 99", pg_dn_widest, pg_up_widest }, 0..) |text, line| {
         var w: f64 = undefined;
         try imgui.CalcTextSize(.{ ctx, @as([:0]const u8, text), &w, &line_h });
         page_w = @max(page_w, if (line == 0) w else button_r * 2 + 4 + w);

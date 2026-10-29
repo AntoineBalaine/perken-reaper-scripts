@@ -23,6 +23,8 @@ pub fn roundButton(
     text_position: ?TextPosition,
     disabled: ?bool,
     color: ?c_int,
+    /// The button is shown pressed while this is true, as a toggle that is on is.
+    latched: ?bool,
 ) !bool {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else default_radius;
@@ -121,7 +123,7 @@ pub fn roundButton(
         }
 
         const held = !is_disabled and try imgui.IsItemActive(.{ctx});
-        try knob.drawRoundKey(draw_list, center_x, center_y, radius, color orelse -1, .{ .hovered = isHovered, .active = held, .disabled = is_disabled });
+        try knob.drawRoundKey(draw_list, center_x, center_y, radius, color orelse -1, .{ .hovered = isHovered, .active = held or (latched orelse false), .disabled = is_disabled });
     }
 
     // Create dummy space for entire widget

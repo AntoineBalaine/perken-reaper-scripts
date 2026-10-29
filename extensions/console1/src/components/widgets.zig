@@ -23,6 +23,7 @@ pub const roundButton = function(&roundButtonWidget, 3, &.{
     ?button.TextPosition,
     ?bool,
     ?c_int,
+    ?bool,
 });
 
 /// ```zig

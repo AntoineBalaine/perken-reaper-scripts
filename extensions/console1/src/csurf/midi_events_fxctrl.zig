@@ -24,27 +24,26 @@ fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
         null;
 }
 
-/// Because REAPER's control surface interface has no notification for the phase of a track, and the panel
-/// must show the mute, solo and phase of the selected track whoever changed them, the three are read
-/// from the track once per frame.
-pub fn syncTrackToggles(globals: *Globals) void {
-    const fx_ctrl = &globals.state.fx_ctrl;
-    const tr = getTrack(globals.state.current_tr_id) orelse return;
-    const toggles = [_]struct { cc: c1.CCs, on: bool }{
-        .{ .cc = .Out_mute, .on = reaper.GetMediaTrackInfo_Value(tr, "B_MUTE") > 0.5 },
-        .{ .cc = .Out_solo, .on = reaper.GetMediaTrackInfo_Value(tr, "I_SOLO") > 0.5 },
-        .{ .cc = .Inpt_phase_inv, .on = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE") > 0.5 },
-    };
-    for (toggles) |toggle| {
-        const value = fx_ctrl.values.getPtr(toggle.cc) orelse continue;
-        std.debug.assert(value.* == .button);
-        value.* = .{ .button = toggle.on };
-    }
+/// Sets one of the toggles of the selected track in the state that the panel draws.
+pub fn setTrackToggle(globals: *Globals, cc: c1.CCs, on: bool) void {
+    const value = globals.state.fx_ctrl.values.getPtr(cc) orelse return;
+    std.debug.assert(value.* == .button);
+    value.* = .{ .button = on };
+}
+
+/// Reads the mute, solo and phase of a track that has just become the selected one. After that, REAPER's
+/// notifications of mute and solo, and the actions of the panel itself, keep them up to date: no check is made
+/// on every frame. REAPER has no notification for the phase of a track, so a phase that is changed outside of
+/// the panel is seen when the track is selected again.
+pub fn readTrackToggles(globals: *Globals, tr: MediaTrack) void {
+    setTrackToggle(globals, .Out_mute, reaper.GetMediaTrackInfo_Value(tr, "B_MUTE") > 0.5);
+    setTrackToggle(globals, .Out_solo, reaper.GetMediaTrackInfo_Value(tr, "I_SOLO") > 0.5);
+    setTrackToggle(globals, .Inpt_phase_inv, reaper.GetMediaTrackInfo_Value(tr, "B_PHASE") > 0.5);
 }
 
 /// The color of a track as the track list shows it: the color of the track in the TCP, lightened when it is
 /// too dark to be read on the dark face of the panel, as 0xRRGGBBAA. 0 is no color.
-fn trackListColor(id: c_int) c_int {
+pub fn trackListColor(id: c_int) c_int {
     const track = getTrack(id) orelse return 0;
     const native = reaper.GetTrackColor(track);
     if (native & 0x1000000 == 0) return 0;
@@ -63,13 +62,6 @@ fn trackListColor(id: c_int) c_int {
     }
     const rgba: u32 = (@as(u32, @intCast(r)) << 24) | (@as(u32, @intCast(g)) << 16) | (@as(u32, @intCast(b)) << 8) | 0xFF;
     return @bitCast(rgba);
-}
-
-/// Because REAPER does not tell a control surface when the color of a track changes, the colors of the tracks
-/// on the page are read once per frame.
-pub fn syncTrackColors(globals: *Globals) void {
-    const list = &globals.state.fx_ctrl.track_list;
-    for (0..list.name_count) |i| list.track_names[i].color = trackListColor(list.track_names[i].id);
 }
 
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
