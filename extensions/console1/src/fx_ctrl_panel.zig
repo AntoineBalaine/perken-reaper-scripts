@@ -1,5 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
+const panel_theme = @import("panel_theme");
 const Knobs = @import("knob");
 const c1 = @import("c1.zig");
 const WidgetInput = @import("action_types.zig").WidgetInput;
@@ -173,180 +174,286 @@ pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 }
 
+/// The controls of the input module sit on fixed positions, so that a control stays where it is whichever
+/// mode is shown. The rows and the stagger are those of the hardware: they are measured on a photograph of the
+/// console, in its pixels and from the center of the input gain knob, which is 44 pixels wide there, and are
+/// scaled to the size of our knobs. The two columns are as close as the knobs of the other modules are: one
+/// knob width and the spacing of the style apart.
+const input_layout = struct {
+    const photo_knob_size = 44.0;
+    const scale = Knobs.knob_size / photo_knob_size;
+    /// The rows are closer than on the photograph. Because the label of a knob stands over its cap and the
+    /// ring of LEDs is open under it, the label of the knob below can come up to the edge of the well of the knob above.
+    const row_squeeze = 0.82;
+
+    /// A control: the column it is in, its offset from the center of that column, and its height on the photograph.
+    const Slot = struct { col: u1, dx: f64 = 0, y: f64 };
+    /// The buttons sit a little left of the center of the second column.
+    const buttons_dx = -11.0 * scale;
+    const gain = Slot{ .col = 0, .y = 0 };
+    const hicut = Slot{ .col = 1, .y = -106 };
+    const locut = Slot{ .col = 1, .y = -34 };
+    const filters = Slot{ .col = 1, .dx = buttons_dx, .y = 19 };
+    const phase = Slot{ .col = 1, .dx = buttons_dx, .y = 43 };
+    const preset = Slot{ .col = 1, .dx = buttons_dx, .y = 67 };
+    const disp_on = Slot{ .col = 0, .y = -175 };
+    const disp_mode = Slot{ .col = 1, .y = -175 };
+
+    const Point = struct { x: f64, y: f64 };
+    const pad = 6.0;
+    const button_r = button.default_radius;
+    /// The space between a button and its label, as roundButton leaves it.
+    const label_gap = 4.0;
+    /// The label that gives the width of the knobs: the longest of the hardware's.
+    const widest_label = "Input Gain";
+
+    const height = button_r + (preset.y - disp_on.y) * scale * row_squeeze + button_r;
+
+    /// The horizontal sizes, which depend on the font and on the style.
+    const Metrics = struct {
+        /// The width of a knob widget: the cap, or the widest label if that is wider.
+        knob_w: f64,
+        /// The distance between the centers of the two columns.
+        column_pitch: f64,
+        /// The width of the plate's content.
+        width: f64,
+    };
+
+    /// Because the labels of the buttons are translations of the panel and not names from the plugin, the
+    /// width is the same in every mode.
+    fn metrics(ctx: imgui.ContextPtr, translations: *TranslationStore) !Metrics {
+        var text_w: f64 = undefined;
+        var text_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, widest_label, &text_w, &text_h });
+        var spacing_x: f64 = undefined;
+        var spacing_y: f64 = undefined;
+        try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y });
+
+        var m = Metrics{ .knob_w = @max(Knobs.knob_size, text_w), .column_pitch = 0, .width = 0 };
+        m.column_pitch = m.knob_w + spacing_x;
+
+        const buttons = [_]struct { slot: Slot, key: TranslationKey }{
+            .{ .slot = disp_on, .key = .fx_ctrl_Inpt_disp_on },
+            .{ .slot = disp_mode, .key = .fx_ctrl_Inpt_disp_mode },
+            .{ .slot = filters, .key = .fx_ctrl_Inpt_filt_to_comp },
+            .{ .slot = phase, .key = .fx_ctrl_Inpt_phase_inv },
+            .{ .slot = preset, .key = .fx_ctrl_Inpt_preset },
+        };
+        var right = at(m, hicut).x + m.knob_w / 2;
+        for (buttons) |entry| {
+            var label_w: f64 = undefined;
+            var label_h: f64 = undefined;
+            try imgui.CalcTextSize(.{ ctx, tr(translations, entry.key), &label_w, &label_h });
+            right = @max(right, at(m, entry.slot).x + button_r + label_gap + label_w);
+        }
+        m.width = right;
+        return m;
+    }
+
+    /// The position of a control on the plate, from the top left corner of the plate's content.
+    fn at(m: Metrics, slot: Slot) Point {
+        return .{
+            .x = m.knob_w / 2 + @as(f64, @floatFromInt(slot.col)) * m.column_pitch + slot.dx,
+            .y = button_r + (slot.y - disp_on.y) * scale * row_squeeze,
+        };
+    }
+};
+
+/// The plate of a module: the face on which its controls sit, raised from the panel by a dark edge and a lit one.
+fn drawModulePlate(ctx: imgui.ContextPtr, x: f64, y: f64, w: f64, h: f64) !void {
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    try imgui.DrawList_AddRectFilled(.{ dl, x + 1, y + 3, x + w + 1, y + h + 3, @as(c_int, @bitCast(@as(u32, 0x00000066))), 8 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x, y, x + w, y + h, panel_theme.panel_bg, 8 });
+    try imgui.DrawList_AddRect(.{ dl, x, y, x + w, y + h, panel_theme.panel_edge_dark, 8, null, 1.5 });
+    try imgui.DrawList_AddLine(.{ dl, x + 8, y + 1.5, x + w - 8, y + 1.5, panel_theme.card_bevel_light, 1 });
+}
+
+/// Puts the cursor where a knob widget must start for its cap to be centered on `center`.
+fn placeKnob(ctx: imgui.ContextPtr, origin: Knobs.Position, center: input_layout.Point, width: f64, line_h: f64) !void {
+    try imgui.SetCursorScreenPos(.{ ctx, origin.x + center.x - width / 2, origin.y + center.y - Knobs.centerOffsetY(line_h) });
+}
+
+/// Puts the cursor where a round button with its label at the right must start for the button to be centered on `center`.
+fn placeButton(ctx: imgui.ContextPtr, origin: Knobs.Position, center: input_layout.Point, line_h: f64) !void {
+    const radius = input_layout.button_r;
+    try imgui.SetCursorScreenPos(.{ ctx, origin.x + center.x - radius, origin.y + center.y - @max(2 * radius, line_h) / 2 });
+}
+
 fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+    const layout = input_layout;
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // try imgui.Text(.{ ctx, "Input" });
+    var line_h: f64 = undefined;
+    var unused_w: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &unused_w, &line_h });
 
-    { // First column
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
+    var start = Knobs.Position{ .x = undefined, .y = undefined };
+    try imgui.GetCursorScreenPos(.{ ctx, &start.x, &start.y });
+    const m = try layout.metrics(ctx, translations);
+    const plate_w = m.width + layout.pad * 2;
+    const plate_h = layout.height + layout.pad * 2;
+    try drawModulePlate(ctx, start.x, start.y, plate_w, plate_h);
+    const origin = Knobs.Position{ .x = start.x + layout.pad, .y = start.y + layout.pad };
 
-        const disp_on_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
-            .transport => .trsprt_Inpt_disp_on,
-            else => null,
-        };
-        const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
-        const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
-        const disp_on_disabled = (disp_on_label == null);
-        if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {
-            rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
-        }
-        try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 2 });
+    const disp_on_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
+        .transport => .trsprt_Inpt_disp_on,
+        else => null,
+    };
+    const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
+    const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
+    try placeButton(ctx, origin, layout.at(m, layout.disp_on), line_h);
+    if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null })) {
+        rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
+    }
 
-        // Center-align the knob
+    const disp_mode_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_mode,
+        .transport => .trsprt_Inpt_disp_mode,
+        else => null,
+    };
+    const disp_mode_label = if (disp_mode_key) |key| tr(translations, key) else null;
+    const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
+    try placeButton(ctx, origin, layout.at(m, layout.disp_mode), line_h);
+    if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, .right, disp_mode_label == null })) {
+        rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
+    }
+
+    // The gain knob, at the left of the first knob row.
+    {
         const pool = &fx_state.track_state.label_pool;
         const gain_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
         const gain_disabled = !gain_is_fx;
-        const gain_no_val_display = gain_disabled or value_display_disabled;
         const label_id = Knobs.LabelId{
             .label = if (gain_is_fx) pool.getPrmLabel(.Inpt_Gain) else "-",
             .id = try std.mem.printSentinel(id_buf, "Inpt_Gain", .{}, 0),
             .value_text = if (gain_is_fx) pool.getFmtValue(.Inpt_Gain) else null,
         };
-        var offsets = [_]?f64{null};
-        const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
-
-        // Apply offset if needed
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
+        try placeKnob(ctx, origin, layout.at(m, layout.gain), m.knob_w, line_h);
         if (try Knobs.drawWidget(
             ctx,
             &gain_prm.normalized,
             label_id,
-            .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-            max_width,
+            .{ .no_val_display = gain_disabled or value_display_disabled, .disabled = gain_disabled },
+            m.knob_w,
             @"editMode?"(fx_state, .Inpt_Gain),
         )) |knob_res| {
             rv = toWidgetInput(knob_res, .Inpt_Gain, gain_prm.normalized, fx_state);
         }
     }
-    try imgui.SameLine(.{ctx});
 
-    // Second column (aligned right)
+    // The two filter knobs, at the right of the gain knob.
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        const disp_mode_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_mode,
-            .transport => .trsprt_Inpt_disp_mode,
-            else => null,
+        const ftc = fx_state.filter_to_comp;
+
+        // When filter_to_comp is active, check whether the COMP mapping
+        // has the filter params defined; if not, disable the knobs.
+        const comp_filter_unmapped = if (ftc) blk: {
+            const panel_locs = fx_state.track_state.getModuleLocations() orelse break :blk true;
+            const comp_loc = panel_locs.get(.COMP) orelse break :blk true;
+            const mapping = comp_loc.mapping orelse break :blk true;
+            break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
+        } else false;
+
+        const inpt_pool = &fx_state.track_state.label_pool;
+        const hicut_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+        const hicut_is_transport = (mode == .transport);
+        const hicut_pool_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
+        const hicut_disabled = (!hicut_is_fx and !hicut_is_transport) or comp_filter_unmapped;
+        const hicut_label_id = Knobs.LabelId{
+            .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
+            .id = try std.mem.printSentinel(id_buf, "Inpt_HiCut", .{}, 0),
+            .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
         };
-        const disp_mode_label = if (disp_mode_key) |key| tr(translations, key) else null;
-        const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
-        const disp_mode_disabled = (disp_mode_label == null);
-        if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, null, disp_mode_disabled })) {
-            rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
-        }
-        {
-            const ftc = fx_state.filter_to_comp;
 
-            // When filter_to_comp is active, check whether the COMP mapping
-            // has the filter params defined; if not, disable the knobs.
-            const comp_filter_unmapped = if (ftc) blk: {
-                const panel_locs = fx_state.track_state.getModuleLocations() orelse break :blk true;
-                const comp_loc = panel_locs.get(.COMP) orelse break :blk true;
-                const mapping = comp_loc.mapping orelse break :blk true;
-                break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
-            } else false;
+        const locut_pool_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+        const locut_disabled = !hicut_is_fx or comp_filter_unmapped;
+        const locut_label_id = Knobs.LabelId{
+            .label = if (hicut_is_fx) inpt_pool.getPrmLabel(locut_pool_cc) else "-",
+            .id = "Inpt_LoCut",
+            .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(locut_pool_cc) else null,
+        };
 
-            const inpt_pool = &fx_state.track_state.label_pool;
-            const hicut_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
-            const hicut_is_transport = (mode == .transport);
-            const hicut_pool_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
-            const hicut_disabled = (!hicut_is_fx and !hicut_is_transport) or comp_filter_unmapped;
-            const hicut_no_val_display = hicut_disabled or value_display_disabled;
-            const hicut_label_id = Knobs.LabelId{
-                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
-                .id = try std.mem.printSentinel(id_buf, "Inpt_HiCut", .{}, 0),
-                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
-            };
-
-            const locut_pool_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
-            const locut_disabled = !hicut_is_fx or comp_filter_unmapped;
-            const locut_no_val_display = locut_disabled or value_display_disabled;
-            const locut_label_id = Knobs.LabelId{
-                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(locut_pool_cc) else "-",
-                .id = "Inpt_LoCut",
-                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(locut_pool_cc) else null,
-            };
-            var offsets = [_]?f64{ null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_label_id.label, locut_label_id.label }, &offsets);
-
-            // First knob - read from the virtual CC when filter_to_comp is active
-            const hicut_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
-            var hicut_val: f64 = if (mode == .transport)
-                @as(f64, @floatFromInt(transport.rate)) / 127.0
-            else
-                fx_state.values.get(hicut_cc).?.param.normalized;
-            if (try Knobs.drawWidget(
-                ctx,
-                &hicut_val,
-                hicut_label_id,
-                .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
-                @"editMode?"(fx_state, .Inpt_HiCut),
-            )) |knob_res| {
-                rv = toWidgetInput(knob_res, .Inpt_HiCut, hicut_val, fx_state);
-            }
-
-            // Second knob
-            const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
-            var locut_prm = fx_state.values.get(locut_cc).?.param;
-            if (try Knobs.drawWidget(
-                ctx,
-                &locut_prm.normalized,
-                locut_label_id,
-                .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
-                @"editMode?"(fx_state, .Inpt_LoCut),
-            )) |knob_res| {
-                rv = toWidgetInput(knob_res, .Inpt_LoCut, locut_prm.normalized, fx_state);
-            }
+        // First knob - read from the virtual CC when filter_to_comp is active
+        const hicut_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
+        var hicut_val: f64 = if (mode == .transport)
+            @as(f64, @floatFromInt(transport.rate)) / 127.0
+        else
+            fx_state.values.get(hicut_cc).?.param.normalized;
+        try placeKnob(ctx, origin, layout.at(m, layout.hicut), m.knob_w, line_h);
+        if (try Knobs.drawWidget(
+            ctx,
+            &hicut_val,
+            hicut_label_id,
+            .{ .no_val_display = hicut_disabled or value_display_disabled, .disabled = hicut_disabled },
+            m.knob_w,
+            @"editMode?"(fx_state, .Inpt_HiCut),
+        )) |knob_res| {
+            rv = toWidgetInput(knob_res, .Inpt_HiCut, hicut_val, fx_state);
         }
 
-        const filt_to_comp_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_filt_to_comp,
-            else => null,
-        };
-        const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
-        const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
-        const filt_to_comp_disabled = (filt_to_comp_label == null);
-        // The orange of the LEDs when the toggle is active
-        const ftc_color: ?c_int = if (fx_state.filter_to_comp) Knobs.led_orange else null;
-        if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
-            rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
-        }
-
-        const phase_inv_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,
-            else => null,
-        };
-        const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
-        const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
-        const phase_inv_disabled = (phase_inv_label == null);
-        const phase_inv_on = buttonIsOn(fx_state, .Inpt_phase_inv);
-        const phase_inv_color: ?c_int = if (phase_inv_on) phase_blue else null;
-        if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled, phase_inv_color })) {
-            rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
-        }
-
-        const preset_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_preset,
-            else => null,
-        };
-        const preset_label = if (preset_key) |key| tr(translations, key) else null;
-        const preset_display_label: [:0]const u8 = preset_label orelse "-";
-        const preset_disabled = (preset_label == null);
-        if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_disabled })) {
-            rv = .{ .cc = .Inpt_preset, .value = 1.0 };
+        // Second knob
+        const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+        var locut_prm = fx_state.values.get(locut_cc).?.param;
+        try placeKnob(ctx, origin, layout.at(m, layout.locut), m.knob_w, line_h);
+        if (try Knobs.drawWidget(
+            ctx,
+            &locut_prm.normalized,
+            locut_label_id,
+            .{ .no_val_display = locut_disabled or value_display_disabled, .disabled = locut_disabled },
+            m.knob_w,
+            @"editMode?"(fx_state, .Inpt_LoCut),
+        )) |knob_res| {
+            rv = toWidgetInput(knob_res, .Inpt_LoCut, locut_prm.normalized, fx_state);
         }
     }
 
+    // The preset, phase and filter buttons, stacked under the filter knobs.
+
+    const preset_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_preset,
+        else => null,
+    };
+    const preset_label = if (preset_key) |key| tr(translations, key) else null;
+    const preset_display_label: [:0]const u8 = preset_label orelse "-";
+    try placeButton(ctx, origin, layout.at(m, layout.preset), line_h);
+    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null })) {
+        rv = .{ .cc = .Inpt_preset, .value = 1.0 };
+    }
+
+    const phase_inv_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,
+        else => null,
+    };
+    const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
+    const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
+    const phase_inv_color: ?c_int = if (buttonIsOn(fx_state, .Inpt_phase_inv)) phase_blue else null;
+    try placeButton(ctx, origin, layout.at(m, layout.phase), line_h);
+    if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_label == null, phase_inv_color })) {
+        rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
+    }
+
+    const filt_to_comp_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_filt_to_comp,
+        else => null,
+    };
+    const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
+    const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
+    // The orange of the LEDs when the toggle is active
+    const ftc_color: ?c_int = if (fx_state.filter_to_comp) Knobs.led_orange else null;
+    try placeButton(ctx, origin, layout.at(m, layout.filters), line_h);
+    if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_label == null, ftc_color })) {
+        rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
+    }
+
+    // The module takes the room of its plate in the flow of the panel.
+    try imgui.SetCursorScreenPos(.{ ctx, start.x, start.y });
+    try imgui.Dummy(.{ ctx, plate_w, plate_h });
     return rv;
 }
 

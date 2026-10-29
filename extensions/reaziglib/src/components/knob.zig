@@ -90,6 +90,23 @@ pub inline fn angle_default() f64 {
 pub inline fn center(drawCursor: f64, radius: f64) f64 {
     return drawCursor + radius;
 }
+/// The height of a knob widget: its label, its padding and the knob. A panel that places knobs at fixed
+/// positions needs it to size its rows.
+pub fn widgetHeight(label_height: f64) f64 {
+    return centerOffsetY(label_height) + knob_size / 2 + label_text_padding;
+}
+
+/// How far the center of the knob is under the top of its widget, for a label of the given height.
+pub fn centerOffsetY(label_height: f64) f64 {
+    return label_height + label_text_padding - label_knob_overlap + knob_size / 2;
+}
+
+/// How far the line of the label overlaps the room of the knob. Because the line height of the font holds
+/// space under the letters and the ring of LEDs is thinner than the knob, the label can come this close.
+const label_knob_overlap = 3.0;
+
+const label_text_padding = 2.0;
+
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
     value: *f64,
@@ -105,23 +122,25 @@ pub fn drawWidget(
     // Calculate text size for label
     var label_size: Size = .{ .w = undefined, .h = undefined };
     try imgui.CalcTextSize(.{ ctx, label_id.label, &label_size.w, &label_size.h });
-    const text_padding = 2.0;
+    const text_padding = label_text_padding;
 
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    var total_width = @max(radius * 2, label_size.w);
-    if (max_width) |max_w| total_width = @max(max_w, total_width);
+    // A width that is given is the width of the widget, and a longer label overhangs it on both sides: a panel
+    // that places the knobs on fixed positions needs the cap to stay at the middle of the width it asked for.
+    const total_width = if (max_width) |max_w| @max(max_w, radius * 2) else @max(radius * 2, label_size.w);
+    const overhang = @max(0.0, (label_size.w - total_width) / 2);
 
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
         .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + label_size.h + text_padding * 3 + radius * 2,
+        .max_y = cur_pos.y + widgetHeight(label_size.h),
     };
 
     {
-        try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
+        try imgui.PushClipRect(.{ ctx, widget_rect.min_x - overhang, widget_rect.min_y, widget_rect.max_x + overhang, widget_rect.max_y, true });
 
         // Draw background color
         if (flags.knob_bg) |bg| {
@@ -139,7 +158,7 @@ pub fn drawWidget(
 
         // Draw "Empty" button in the center of the adjusted ClipRect
         const center_x = widget_rect.min_x + total_width / 2; // centered based on total width
-        const center_y = widget_rect.min_y + label_size.h + text_padding * 2 + radius; // adjusted for label
+        const center_y = widget_rect.min_y + centerOffsetY(label_size.h);
 
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
 
