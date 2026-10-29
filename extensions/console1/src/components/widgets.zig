@@ -14,6 +14,8 @@ const vSeparatorWidget = vertical_separator.vSeparator;
 /// text_pos: ?TextPosition,
 /// disabled: ?bool,
 /// color: ?c_int,
+/// latched: ?bool,
+/// icon: ?Icon,
 pub const roundButton = function(&roundButtonWidget, 3, &.{
     imgui.ContextPtr,
     [:0]const u8,
@@ -24,6 +26,7 @@ pub const roundButton = function(&roundButtonWidget, 3, &.{
     ?bool,
     ?c_int,
     ?bool,
+    ?button.Icon,
 });
 
 /// ```zig

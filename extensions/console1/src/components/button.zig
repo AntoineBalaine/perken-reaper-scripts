@@ -14,6 +14,22 @@ pub const TextPosition = enum {
 /// The radius of a round button that is not given one.
 pub const default_radius = 8.5;
 
+/// The symbols that a round button can carry: those of a transport.
+pub const Icon = enum { play, stop, rec };
+
+/// Draws a symbol of the transport at the center of a button of the given radius. The symbol is dark on the dome,
+/// and red for the record button.
+fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, disabled: bool) !void {
+    const s = radius * 0.42;
+    const dark: u32 = if (disabled) 0x55555577 else 0x2A2A2EFF;
+    const red: u32 = if (disabled) 0x80303077 else 0xD83A3AFF;
+    switch (icon) {
+        .play => try imgui.DrawList_AddTriangleFilled(.{ dl, cx - s * 0.6, cy - s, cx - s * 0.6, cy + s, cx + s * 1.1, cy, @as(c_int, @bitCast(dark)) }),
+        .stop => try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.85, cy - s * 0.85, cx + s * 0.85, cy + s * 0.85, @as(c_int, @bitCast(dark)), 1 }),
+        .rec => try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, s * 0.95, @as(c_int, @bitCast(red)), 0 }),
+    }
+}
+
 pub fn roundButton(
     ctx: imgui.ContextPtr,
     label: [:0]const u8,
@@ -25,6 +41,8 @@ pub fn roundButton(
     color: ?c_int,
     /// The button is shown pressed while this is true, as a toggle that is on is.
     latched: ?bool,
+    /// A small symbol drawn on the button.
+    icon: ?Icon,
 ) !bool {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else default_radius;
@@ -124,6 +142,10 @@ pub fn roundButton(
 
         const held = !is_disabled and try imgui.IsItemActive(.{ctx});
         try knob.drawRoundKey(draw_list, center_x, center_y, radius, color orelse -1, .{ .hovered = isHovered, .active = held or (latched orelse false), .disabled = is_disabled });
+        if (icon) |symbol| {
+            const sunk: f64 = if (held or (latched orelse false)) 0.8 else 0;
+            try drawIcon(draw_list, center_x, center_y + sunk, radius, symbol, is_disabled);
+        }
     }
 
     // Create dummy space for entire widget

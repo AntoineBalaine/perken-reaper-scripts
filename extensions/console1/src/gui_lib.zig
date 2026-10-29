@@ -200,21 +200,28 @@ pub fn main(
                     const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
                     switch (ctrl_input.cc) {
                         .Inpt_disp_mode => rv = .{ .change_mode = .fx_ctrl },
-                        .Inpt_disp_on => rv = .set_fx_ctrl_gui,
+                        .Out_mute => rv = .set_fx_ctrl_gui,
+                        .Inpt_disp_on => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
+                        .Shp_shape => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
+                        .Tr_order => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
+                        .Tr_ext_sidechain => rv = .{ .settings = .open },
                         .Out_Vol => rv = .{ .transport = .{ .tr_sel = val } },
                         .Out_Drive => rv = .{ .transport = .{ .zoom_horizontal = val } },
                         .Out_DriveChar => rv = .{ .transport = .{ .zoom_vertical = val } },
                         .Out_Pan => rv = .{ .transport = .{ .grid = val } },
-                        .Eq_eq => rv = .{ .transport = .loop_toggle },
+                        .Eq_eq => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
                         .Eq_lp_shape => rv = .{ .transport = .loop_start },
                         .Eq_hp_shape => rv = .{ .transport = .loop_end },
                         .Eq_LoGain => rv = .{ .transport = .{ .scrub = val } },
                         .Eq_LoMidGain => rv = .{ .transport = .{ .jog = val } },
                         .Eq_HiMidGain => rv = .{ .transport = .{ .jog_marker = val } },
                         .Eq_HiGain => rv = .{ .transport = .{ .jog_item = val } },
-                        .Comp_comp => rv = .{ .transport = .marker_set },
+                        .Comp_comp => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
                         .Inpt_HiCut => rv = .{ .transport = .{ .rate = val } },
                         .Out_solo => rv = .{ .transport = .snap_tgl },
+                        .Inpt_filt_to_comp => rv = .{ .transport = .play },
+                        .Inpt_phase_inv => rv = .{ .transport = .stop },
+                        .Inpt_preset => rv = .{ .transport = .rec },
                         else => {},
                     }
                 }
@@ -223,27 +230,16 @@ pub fn main(
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
-                            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
-                                const module: ModulesList = switch (cc_) {
-                                    .Tr_tr1 => .INPUT,
-                                    .Tr_tr2 => .GATE,
-                                    .Tr_tr3 => .EQ,
-                                    .Tr_tr4 => .COMP,
-                                    .Tr_tr5 => .OUTPT,
-                                    else => unreachable,
-                                };
-                                rv = .{ .fx_sel = .{ .toggle_module_browser = module } };
-                            },
+                            // Loop and marker set took the places of the browsers of the EQ and the compressor, which
+                            // are at the top left of their cards in this mode.
+                            .Tr_tr3 => rv = .{ .transport = .loop_toggle },
+                            .Tr_tr4 => rv = .{ .transport = .marker_set },
                             .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
                             .Tr_tr11 => rv = .{ .transport = .{ .automation_mode = .trim } },
                             .Tr_tr12 => rv = .{ .transport = .{ .automation_mode = .read } },
                             .Tr_tr13 => rv = .{ .transport = .{ .automation_mode = .latch } },
                             .Tr_tr14 => rv = .{ .transport = .{ .automation_mode = .preview } },
                             .Tr_tr15 => rv = .{ .transport = .{ .automation_mode = .write } },
-                            .Tr_tr17 => rv = .{ .transport = .play },
-                            .Tr_tr18 => rv = .{ .transport = .stop },
-                            .Tr_tr19 => rv = .{ .transport = .rec },
-                            .Tr_tr20 => rv = .{ .settings = .open },
                             else => {},
                         }
                     }

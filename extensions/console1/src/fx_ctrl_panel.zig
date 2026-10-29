@@ -106,6 +106,14 @@ fn themeAccent(ctx: imgui.ContextPtr) !c_int {
     return @bitCast(color | 0xFF);
 }
 
+/// The symbol of a transport button: only in the transport mode, where the buttons are the transport's.
+fn transportIcon(mode: Mode, icon: button.Icon) ?button.Icon {
+    return if (mode == .transport) icon else null;
+}
+
+/// The name of the control that hides the panel of Console 1 in the transport mode. It is the same in every language.
+const hide_c1_label: [:0]const u8 = "Hide C1";
+
 fn renderMappableButton(
     ctx: imgui.ContextPtr,
     plate: Plate,
@@ -114,12 +122,32 @@ fn renderMappableButton(
     fx_state: *FxCtrlState,
     mode: Mode,
     text_pos: ?button.TextPosition,
+    translations: *TranslationStore,
 ) !?WidgetInput {
     const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
     const val = fx_state.values.get(cc).?.param.normalized > 0.5;
     const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
     const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
     const color: ?c_int = if (mapped and val) Knobs.led_orange else null;
+    // In the transport mode, the bypass button of a card opens the browser of the plugins of its module, as the
+    // entry of the track list did, and the two buttons of the loop are the transport's. They have the labels of
+    // the transport, as they are not parameters of a plugin.
+    const transport_key: ?TranslationKey = switch (cc) {
+        .Shp_shape => .trsprt_Tr_tr2,
+        .Eq_eq => .trsprt_Tr_tr3,
+        .Comp_comp => .trsprt_Tr_tr4,
+        .Eq_lp_shape => .trsprt_Eq_lp_shape,
+        .Eq_hp_shape => .trsprt_Eq_hp_shape,
+        else => null,
+    };
+    if (mode == .transport and transport_key != null) {
+        const browse_label = tr(translations, transport_key.?);
+        try plate.button(ctx, slot, browse_label, .right);
+        if (try roundButton(.{ ctx, browse_label, "##" ++ @tagName(cc), null, null, text_pos, false, null })) {
+            return .{ .cc = cc, .value = 1 };
+        }
+        return null;
+    }
     try plate.button(ctx, slot, label, text_pos orelse .right);
     if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !mapped, color })) {
         return .{ .cc = cc, .value = if (val) 0 else 1 };
@@ -212,7 +240,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, &id_buf)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, translations, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
     try sectional(ctx);
@@ -222,7 +250,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, translations, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
@@ -323,22 +351,22 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     // The display button is named "FX" in the FX modes and "Hide C1" in the transport mode, and is in the accent of
     // the theme. Both names are the same in every language, and so are not translated.
     const disp_on_fx_label: [:0]const u8 = "FX";
-    const disp_on_transport_label: [:0]const u8 = "Hide C1";
 
     // The labels of the buttons are translations of the panel, and so are the same in every mode.
-    const labels = [_][:0]const u8{ try widestOf(ctx, &.{ disp_on_fx_label, disp_on_transport_label }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .fx_ctrl_Inpt_preset) };
+    const labels = [_][:0]const u8{ try widestOf(ctx, &.{ disp_on_fx_label, tr(translations, .trsprt_Tr_tr1) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .trsprt_Tr_tr17) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .trsprt_Tr_tr18) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_preset), tr(translations, .trsprt_Tr_tr19) }) };
     const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input), .title_alternatives = &moduleTitles(.input), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
 
     const disp_on_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
-        .transport => .trsprt_Inpt_disp_on,
+        // In the transport mode, the button opens the browser of the input plugins, as the entry of the track list did.
+        .transport => .trsprt_Tr_tr1,
         else => null,
     };
     const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
     const disp_on_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
-    const disp_on_display_label: [:0]const u8 = if (disp_on_fx_mode) disp_on_fx_label else if (mode == .transport) disp_on_transport_label else disp_on_label orelse "-";
+    const disp_on_display_label: [:0]const u8 = if (disp_on_fx_mode) disp_on_fx_label else disp_on_label orelse "-";
     try plate.button(ctx, input_slots.Inpt_disp_on, disp_on_display_label, .right);
-    const disp_on_color: ?c_int = if (disp_on_label == null) null else try themeAccent(ctx);
+    const disp_on_color: ?c_int = if (disp_on_label == null or mode == .transport) null else try themeAccent(ctx);
     if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null, disp_on_color, disp_on_fx_mode and fx_state.display != null })) {
         rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
     }
@@ -449,37 +477,41 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
 
     const preset_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_preset,
+        .transport => .trsprt_Tr_tr19,
         else => null,
     };
     const preset_label = if (preset_key) |key| tr(translations, key) else null;
     const preset_display_label: [:0]const u8 = preset_label orelse "-";
     try plate.button(ctx, input_slots.Inpt_preset, preset_display_label, .right);
-    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null })) {
+    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null, null, null, transportIcon(mode, .rec) })) {
         rv = .{ .cc = .Inpt_preset, .value = 1.0 };
     }
 
     const phase_inv_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,
+        // In the transport mode, the three buttons are the transport's: play, stop and record.
+        .transport => .trsprt_Tr_tr18,
         else => null,
     };
     const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
     const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
-    const phase_inv_color: ?c_int = if (buttonIsOn(fx_state, .Inpt_phase_inv)) phase_blue else null;
+    const phase_inv_color: ?c_int = if (mode != .transport and buttonIsOn(fx_state, .Inpt_phase_inv)) phase_blue else null;
     try plate.button(ctx, input_slots.Inpt_phase_inv, phase_inv_display_label, .right);
-    if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_label == null, phase_inv_color })) {
+    if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_label == null, phase_inv_color, null, transportIcon(mode, .stop) })) {
         rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
     }
 
     const filt_to_comp_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_filt_to_comp,
+        .transport => .trsprt_Tr_tr17,
         else => null,
     };
     const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
     const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
     // The orange of the LEDs when the toggle is active
-    const ftc_color: ?c_int = if (fx_state.filter_to_comp) Knobs.led_orange else null;
+    const ftc_color: ?c_int = if (mode != .transport and fx_state.filter_to_comp) Knobs.led_orange else null;
     try plate.button(ctx, input_slots.Inpt_filt_to_comp, filt_to_comp_display_label, .right);
-    if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_label == null, ftc_color })) {
+    if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_label == null, ftc_color, null, transportIcon(mode, .play) })) {
         rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
     }
 
@@ -487,7 +519,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -500,7 +532,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
     });
     const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape) });
 
-    if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
 
@@ -531,7 +563,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
                 rv = toWidgetInput(knob_res, .Shp_Gate, gate_prm.normalized, fx_state);
             }
 
-            if (try renderMappableButton(ctx, plate, shape_slots.Shp_hard_gate, .Shp_hard_gate, fx_state, mode, .below)) |action| {
+            if (try renderMappableButton(ctx, plate, shape_slots.Shp_hard_gate, .Shp_hard_gate, fx_state, mode, .below, translations)) |action| {
                 rv = action;
             }
         }
@@ -640,13 +672,13 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     });
     const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq) });
 
-    if (try renderMappableButton(ctx, plate, eq_slots.Eq_eq, .Eq_eq, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, eq_slots.Eq_eq, .Eq_eq, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
 
     { // first column
         {
-            if (try renderMappableButton(ctx, plate, eq_slots.Eq_lp_shape, .Eq_lp_shape, fx_state, mode, .right)) |action| {
+            if (try renderMappableButton(ctx, plate, eq_slots.Eq_lp_shape, .Eq_lp_shape, fx_state, mode, .right, translations)) |action| {
                 rv = action;
             }
 
@@ -856,7 +888,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
     { // fourth column
         {
-            if (try renderMappableButton(ctx, plate, eq_slots.Eq_hp_shape, .Eq_hp_shape, fx_state, mode, .right)) |action| {
+            if (try renderMappableButton(ctx, plate, eq_slots.Eq_hp_shape, .Eq_hp_shape, fx_state, mode, .right, translations)) |action| {
                 rv = action;
             }
 
@@ -916,7 +948,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -930,7 +962,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
     });
     const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp) });
 
-    if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
 
@@ -1091,9 +1123,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         "",
         "",
         "",
-        try widestOf(ctx, &.{ strip_sidechain, tr(translations, .fx_ctrl_Tr_ext_sidechain), tr(translations, .fx_ctrl_Tr_ext_sidechain_shape), tr(translations, .fx_ctrl_Tr_ext_sidechain_comp) }),
+        try widestOf(ctx, &.{ strip_sidechain, tr(translations, .trsprt_Tr_tr20), tr(translations, .fx_ctrl_Tr_ext_sidechain), tr(translations, .fx_ctrl_Tr_ext_sidechain_shape), tr(translations, .fx_ctrl_Tr_ext_sidechain_comp) }),
         try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Out_solo), tr(translations, .trsprt_Out_solo) }),
-        tr(translations, .fx_ctrl_Out_mute),
+        try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Out_mute), hide_c1_label }),
         "",
     } });
 
@@ -1113,6 +1145,8 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .@"S-C-EQ" => .fx_ctrl_Tr_order_s_c_eq,
                     .@"S-EQ-C" => .fx_ctrl_Tr_order_s_eq_c,
                 },
+                // In the transport mode, the button opens the browser of the output plugins.
+                .transport => .trsprt_Tr_tr5,
                 else => null,
             };
             const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
@@ -1120,12 +1154,16 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const tr_order_disabled = (tr_order_label == null);
             try plate.button(ctx, out_slots.Tr_order, tr_order_display_label, .right);
             if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
-                const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
-                    .@"EQ-S-C" => .@"S-C-EQ",
-                    .@"S-C-EQ" => .@"S-EQ-C",
-                    .@"S-EQ-C" => .@"EQ-S-C",
-                };
-                rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@backingInt(next_order))) };
+                if (mode == .transport) {
+                    rv = .{ .cc = .Tr_order, .value = 0 };
+                } else {
+                    const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
+                        .@"EQ-S-C" => .@"S-C-EQ",
+                        .@"S-C-EQ" => .@"S-EQ-C",
+                        .@"S-EQ-C" => .@"EQ-S-C",
+                    };
+                    rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@backingInt(next_order))) };
+                }
             }
         }
         {
@@ -1232,6 +1270,8 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .toShape => .fx_ctrl_Tr_ext_sidechain_shape,
                     .toComp => .fx_ctrl_Tr_ext_sidechain_comp,
                 },
+                // In the transport mode, the button opens the settings, as the entry of the track list did.
+                .transport => .trsprt_Tr_tr20,
                 else => null,
             };
             const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
@@ -1239,12 +1279,16 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const ext_sidechain_disabled = (ext_sidechain_label == null);
             try plate.button(ctx, out_slots.Tr_ext_sidechain, ext_sidechain_display_label, .right);
             if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
-                const next_routing: SCRouting = switch (fx_state.scRouting) {
-                    .off => .toShape,
-                    .toShape => .toComp,
-                    .toComp => .off,
-                };
-                rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@backingInt(next_routing))) };
+                if (mode == .transport) {
+                    rv = .{ .cc = .Tr_ext_sidechain, .value = 0 };
+                } else {
+                    const next_routing: SCRouting = switch (fx_state.scRouting) {
+                        .off => .toShape,
+                        .toShape => .toComp,
+                        .toComp => .off,
+                    };
+                    rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@backingInt(next_routing))) };
+                }
             }
         }
         {
@@ -1268,10 +1312,11 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 else => null,
             };
             const out_mute_label = if (out_mute_key) |key| tr(translations, key) else null;
-            const out_mute_display_label: [:0]const u8 = out_mute_label orelse "-";
-            const out_mute_disabled = (out_mute_label == null);
+            // In the transport mode, the button under the snap button hides Console 1's panel.
+            const out_mute_display_label: [:0]const u8 = if (mode == .transport) hide_c1_label else out_mute_label orelse "-";
+            const out_mute_disabled = (out_mute_label == null and mode != .transport);
             try plate.button(ctx, out_slots.Out_mute, out_mute_display_label, .right);
-            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .right, out_mute_disabled, if (mute) mute_red else null })) {
+            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .right, out_mute_disabled, if (mute and mode != .transport) mute_red else null })) {
                 rv = .{ .cc = .Out_mute, .value = if (mute) 0 else 1 };
             }
 
