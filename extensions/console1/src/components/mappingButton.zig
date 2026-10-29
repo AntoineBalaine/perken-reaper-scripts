@@ -125,23 +125,8 @@ pub fn mappingButton(
         // Check if the button is hovered
         const isHovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
 
-        // Define base color and adjust based on hover state
-        var buttonColor: c_int = -1; // Default white color
-        if (isHovered or is_disabled) {
-            // Brighten the color when hovered (similar to knob.zig)
-            buttonColor = knob.adjustBrightness(buttonColor, -50, false);
-        }
-
-        // Draw circle with the adjusted color
-        try imgui.DrawList_AddCircleFilled(.{
-            draw_list,
-            center_x,
-            center_y,
-            radius,
-            buttonColor,
-            0,
-            2.0,
-        });
+        const held = !is_disabled and try imgui.IsItemActive(.{ctx});
+        try knob.drawRoundKey(draw_list, center_x, center_y, radius, -1, .{ .hovered = isHovered, .active = held, .disabled = is_disabled });
     }
 
     const available_width = widget_rect.max_x - widget_rect.min_x;

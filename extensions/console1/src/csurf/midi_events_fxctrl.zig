@@ -24,6 +24,24 @@ fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
         null;
 }
 
+/// Because REAPER's control surface interface has no notification for the phase of a track, and the panel
+/// must show the mute, solo and phase of the selected track whoever changed them, the three are read
+/// from the track once per frame.
+pub fn syncTrackToggles(globals: *Globals) void {
+    const fx_ctrl = &globals.state.fx_ctrl;
+    const tr = getTrack(globals.state.current_tr_id) orelse return;
+    const toggles = [_]struct { cc: c1.CCs, on: bool }{
+        .{ .cc = .Out_mute, .on = reaper.GetMediaTrackInfo_Value(tr, "B_MUTE") > 0.5 },
+        .{ .cc = .Out_solo, .on = reaper.GetMediaTrackInfo_Value(tr, "I_SOLO") > 0.5 },
+        .{ .cc = .Inpt_phase_inv, .on = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE") > 0.5 },
+    };
+    for (toggles) |toggle| {
+        const value = fx_ctrl.values.getPtr(toggle.cc) orelse continue;
+        std.debug.assert(value.* == .button);
+        value.* = .{ .button = toggle.on };
+    }
+}
+
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
     switch (cc) {
         .Inpt_disp_mode => {
@@ -253,6 +271,13 @@ pub fn setPrmVal(cc: c1.CCs, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlSta
     }
 }
 
+/// Because REAPER reports a parameter that it cannot read as -1 or NaN, the value is clamped before it is
+/// converted, as the conversion of a float outside the range of the integer is a panic.
+fn normalizedToMidi(value: f64) u8 {
+    if (std.math.isNan(value)) return 0;
+    return @intFromFloat(std.math.clamp(value, 0.0, 1.0) * 127);
+}
+
 pub fn syncFilterKnobs(globals: *Globals) void {
     const tr = getTrack(globals.state.current_tr_id) orelse return;
     const fx_ctrl = &globals.state.fx_ctrl;
@@ -285,11 +310,11 @@ pub fn syncFilterKnobs(globals: *Globals) void {
     setUIVal(locut_cc, lo, fx_ctrl);
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
         .cc = .Inpt_HiCut,
-        .value = @intFromFloat(@min(hi, 1.0) * 127),
+        .value = normalizedToMidi(hi),
     } } });
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
         .cc = .Inpt_LoCut,
-        .value = @intFromFloat(@min(lo, 1.0) * 127),
+        .value = normalizedToMidi(lo),
     } } });
 }
 

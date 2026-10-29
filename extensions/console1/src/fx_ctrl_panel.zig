@@ -22,6 +22,21 @@ const LabelPool = @import("track_state.zig").LabelPool;
 
 const button = @import("components/button.zig");
 
+/// The colors of the buttons that are on, as on a mixing desk: yellow for solo, red for mute, blue for phase.
+const solo_yellow: c_int = @bitCast(@as(u32, 0xF0C020FF));
+const mute_red: c_int = @bitCast(@as(u32, 0xE04848FF));
+const phase_blue: c_int = @bitCast(@as(u32, 0x4FA0E8FF));
+
+/// Whether an on/off button is on. Because the host library that holds the state is replaced less often
+/// than this one, a control that the host has not made a button yet reads as off.
+fn buttonIsOn(fx_state: *const FxCtrlState, cc: c1.CCs) bool {
+    const value = fx_state.values.get(cc) orelse return false;
+    return switch (value) {
+        .button => |on| on,
+        else => false,
+    };
+}
+
 fn renderMappableButton(
     ctx: imgui.ContextPtr,
     comptime cc: c1.CCs,
@@ -33,7 +48,7 @@ fn renderMappableButton(
     const val = fx_state.values.get(cc).?.param.normalized > 0.5;
     const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
     const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
-    const color: ?c_int = if (mapped and val) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
+    const color: ?c_int = if (mapped and val) Knobs.led_orange else null;
     if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !mapped, color })) {
         return .{ .cc = cc, .value = if (val) 0 else 1 };
     }
@@ -82,7 +97,7 @@ fn centerWidgetLabel(ctx: imgui.ContextPtr, label: [:0]const u8, max_width: f64)
     }
 }
 // Layout constants
-const KNOB_SIZE = 40.0;
+const KNOB_SIZE = Knobs.knob_size;
 
 fn @"editMode?"(fx_state: *FxCtrlState, cc: c1.CCs) Knobs.EditMode {
     if (fx_state.editing_cc) |ecc| {
@@ -301,8 +316,8 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
         const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
         const filt_to_comp_disabled = (filt_to_comp_label == null);
-        // Orange color (ABGR) when the toggle is active
-        const ftc_color: ?c_int = if (fx_state.filter_to_comp) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
+        // The orange of the LEDs when the toggle is active
+        const ftc_color: ?c_int = if (fx_state.filter_to_comp) Knobs.led_orange else null;
         if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
             rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
         }
@@ -314,7 +329,9 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
         const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
         const phase_inv_disabled = (phase_inv_label == null);
-        if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled })) {
+        const phase_inv_on = buttonIsOn(fx_state, .Inpt_phase_inv);
+        const phase_inv_color: ?c_int = if (phase_inv_on) phase_blue else null;
+        if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled, phase_inv_color })) {
             rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
         }
 
@@ -1070,7 +1087,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         }
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE * 2, KNOB_SIZE * 2 });
-            const solo = fx_state.values.get(.Out_solo).?.button;
+            const solo = buttonIsOn(fx_state, .Out_solo);
             const out_solo_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_solo,
                 .transport => .trsprt_Out_solo,
@@ -1079,13 +1096,13 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const out_solo_label = if (out_solo_key) |key| tr(translations, key) else null;
             const out_solo_display_label: [:0]const u8 = out_solo_label orelse "-";
             const out_solo_disabled = (out_solo_label == null);
-            if (try roundButton(.{ ctx, out_solo_display_label, "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below, out_solo_disabled })) {
+            if (try roundButton(.{ ctx, out_solo_display_label, "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below, out_solo_disabled, if (solo) solo_yellow else null })) {
                 rv = .{ .cc = .Out_solo, .value = if (solo) 0 else 1 };
             }
 
             try imgui.SameLine(.{ctx});
 
-            const mute = fx_state.values.get(.Out_mute).?.button;
+            const mute = buttonIsOn(fx_state, .Out_mute);
             const out_mute_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_mute,
                 else => null,
@@ -1093,7 +1110,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const out_mute_label = if (out_mute_key) |key| tr(translations, key) else null;
             const out_mute_display_label: [:0]const u8 = out_mute_label orelse "-";
             const out_mute_disabled = (out_mute_label == null);
-            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .below, out_mute_disabled })) {
+            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .below, out_mute_disabled, if (mute) mute_red else null })) {
                 rv = .{ .cc = .Out_mute, .value = if (mute) 0 else 1 };
             }
 

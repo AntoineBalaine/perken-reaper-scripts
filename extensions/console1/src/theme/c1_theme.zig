@@ -1,10 +1,11 @@
 const std = @import("std");
 const ini = @import("ini");
 const imgui = @import("reaper_imgui");
+const panel_fonts = @import("panel_fonts");
 const fontello = @embedFile("../assets/fontello1.ttf");
 const systemfont = "sans-serif";
 
-pub const FONT_SMALL_SIZE: c_int = 14;
+pub const FONT_SMALL_SIZE: c_int = panel_fonts.text_size + 2;
 pub const ICON_FONT_SMALL_SIZE: c_int = 13;
 
 const Fonts = struct {
@@ -15,7 +16,7 @@ const Fonts = struct {
 pub var fonts = Fonts{};
 
 pub fn initFonts(ctx: imgui.ContextPtr) !void {
-    fonts.MAIN = try imgui.CreateFont(.{ systemfont, FONT_SMALL_SIZE, null });
+    fonts.MAIN = panel_fonts.load(panel_fonts.saira_regular, FONT_SMALL_SIZE);
     fonts.ICON_FONT_SMALL = try imgui.CreateFontFromMem(.{ fontello, fontello.len, ICON_FONT_SMALL_SIZE, null });
     if (ctx) |context| {
         const mainFontResource: imgui.ResourcePtr = @ptrCast(fonts.MAIN);

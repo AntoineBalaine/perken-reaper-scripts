@@ -1,7 +1,9 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
+const theme = @import("panel_theme");
 
-const knob_size = 40.0;
+/// The diameter of a knob, LED ring included. The panels size their spacing from it.
+pub const knob_size = 54.0;
 const MAXVAL = 1.0;
 const MINVAL = 0.0;
 
@@ -111,18 +113,15 @@ pub fn drawWidget(
     var total_width = @max(radius * 2, label_size.w);
     if (max_width) |max_w| total_width = @max(max_w, total_width);
 
-    const val_disp: f64 = if (flags.no_val_display) 1 else 2;
-    const line_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
         .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + radius * val_disp + label_size.h + text_padding * val_disp + line_height * 1.5,
+        .max_y = cur_pos.y + label_size.h + text_padding * 3 + radius * 2,
     };
 
-    display_value: {
+    {
         try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
-        defer imgui.PopClipRect(.{ctx}) catch {};
 
         // Draw background color
         if (flags.knob_bg) |bg| {
@@ -150,103 +149,59 @@ pub fn drawWidget(
             .scale = .logarithmic,
         });
 
-        const angle_ = angle(value.*, 0.0, 1.0);
-        var wiper_start: f64 = undefined;
-        var wiper_end: f64 = undefined;
-        switch (flags.trackStart) {
-            .left => {
-                wiper_start = angle_min();
-                wiper_end = angle_;
-            },
-            .right => {
-                wiper_start = angle_max();
-                wiper_end = angle_;
-            },
-            .center => {
-                wiper_start = angle_;
-                wiper_end = angle_default();
-            },
-        }
         const isHovered = rv[0];
         const active = rv[1];
 
         if (active) result = .active;
 
         const drwLs = try imgui.GetWindowDrawList(.{ctx});
-        var circleColor = try imgui.GetStyleColor(.{ ctx, imgui.Col_TitleBg });
-        var dotColor = try imgui.GetStyleColor(.{ ctx, if (active) imgui.Col_SliderGrabActive else imgui.Col_SliderGrab });
+        try drawCapKnob(drwLs, center_x, center_y, radius, value.*, flags.trackStart, .{ .hovered = isHovered, .active = active, .disabled = flags.disabled });
 
-        if (isHovered and !active) {
-            dotColor = adjustBrightness(dotColor, -30, false);
-            circleColor = adjustBrightness(circleColor, 50, false);
-        } else {
-            dotColor = adjustBrightness(dotColor, 50, false);
-            circleColor = adjustBrightness(circleColor, -30, false);
-        }
+        // The popups are not clipped to the widget, as they stand over the label and above the knob.
+        try imgui.PopClipRect(.{ctx});
 
-        // Apply additional dimming if disabled
-        if (flags.disabled) {
-            dotColor = adjustBrightness(dotColor, -70, false);
-            circleColor = adjustBrightness(circleColor, -70, false);
-        }
+        // The value is not printed under the knob: it shows in a popup above the knob while the knob is
+        // held, and a right click on the knob opens the box in which a value is typed.
+        if (!flags.no_val_display and !flags.disabled) {
+            if (edit_mode) |edit_buf| {
+                const edit_w = @max(total_width, 64.0);
+                const frame_h = try imgui.GetFrameHeight(.{ctx});
+                try imgui.SetCursorScreenPos(.{ ctx, center_x - edit_w / 2, center_y - radius - frame_h - 4 });
+                try imgui.PushItemWidth(.{ ctx, edit_w });
+                defer imgui.PopItemWidth(.{ctx}) catch {};
+                try imgui.SetKeyboardFocusHere(.{ctx});
 
-        try Circle(drwLs, circleColor, center_x, center_y, 0.6, true, 32, radius);
-        try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
-        try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
+                var val_edit_id_buf: [48]u8 = undefined;
+                const val_edit_id = std.mem.printSentinel(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}, 0) catch "##val_edit";
 
-        // Draw the value label below the button
+                const enter_pressed = try imgui.InputText(.{
+                    ctx,
+                    val_edit_id,
+                    @as([*]u8, @ptrCast(edit_buf)),
+                    @as(c_int, @intCast(edit_buf.len)),
+                    imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll,
+                    null,
+                });
 
-        if (flags.no_val_display) break :display_value;
-
-        const label_y = center_y + radius + 2.5;
-
-        if (edit_mode) |edit_buf| {
-            // Render InputText instead of static value text
-            try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, label_y });
-            try imgui.PushItemWidth(.{ ctx, total_width });
-            defer imgui.PopItemWidth(.{ctx}) catch {};
-            try imgui.SetKeyboardFocusHere(.{ctx});
-
-            var val_edit_id_buf: [48]u8 = undefined;
-            const val_edit_id = std.mem.printSentinel(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}, 0) catch "##val_edit";
-
-            const enter_pressed = try imgui.InputText(.{
-                ctx,
-                val_edit_id,
-                @as([*]u8, @ptrCast(edit_buf)),
-                @as(c_int, @intCast(edit_buf.len)),
-                imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll,
-                null,
-            });
-
-            if (enter_pressed) {
-                const text = std.mem.sliceTo(edit_buf, 0);
-                if (std.fmt.parseFloat(f64, text)) |parsed| {
-                    result = .{ .value_submit = std.math.clamp(parsed, 0.0, 1.0) };
-                } else |_| {
+                if (enter_pressed) {
+                    const text = std.mem.sliceTo(edit_buf, 0);
+                    if (std.fmt.parseFloat(f64, text)) |parsed| {
+                        result = .{ .value_submit = std.math.clamp(parsed, 0.0, 1.0) };
+                    } else |_| {
+                        result = .value_cancel;
+                    }
+                } else if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) {
                     result = .value_cancel;
                 }
-            } else if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) {
-                result = .value_cancel;
-            }
-        } else {
-            // Render static value text
-            var buf: [24]u8 = undefined;
-            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.mem.printSentinel(&buf, "{d:.2}", .{value.*}, 0);
-            var txt_size: Size = .{ .w = undefined, .h = undefined };
-            try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
-            try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
-
-            // Invisible button over the value text for double-click detection
-            try imgui.SetCursorScreenPos(.{ ctx, center_x - txt_size.w / 2.0, label_y });
-            try imgui.SetNextItemAllowOverlap(.{ctx});
-
-            var val_dclick_id_buf: [48]u8 = undefined;
-            const val_dclick_id = std.mem.printSentinel(&val_dclick_id_buf, "##val_dc_{s}", .{label_id.id}, 0) catch "##val_dc";
-
-            _ = try imgui.InvisibleButton(.{ ctx, val_dclick_id, txt_size.w, txt_size.h });
-            if (try imgui.IsItemHovered(.{ctx}) and try imgui.IsMouseDoubleClicked(.{ ctx, imgui.MouseButton_Left })) {
-                result = .value_dclick;
+            } else {
+                if (isHovered and try imgui.IsMouseClicked(.{ ctx, imgui.MouseButton_Right })) {
+                    result = .value_dclick;
+                }
+                if (active) {
+                    var buf: [24]u8 = undefined;
+                    const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.mem.printSentinel(&buf, "{d:.2}", .{value.*}, 0);
+                    try drawValuePopup(ctx, center_x, center_y - radius, val_fmt);
+                }
             }
         }
     }
@@ -429,4 +384,142 @@ pub fn getScreenWidgetRect(ctx: imgui.ContextPtr, widget_pos: Position, widget_r
         .max_x = win_pos.x + widget_pos.x + widget_radius * 2,
         .max_y = win_pos.y + widget_pos.y + widget_radius * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
     };
+}
+
+/// The value of a knob in a small dark box with an orange outline, whose bottom edge is at `bottom`. It
+/// is drawn over everything else in the window.
+fn drawValuePopup(ctx: imgui.ContextPtr, center_x: f64, bottom: f64, text: [:0]const u8) !void {
+    const dl = try imgui.GetForegroundDrawList(.{ctx});
+    var size: Size = .{ .w = undefined, .h = undefined };
+    try imgui.CalcTextSize(.{ ctx, text, &size.w, &size.h });
+    const w = size.w + 18;
+    const h = size.h + 8;
+    const x1 = center_x - w / 2;
+    const y2 = bottom + 2;
+    const y1 = y2 - h;
+    try imgui.DrawList_AddRectFilled(.{ dl, x1 + 1, y1 + 3, x1 + w + 1, y2 + 3, hexColor(0x00000099), 6 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x1, y1, x1 + w, y2, hexColor(0x0B0B0DF2), 6 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x1, y1, x1 + w, y2, faded(led_orange, 0x22), 6 });
+    try imgui.DrawList_AddRect(.{ dl, x1, y1, x1 + w, y2, led_orange, 6, null, 1.2 });
+    try imgui.DrawList_AddText(.{ dl, center_x - size.w / 2, y1 + 4, led_orange, text });
+}
+
+// ---- the skeuomorphic drawing: a rubber cap in a well, ringed by small orange LEDs, and a domed key ----
+
+pub const led_orange: c_int = @bitCast(@as(u32, 0xFF8A24FF));
+const led_count = 11;
+
+pub const CapState = struct {
+    hovered: bool = false,
+    active: bool = false,
+    disabled: bool = false,
+};
+
+fn hexColor(hex: u32) c_int {
+    return @bitCast(hex);
+}
+
+/// The color with its alpha (the last byte of 0xRRGGBBAA) replaced.
+fn faded(color: c_int, alpha: u32) c_int {
+    const bits: u32 = @bitCast(color);
+    return @bitCast((bits & 0xFFFFFF00) | alpha);
+}
+
+/// The color with each channel moved by `delta`, alpha untouched.
+fn shade(color: c_int, delta: i32) c_int {
+    const bits: u32 = @bitCast(color);
+    var out: u32 = bits & 0xFF;
+    inline for (.{ 24, 16, 8 }) |shift| {
+        const channel: i32 = @intCast((bits >> shift) & 0xFF);
+        const moved: u32 = @intCast(std.math.clamp(channel + delta, 0, 255));
+        out |= moved << shift;
+    }
+    return @bitCast(out);
+}
+
+/// Draws a knob of the given radius around (cx, cy): a ring of eleven small LEDs that light up to the
+/// value, over a well that holds a domed rubber cap with a pointer. The radius of the widget is the
+/// radius of the outer edge of the LEDs.
+pub fn drawCapKnob(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, value: f64, track_start: TrackStart, state: CapState) !void {
+    std.debug.assert(radius > 0);
+    const ring_r = radius * 0.86;
+    const led_r = @max(1.1, radius * 0.07);
+    const cap_r = radius * 0.6;
+    const well_r = cap_r + 2;
+
+    const lo: f64, const hi: f64, const empty: bool = switch (track_start) {
+        .left => .{ 0, value, value < 0.001 },
+        .right => .{ value, 1, value > 0.999 },
+        .center => .{ @min(value, 0.5), @max(value, 0.5), false },
+    };
+    const half_step = 0.5 / @as(f64, led_count - 1);
+    for (0..led_count) |i| {
+        const f = @as(f64, @floatFromInt(i)) / (led_count - 1);
+        const a = angle_min() + (angle_max() - angle_min()) * f;
+        const x = cx + @cos(a) * ring_r;
+        const y = cy + @sin(a) * ring_r;
+        const lit = !state.disabled and !empty and f >= lo - half_step and f <= hi + half_step;
+        if (lit) {
+            try imgui.DrawList_AddCircleFilled(.{ dl, x, y, led_r + 1.6, faded(led_orange, 0x2A), 0 });
+            try imgui.DrawList_AddCircleFilled(.{ dl, x, y, led_r, led_orange, 0 });
+        } else {
+            try imgui.DrawList_AddCircleFilled(.{ dl, x, y, led_r - 0.2, hexColor(0x060607FF), 0 });
+            try imgui.DrawList_AddCircle(.{ dl, x, y, led_r - 0.2, hexColor(0xFFFFFF14), 0 });
+        }
+    }
+
+    // The well, with a faint light on its lower lip.
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, well_r, theme.slot_bg, 0 });
+    try imgui.DrawList_AddCircle(.{ dl, cx, cy + 0.5, well_r, hexColor(0xFFFFFF18), 0 });
+
+    // The cap sinks one pixel while it is held. From the back to the front: its shadow, its body, its
+    // dome, and the shine on the dome.
+    const sink: f64 = if (state.active) 1 else 0;
+    const y = cy + sink;
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx + 0.8, y + 1.8 - sink, cap_r + 0.5, hexColor(0x000000AA), 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx, y, cap_r, theme.knob_body, 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx - 0.6, y - 0.8, cap_r - 1.8, theme.knob_top, 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx - 0.9, y - 1.4, cap_r - 4, hexColor(0xFFFFFF0C), 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx - cap_r * 0.35, y - cap_r * 0.4, cap_r * 0.2, hexColor(0xFFFFFF22), 0 });
+    const edge = if (state.hovered or state.active) faded(led_orange, 0xAA) else theme.knob_edge;
+    try imgui.DrawList_AddCircle(.{ dl, cx, y, cap_r, edge, 0 });
+
+    const a = angle(value, 0.0, 1.0);
+    try imgui.DrawList_AddLine(.{
+        dl,
+        cx + @cos(a) * cap_r * 0.35,
+        y + @sin(a) * cap_r * 0.35,
+        cx + @cos(a) * cap_r * 0.85,
+        y + @sin(a) * cap_r * 0.85,
+        if (state.disabled) theme.text_dim else theme.text,
+        2,
+    });
+
+    if (state.disabled) {
+        try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, ring_r + led_r + 1, hexColor(0x00000066), 0 });
+    }
+}
+
+/// Draws a round key of the given radius around (cx, cy): a dome of the base color in a darker rim,
+/// with a shadow under it and a shine on it. It sinks while it is held, glows orange under the mouse, and
+/// is dim while disabled.
+pub fn drawRoundKey(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, base: c_int, state: CapState) !void {
+    std.debug.assert(radius > 0);
+    const sink: f64 = if (state.active) 0.8 else 0;
+    const y = cy + sink;
+    const delta: i32 = if (state.disabled) -70 else if (state.active) -30 else 0;
+    const dome = shade(base, delta);
+
+    const lit = !state.disabled and (state.hovered or state.active);
+    // A white key glows orange, and a key that has a color glows in it.
+    const glow = if (base == -1) led_orange else base;
+    if (lit) try imgui.DrawList_AddCircleFilled(.{ dl, cx, y, radius + 2.5, faded(glow, if (state.active) 0x66 else 0x40), 0 });
+    if (!state.active) try imgui.DrawList_AddCircleFilled(.{ dl, cx + 0.5, cy + 1.5, radius + 0.5, hexColor(0x000000AA), 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx, y, radius, if (lit) glow else shade(dome, -120), 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx, y, radius - 0.8, shade(dome, -70), 0 });
+    try imgui.DrawList_AddCircleFilled(.{ dl, cx - radius * 0.14, y - radius * 0.2, radius * 0.68, dome, 0 });
+    if (lit) try imgui.DrawList_AddCircleFilled(.{ dl, cx, y, radius - 0.8, faded(glow, if (state.active) 0x70 else 0x38), 0 });
+    if (!state.disabled) {
+        try imgui.DrawList_AddCircleFilled(.{ dl, cx - radius * 0.3, y - radius * 0.38, @max(0.9, radius * 0.2), hexColor(0xFFFFFFB0), 0 });
+    }
 }

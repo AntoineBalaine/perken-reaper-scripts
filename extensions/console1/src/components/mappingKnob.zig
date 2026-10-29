@@ -99,45 +99,8 @@ pub fn drawWidget(
             rv = .click;
         }
 
-        const angle_ = angle(value, 0.0, 1.0);
-        var wiper_start: f64 = undefined;
-        var wiper_end: f64 = undefined;
-        switch (flags.trackStart) {
-            .left => {
-                wiper_start = angle_min();
-                wiper_end = angle_;
-            },
-            .right => {
-                wiper_start = angle_max();
-                wiper_end = angle_;
-            },
-            .center => {
-                wiper_start = angle_;
-                wiper_end = angle_default();
-            },
-        }
-
         const drwLs = try imgui.GetWindowDrawList(.{ctx});
-        var circleColor = try imgui.GetStyleColor(.{ ctx, imgui.Col_TitleBg });
-        var dotColor = try imgui.GetStyleColor(.{ ctx, if (clicked) imgui.Col_SliderGrabActive else imgui.Col_SliderGrab });
-
-        if (hovered and !clicked) {
-            dotColor = adjustBrightness(dotColor, -30, false);
-            circleColor = adjustBrightness(circleColor, 50, false);
-        } else {
-            dotColor = adjustBrightness(dotColor, 50, false);
-            circleColor = adjustBrightness(circleColor, -30, false);
-        }
-
-        // Apply additional dimming if disabled
-        if (flags.disabled) {
-            dotColor = adjustBrightness(dotColor, -70, false);
-            circleColor = adjustBrightness(circleColor, -70, false);
-        }
-
-        try Circle(drwLs, circleColor, center_x, center_y, 0.6, true, 32, radius);
-        try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
-        try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
+        try knob.drawCapKnob(drwLs, center_x, center_y, radius, value, flags.trackStart, .{ .hovered = hovered, .active = clicked, .disabled = flags.disabled });
     }
 
     if (try paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {

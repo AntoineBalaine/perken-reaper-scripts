@@ -206,6 +206,7 @@ const ImguiMocks = struct {
     IsItemActive: @TypeOf(imgui.api.IsItemActive),
     IsItemHovered: @TypeOf(imgui.api.IsItemHovered),
     IsMouseDoubleClicked: @TypeOf(imgui.api.IsMouseDoubleClicked),
+    IsMouseClicked: @TypeOf(imgui.api.IsMouseClicked),
     IsMouseHoveringRect: @TypeOf(imgui.api.IsMouseHoveringRect),
     IsWindowHovered: @TypeOf(imgui.api.IsWindowHovered),
     IsKeyDown: @TypeOf(imgui.api.IsKeyDown),
@@ -215,6 +216,7 @@ const ImguiMocks = struct {
     GetStyleColor: @TypeOf(imgui.api.GetStyleColor),
     GetStyleVar: @TypeOf(imgui.api.GetStyleVar),
     GetTextLineHeightWithSpacing: @TypeOf(imgui.api.GetTextLineHeightWithSpacing),
+    GetFrameHeight: @TypeOf(imgui.api.GetFrameHeight),
     PushClipRect: @TypeOf(imgui.api.PushClipRect),
     PopClipRect: @TypeOf(imgui.api.PopClipRect),
     SetConfigVar: @TypeOf(imgui.api.SetConfigVar),
@@ -312,6 +314,7 @@ pub const MockImGui = struct {
     selectable_targets: std.StringHashMapUnmanaged(void),
     combo_open_targets: std.StringHashMapUnmanaged(void),
     double_click_targets: std.StringHashMapUnmanaged(void),
+    right_click_targets: std.StringHashMapUnmanaged(void),
     drag_targets: std.StringHashMapUnmanaged(f64),
     key_press_targets: std.AutoArrayHashMapUnmanaged(c_int, void),
     input_text_enter: std.StringHashMapUnmanaged(void),
@@ -333,6 +336,7 @@ pub const MockImGui = struct {
             .selectable_targets = .empty,
             .combo_open_targets = .empty,
             .double_click_targets = .empty,
+            .right_click_targets = .empty,
             .drag_targets = .empty,
             .key_press_targets = .empty,
             .input_text_enter = .empty,
@@ -350,6 +354,7 @@ pub const MockImGui = struct {
         self.selectable_targets.deinit(self.allocator);
         self.combo_open_targets.deinit(self.allocator);
         self.double_click_targets.deinit(self.allocator);
+        self.right_click_targets.deinit(self.allocator);
         self.drag_targets.deinit(self.allocator);
         self.key_press_targets.deinit(self.allocator);
         self.input_text_enter.deinit(self.allocator);
@@ -416,6 +421,11 @@ pub const MockImGui = struct {
         self.double_click_targets.put(self.allocator, label, {}) catch @panic("double_click_targets put OOM");
     }
 
+    /// Makes the item with this label report a click of the right mouse button, while the mouse is on it.
+    pub fn rightClick(self: *MockImGui, label: []const u8) void {
+        self.right_click_targets.put(self.allocator, label, {}) catch @panic("right_click_targets put OOM");
+    }
+
     pub fn pressKey(self: *MockImGui, key: c_int) void {
         self.key_press_targets.put(self.allocator, key, {}) catch @panic("key_press_targets put OOM");
     }
@@ -463,6 +473,7 @@ pub const MockImGui = struct {
         self.selectable_targets.clearRetainingCapacity();
         self.combo_open_targets.clearRetainingCapacity();
         self.double_click_targets.clearRetainingCapacity();
+        self.right_click_targets.clearRetainingCapacity();
         self.drag_targets.clearRetainingCapacity();
         self.key_press_targets.clearRetainingCapacity();
         self.input_text_enter.clearRetainingCapacity();
@@ -600,6 +611,7 @@ pub const MockImGui = struct {
     const IsItemActive = &mockIsItemActive;
     const IsItemHovered = &mockIsItemHovered;
     const IsMouseDoubleClicked = &mockIsMouseDoubleClicked;
+    const IsMouseClicked = &mockIsMouseClicked;
     const IsMouseHoveringRect = &mockIsMouseHoveringRect;
     const IsWindowHovered = &mockIsWindowHovered;
     const IsKeyDown = &mockIsKeyDown;
@@ -609,6 +621,7 @@ pub const MockImGui = struct {
     const GetStyleColor = &mockGetStyleColor;
     const GetStyleVar = &mockGetStyleVar;
     const GetTextLineHeightWithSpacing = &mockGetTextLineHeightWithSpacing;
+    const GetFrameHeight = &mockGetFrameHeight;
     const PushClipRect = &mockPushClipRect;
     const PopClipRect = &mockPopClipRect;
     const SetConfigVar = &mockSetConfigVar;
@@ -1161,7 +1174,12 @@ fn mockSetNextWindowDockID(_: imgui.ContextPtr, _: c_int, _: ?*c_int) callconv(.
 
 fn mockIsItemHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
-    return m.double_click_targets.contains(m.last_invisible_button_label);
+    return m.double_click_targets.contains(m.last_invisible_button_label) or m.right_click_targets.contains(m.last_invisible_button_label);
+}
+
+fn mockIsMouseClicked(_: imgui.ContextPtr, _: c_int, _: ?*bool) callconv(.c) bool {
+    const m = g_mock orelse return false;
+    return m.right_click_targets.contains(m.last_invisible_button_label);
 }
 
 fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.c) bool {
@@ -1219,6 +1237,10 @@ fn mockGetStyleColor(_: imgui.ContextPtr, _: c_int) callconv(.c) c_int {
 fn mockGetStyleVar(_: imgui.ContextPtr, _: c_int, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
+}
+
+fn mockGetFrameHeight(_: imgui.ContextPtr) callconv(.c) f64 {
+    return 20.0;
 }
 
 fn mockGetTextLineHeightWithSpacing(_: imgui.ContextPtr) callconv(.c) f64 {

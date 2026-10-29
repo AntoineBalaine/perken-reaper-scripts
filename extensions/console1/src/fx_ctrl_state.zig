@@ -105,6 +105,7 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
             // Hardcoded track control buttons (not FX-mappable)
             .Out_mute,
             .Out_solo,
+            .Inpt_phase_inv,
             => .{ .button = false },
             // Mappable button CCs stored as params to support discrete FX values
             .Comp_comp,

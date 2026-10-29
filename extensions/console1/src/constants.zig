@@ -7,6 +7,6 @@ pub const custom_Title: ?[:0]const u8 = null;
 pub const minval: f64 = 0.0;
 pub const maxval: f64 = 1.0;
 
-pub const knob_size = 40.0;
+pub const knob_size = @import("knob").knob_size;
 
 pub const g_csurf_mcpmode = false;

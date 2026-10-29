@@ -94,6 +94,8 @@ pub fn build(b: *std.Build) void {
     });
     panel_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
     panel_theme_mod.addImport("ui_palette", ui_palette_mod);
+    // knob draws its caps with the colors of the panel kit
+    knob_mod.addImport("panel_theme", panel_theme_mod);
 
     // panel_fonts depends on reaper_imgui, and embeds the font files of assets/fonts
     const panel_fonts_mod = b.addModule("panel_fonts", .{

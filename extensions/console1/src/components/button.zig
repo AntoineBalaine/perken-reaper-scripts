@@ -11,6 +11,9 @@ pub const TextPosition = enum {
     // You can add more positions like 'left' if needed
 };
 
+/// The radius of a round button that is not given one.
+pub const default_radius = 8.5;
+
 pub fn roundButton(
     ctx: imgui.ContextPtr,
     label: [:0]const u8,
@@ -22,7 +25,7 @@ pub fn roundButton(
     color: ?c_int,
 ) !bool {
     const is_disabled = disabled orelse false;
-    const radius = if (provided_radius) |rad| rad else 5.0;
+    const radius = if (provided_radius) |rad| rad else default_radius;
     const text_pos = if (text_position) |pos| pos else TextPosition.above;
     const draw_list = try imgui.GetWindowDrawList(.{ctx});
     var rv: bool = false;
@@ -74,9 +77,16 @@ pub fn roundButton(
             .right => widget_rect.min_y + total_height / 2,
         };
 
-        // Only draw label and add label button if we have a label
+        // The area that answers the mouse is the key and its label together, so that the key lights up
+        // when the mouse is on the label.
+        var hit = Rectangle{
+            .min_x = center_x - radius,
+            .min_y = center_y - radius,
+            .max_x = center_x + radius,
+            .max_y = center_y + radius,
+        };
+
         if (has_label) {
-            // Calculate label position
             const label_pos_x = switch (text_pos) {
                 .above, .below => widget_rect.min_x + (total_width - label_size.w) / 2,
                 .right => center_x + radius + text_padding * 2,
@@ -87,7 +97,6 @@ pub fn roundButton(
                 .right => center_y - label_size.h / 2,
             };
 
-            // Draw label
             try imgui.DrawList_AddText(.{
                 draw_list,
                 label_pos_x,
@@ -96,42 +105,23 @@ pub fn roundButton(
                 label,
             });
 
-            // Add invisible button over label for tooltip
-            try imgui.SetCursorScreenPos(.{ ctx, label_pos_x, label_pos_y });
-            if (try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h })) {}
-
-            if (tooltip) |tip| {
-                if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) {
-                    try imgui.SetTooltip(.{ ctx, tip });
-                }
-            }
+            hit.min_x = @min(hit.min_x, label_pos_x);
+            hit.min_y = @min(hit.min_y, label_pos_y);
+            hit.max_x = @max(hit.max_x, label_pos_x + label_size.w);
+            hit.max_y = @max(hit.max_y, label_pos_y + label_size.h);
         }
 
-        // Position and create the invisible button
-        try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
+        try imgui.SetCursorScreenPos(.{ ctx, hit.min_x, hit.min_y });
+        const pressed = try imgui.InvisibleButton(.{ ctx, id, hit.max_x - hit.min_x, hit.max_y - hit.min_y });
+        if (!is_disabled) rv = pressed;
 
-        if (!is_disabled) {
-            rv = try imgui.InvisibleButton(.{ ctx, id, button_size, button_size });
-        }
-
-        // Check if the button is hovered
         const isHovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
-
-        var buttonColor: c_int = color orelse -1;
-        if (isHovered or is_disabled) {
-            buttonColor = knob.adjustBrightness(buttonColor, -50, false);
+        if (has_label and isHovered) {
+            if (tooltip) |tip| try imgui.SetTooltip(.{ ctx, tip });
         }
 
-        // Draw circle with the adjusted color
-        try imgui.DrawList_AddCircleFilled(.{
-            draw_list,
-            center_x,
-            center_y,
-            radius,
-            buttonColor,
-            0,
-            2.0,
-        });
+        const held = !is_disabled and try imgui.IsItemActive(.{ctx});
+        try knob.drawRoundKey(draw_list, center_x, center_y, radius, color orelse -1, .{ .hovered = isHovered, .active = held, .disabled = is_disabled });
     }
 
     // Create dummy space for entire widget

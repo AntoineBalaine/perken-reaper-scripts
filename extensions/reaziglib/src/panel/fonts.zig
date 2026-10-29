@@ -7,8 +7,8 @@
 //! these fonts inside its binary must ship the license texts with it.
 const imgui = @import("reaper_imgui");
 
-const saira_regular: [:0]const u8 = @embedFile("font_saira_regular");
-const saira_bold: [:0]const u8 = @embedFile("font_saira_bold");
+pub const saira_regular: [:0]const u8 = @embedFile("font_saira_regular");
+pub const saira_bold: [:0]const u8 = @embedFile("font_saira_bold");
 const librestile: [:0]const u8 = @embedFile("font_librestile");
 
 /// The generic family that ReaImGui resolves to a font of the system.
