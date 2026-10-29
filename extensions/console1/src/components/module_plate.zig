@@ -48,6 +48,8 @@ pub const Spec = struct {
     labels: []const [:0]const u8 = &.{},
     /// A width under which the plate does not go.
     min_width: f64 = 0,
+    /// A height of the controls under which the plate does not go, for a plate whose content is not made of slots.
+    min_content_h: f64 = 0,
     /// Room added between the columns, over the spacing of the style.
     column_gap: f64 = 0,
     /// The distance under which two columns do not come, for the label of a button that stands at the left of a
@@ -57,11 +59,11 @@ pub const Spec = struct {
     title: [:0]const u8 = "",
     /// The font of the title, or null for the current one.
     title_font: imgui.FontPtr = null,
+    /// The other titles that the module can have: the plate is as wide as the widest of them and of the title,
+    /// so that its width does not change when its title does.
+    title_alternatives: []const [:0]const u8 = &.{},
 };
 
-/// The height that the track list took on the last frame, or 0 if there is none: the plates are as tall as it,
-/// and what the controls and the title do not take stays empty at the bottom of the plate.
-pub var target_height: f64 = 0;
 /// The height of the controls of the tallest module, on the frame before and on this one: the plates are all as tall as it.
 var tallest: f64 = 0;
 var frame_tallest: f64 = 0;
@@ -163,21 +165,34 @@ pub const Plate = struct {
             top = @min(top, cy - up);
             bottom = @max(bottom, cy + down);
         };
+        if (spec.slots.len == 0) {
+            top = 0;
+            bottom = 0;
+        }
         plate.x_shift = -left;
         plate.y_shift = -top;
         var title_w: f64 = 0;
         var title_h: f64 = undefined;
         if (spec.title_font != null) try imgui.PushFont(.{ ctx, spec.title_font });
         defer if (spec.title_font != null) imgui.PopFont(.{ctx}) catch {};
-        if (spec.title.len > 0) try imgui.CalcTextSize(.{ ctx, spec.title, &title_w, &title_h });
+        // The line of the title is there even when the title is empty, so that the controls of a module keep their
+        // places when its title changes.
+        try imgui.CalcTextSize(.{ ctx, if (spec.title.len > 0) spec.title else "Ag", &title_w, &title_h });
+        if (spec.title.len == 0) title_w = 0;
+        for (spec.title_alternatives) |alternative| {
+            var alternative_w: f64 = undefined;
+            var alternative_h: f64 = undefined;
+            try imgui.CalcTextSize(.{ ctx, alternative, &alternative_w, &alternative_h });
+            title_w = @max(title_w, alternative_w);
+        }
         plate.width = @max(@max(right - left, spec.min_width), title_w);
 
         // The plates are all as tall as the tallest.
-        const content = bottom - top;
+        const content = @max(bottom - top, spec.min_content_h);
         frame_tallest = @max(frame_tallest, content);
         const controls_h = @max(content, tallest);
-        const header = if (spec.title.len > 0) title_h + 4 else 0;
-        plate.height = @max(header + controls_h, target_height - pad * 2);
+        const header = title_h + 4;
+        plate.height = header + controls_h;
 
         try imgui.GetCursorScreenPos(.{ ctx, &plate.start.x, &plate.start.y });
         try drawFace(ctx, plate.start.x, plate.start.y, plate.width + pad * 2, plate.height + pad * 2);

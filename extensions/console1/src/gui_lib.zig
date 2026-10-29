@@ -50,7 +50,6 @@ pub fn main(
                 }
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
-                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
@@ -131,7 +130,6 @@ pub fn main(
 
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
-                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
@@ -222,7 +220,6 @@ pub fn main(
                 }
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
-                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {

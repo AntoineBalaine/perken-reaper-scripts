@@ -1,6 +1,7 @@
 const imgui = @import("reaper_imgui");
 const knob = @import("knob");
 const module_plate = @import("components/module_plate.zig");
+const c1_theme = @import("theme/c1_theme.zig");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const styles = @import("styles.zig");
@@ -68,7 +69,10 @@ fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]con
     const center_y = (min_y + max_y) / 2;
     const dl = try imgui.GetWindowDrawList(.{ctx});
     try knob.drawRoundKey(dl, center_x, center_y, radius, color orelse -1, .{ .hovered = hovered, .active = held });
+    // The label is cut at the edge of the row, so that a long name does not run into the next column.
+    try imgui.PushClipRect(.{ ctx, min_x, min_y, max_x, max_y, true });
     try imgui.DrawList_AddText(.{ dl, center_x + radius + 6, center_y - text_h / 2, color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), label });
+    try imgui.PopClipRect(.{ctx});
     return clicked;
 }
 
@@ -138,38 +142,24 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 
-    var top_x: f64 = undefined;
-    var top_y: f64 = undefined;
-    try imgui.GetCursorScreenPos(.{ ctx, &top_x, &top_y });
-
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
-    const widest_name: [TrackList.TrackNameSize - 1]u8 = @splat('X');
+    // The width of a row is that of a name of this many letters of average width: a longer name is cut by the row.
+    const widest_name: [22]u8 = @splat('n');
     const max_label = safePrint(&buf, "{d:>2}. {s}", .{ 20, &widest_name });
     var max_label_width: f64 = undefined;
     var max_label_height: f64 = undefined;
     try imgui.CalcTextSize(.{ ctx, max_label, &max_label_width, &max_label_height, false, -1.0 });
-
-    // Get starting X position
-    const start_x = try imgui.GetCursorPosX(.{ctx});
-    const second_column_x = start_x + max_label_width + row_key_width + 20 + 10; // 20px spacing + 10px for next column’s buttons
 
     // Get frame padding for accurate selectable width
     var frame_padding_x: f64 = undefined;
     var frame_padding_y: f64 = undefined;
     try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_FramePadding, &frame_padding_x, &frame_padding_y });
     const selectable_width = max_label_width + (frame_padding_x * 2) + row_key_width;
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    const page_text = safePrint(&buf, "{s} {d}", .{ tr(translations, .track_list_page), state.fx_ctrl.current_page + 1 });
-    try imgui.Text(.{ ctx, page_text });
-
-    // Add page up/down buttons on the same line as the page indicator
-    try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+    var spacing_x: f64 = undefined;
+    var spacing_y: f64 = undefined;
+    try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y });
 
     const pg_dn_key: ?TranslationKey = switch (mode) {
         .fx_ctrl => .fx_ctrl_Tr_pg_dn,
@@ -177,26 +167,61 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     };
     const pg_dn_label_val = if (pg_dn_key) |key| tr(translations, key) else null;
     const pg_dn_label = pg_dn_label_val orelse "-";
-    const pg_dn_id = safePrint(&buf, "btn_pg_dn", .{});
-    if (try roundButton(.{ ctx, pg_dn_label, pg_dn_id, null, null, .right, pg_dn_label_val == null })) {
-        rv = .Tr_pg_dn;
-    }
-
-    try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
-
     const pg_up_key: ?TranslationKey = switch (mode) {
         .fx_ctrl => .fx_ctrl_Tr_pg_up,
         else => null,
     };
     const pg_up_label_val = if (pg_up_key) |key| tr(translations, key) else null;
     const pg_up_label = pg_up_label_val orelse "-";
+    const page_text = safePrint(&buf, "{s} {d}", .{ tr(translations, .track_list_page), state.fx_ctrl.current_page + 1 });
+
+    // The page column is as wide as its widest line: the page number, or a button with its label.
+    const button_r = @import("components/button.zig").default_radius;
+    var page_w: f64 = 0;
+    var line_h: f64 = undefined;
+    inline for (.{ "Page 99", pg_dn_label, pg_up_label }, 0..) |text, line| {
+        var w: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, @as([:0]const u8, text), &w, &line_h });
+        page_w = @max(page_w, if (line == 0) w else button_r * 2 + 4 + w);
+    }
+    {
+        var w: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, page_text, &w, &line_h });
+        page_w = @max(page_w, w);
+    }
+    const column_gap = 12.0;
+    const rows = 10;
+    const plate = try module_plate.Plate.begin(ctx, .{
+        .slots = &.{},
+        .columns = 1,
+        .widest_label = "Ag",
+        .title = "TRACKS",
+        .title_font = c1_theme.fonts.TAB,
+        .min_width = page_w + column_gap + selectable_width * 2 + 10,
+        .min_content_h = rows * max_label_height + (rows - 1) * spacing_y,
+    });
+
+    // The page number, and under it the buttons that change the page, in a small column of their own.
+    const page_x = plate.origin.x;
+    try imgui.SetCursorScreenPos(.{ ctx, page_x, plate.origin.y });
+    try imgui.Text(.{ ctx, page_text });
+
+    const pg_dn_id = safePrint(&buf, "btn_pg_dn", .{});
+    try imgui.SetCursorScreenPos(.{ ctx, page_x, plate.origin.y + line_h + 8 });
+    if (try roundButton(.{ ctx, pg_dn_label, pg_dn_id, null, null, .right, pg_dn_label_val == null })) {
+        rv = .Tr_pg_dn;
+    }
+
     const pg_up_id = safePrint(&buf, "btn_pg_up", .{});
+    try imgui.SetCursorScreenPos(.{ ctx, page_x, plate.origin.y + line_h + 8 + button_r * 2 + 12 });
     if (try roundButton(.{ ctx, pg_up_label, pg_up_id, null, null, .right, pg_up_label_val == null })) {
         rv = .Tr_pg_up;
     }
-    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
 
+    const first_column_x = page_x + page_w + column_gap;
+    const second_column_x = first_column_x + selectable_width + 10;
+
+    try imgui.SetCursorScreenPos(.{ ctx, first_column_x, plate.origin.y });
     // First column (tracks 1-10)
     {
         try imgui.BeginGroup(.{ctx});
@@ -263,8 +288,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
         }
     }
 
-    try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, second_column_x });
+    try imgui.SetCursorScreenPos(.{ ctx, second_column_x, plate.origin.y });
 
     // Second column (tracks 11-20)
     {
@@ -327,11 +351,6 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
         }
     }
 
-    // The cards of the modules are as tall as the list, which they read on the next frame.
-    var bottom_x: f64 = undefined;
-    var bottom_y: f64 = undefined;
-    try imgui.GetItemRectMax(.{ ctx, &bottom_x, &bottom_y });
-    module_plate.target_height = bottom_y - top_y;
-
+    try plate.end(ctx);
     return rv;
 }
