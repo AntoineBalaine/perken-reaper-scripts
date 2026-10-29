@@ -81,10 +81,72 @@ const scale = Knobs.knob_size / photo_knob_size;
 /// The rows are closer than on the photograph. Because the label of a knob stands over its cap and the
 /// ring of LEDs is open under it, the label of the knob below can come up to the edge of the well of the knob above.
 const row_squeeze = 0.82;
+/// The rows are never farther apart than this fraction of the spacing of the hardware.
+const max_stretch = 1.1;
 const pad = 6.0;
 const button_r = button.default_radius;
 /// The space between a button and its label, as roundButton leaves it.
 const label_gap = 4.0;
+
+const Extent = struct { left: f64, right: f64, top: f64, bottom: f64, y_top: f64, y_bottom: f64 };
+
+/// Places the controls of a module with the rows `k` pixels apart per pixel of the photograph, and returns the
+/// extent of what they take, and the heights on the photograph of the control that is highest and of the one that is lowest.
+fn measure(ctx: imgui.ContextPtr, spec: Spec, plate: *Plate, k: f64) !Extent {
+    const line_h = plate.line_h;
+    var left: f64 = 0;
+    var right: f64 = 0;
+    var top: f64 = std.math.inf(f64);
+    var bottom: f64 = -std.math.inf(f64);
+    var y_top: f64 = 0;
+    var y_bottom: f64 = 0;
+    // The controls that sit against the left or the top edge come after the others, as the edges are those of
+    // the others, and the ones that follow a button come last, as they need where it stands.
+    for ([_]u2{ 0, 1, 2 }) |pass| for (spec.slots, 0..) |slot, i| {
+        const slot_pass: u2 = if (slot.follows != null or slot.align_left_to != null) 2 else if (slot.at_left or slot.at_top) 1 else 0;
+        if (slot_pass != pass) continue;
+        std.debug.assert(slot.col < spec.columns);
+        const half_w: f64, const up: f64, const down: f64 = switch (slot.kind) {
+            .knob => .{ plate.knob_w / 2, Knobs.centerOffsetY(line_h), Knobs.widgetHeight(line_h) - Knobs.centerOffsetY(line_h) },
+            .button => .{ button_r, @max(button_r, line_h / 2), @max(button_r, line_h / 2) },
+            .button_below => .{ button_r, button_r, button_r + label_gap + line_h },
+        };
+        const cx = if (slot.follows) |base| blk: {
+            const base_slot = spec.slots[base];
+            const base_cx = if (base_slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(base_slot.col)) * plate.pitch + base_slot.dx * scale;
+            var base_w: f64 = 0;
+            var base_h: f64 = undefined;
+            if (base < spec.labels.len and spec.labels[base].len > 0) try imgui.CalcTextSize(.{ ctx, spec.labels[base], &base_w, &base_h });
+            plate.follow_cx = base_cx + button_r + label_gap + base_w + label_gap * 2 + button_r;
+            break :blk plate.follow_cx;
+        } else if (slot.align_left_to) |base| blk: {
+            const base_slot = spec.slots[base];
+            const base_half: f64 = if (base_slot.kind == .knob) plate.knob_w / 2 else button_r;
+            const base_cx = if (base_slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(base_slot.col)) * plate.pitch + base_slot.dx * scale;
+            // The cap is the knob that is aligned, not its widget, which is wider when its label is.
+            plate.align_cx = base_cx - base_half + Knobs.knob_size / 2;
+            break :blk plate.align_cx;
+        } else if (slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(slot.col)) * plate.pitch + slot.dx * scale;
+        const cy = if (slot.at_top) top + up else slot.y * k;
+        left = @min(left, cx - half_w);
+        right = @max(right, cx + half_w);
+        if (slot.kind == .button and i < spec.labels.len and spec.labels[i].len > 0) {
+            var label_w: f64 = undefined;
+            var label_h: f64 = undefined;
+            try imgui.CalcTextSize(.{ ctx, spec.labels[i], &label_w, &label_h });
+            right = @max(right, cx + button_r + label_gap + label_w);
+        }
+        if (cy - up < top and !slot.at_top) y_top = slot.y;
+        if (cy + down > bottom) y_bottom = slot.y;
+        top = @min(top, cy - up);
+        bottom = @max(bottom, cy + down);
+    };
+    if (spec.slots.len == 0) {
+        top = 0;
+        bottom = 0;
+    }
+    return .{ .left = left, .right = right, .top = top, .bottom = bottom, .y_top = y_top, .y_bottom = y_bottom };
+}
 
 pub const Plate = struct {
     start: Point,
@@ -99,6 +161,8 @@ pub const Plate = struct {
     follow_cx: f64 = 0,
     /// Where the knob that is aligned to another control stands, as `follow_cx` is.
     align_cx: f64 = 0,
+    /// The pixels that a pixel of the photograph's height takes: the closer the rows, the smaller.
+    k: f64 = 0,
     width: f64,
     /// The height of the plate: its title's room and its controls'.
     height: f64,
@@ -121,56 +185,24 @@ pub const Plate = struct {
         plate.pitch = @max(plate.knob_w + spacing_x + spec.column_gap, spec.min_pitch);
         plate.line_h = line_h;
 
-        // The extent of each control around its center, to find the corner of the content.
-        var left: f64 = 0;
-        var right: f64 = 0;
-        var top: f64 = std.math.inf(f64);
-        var bottom: f64 = -std.math.inf(f64);
-        // The controls that sit against the left or the top edge come after the others, as the edges are those of
-        // the others, and the ones that follow a button come last, as they need where it stands.
-        for ([_]u2{ 0, 1, 2 }) |pass| for (spec.slots, 0..) |slot, i| {
-            const slot_pass: u2 = if (slot.follows != null or slot.align_left_to != null) 2 else if (slot.at_left or slot.at_top) 1 else 0;
-            if (slot_pass != pass) continue;
-            std.debug.assert(slot.col < spec.columns);
-            const half_w: f64, const up: f64, const down: f64 = switch (slot.kind) {
-                .knob => .{ plate.knob_w / 2, Knobs.centerOffsetY(line_h), Knobs.widgetHeight(line_h) - Knobs.centerOffsetY(line_h) },
-                .button => .{ button_r, @max(button_r, line_h / 2), @max(button_r, line_h / 2) },
-                .button_below => .{ button_r, button_r, button_r + label_gap + line_h },
-            };
-            const cx = if (slot.follows) |base| blk: {
-                const base_slot = spec.slots[base];
-                const base_cx = if (base_slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(base_slot.col)) * plate.pitch + base_slot.dx * scale;
-                var base_w: f64 = 0;
-                var base_h: f64 = undefined;
-                if (base < spec.labels.len and spec.labels[base].len > 0) try imgui.CalcTextSize(.{ ctx, spec.labels[base], &base_w, &base_h });
-                plate.follow_cx = base_cx + button_r + label_gap + base_w + label_gap * 2 + button_r;
-                break :blk plate.follow_cx;
-            } else if (slot.align_left_to) |base| blk: {
-                const base_slot = spec.slots[base];
-                const base_half: f64 = if (base_slot.kind == .knob) plate.knob_w / 2 else button_r;
-                const base_cx = if (base_slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(base_slot.col)) * plate.pitch + base_slot.dx * scale;
-                // The cap is the knob that is aligned, not its widget, which is wider when its label is.
-                plate.align_cx = base_cx - base_half + Knobs.knob_size / 2;
-                break :blk plate.align_cx;
-            } else if (slot.at_left) left + button_r else plate.knob_w / 2 + @as(f64, @floatFromInt(slot.col)) * plate.pitch + slot.dx * scale;
-            const cy = if (slot.at_top) top + up else slot.y * scale * row_squeeze;
-            left = @min(left, cx - half_w);
-            right = @max(right, cx + half_w);
-            if (slot.kind == .button and i < spec.labels.len and spec.labels[i].len > 0) {
-                var label_w: f64 = undefined;
-                var label_h: f64 = undefined;
-                try imgui.CalcTextSize(.{ ctx, spec.labels[i], &label_w, &label_h });
-                right = @max(right, cx + button_r + label_gap + label_w);
-            }
-            top = @min(top, cy - up);
-            bottom = @max(bottom, cy + down);
-        };
-        if (spec.slots.len == 0) {
-            top = 0;
-            bottom = 0;
+        // The rows are first as close as the squeeze makes them. When some other plate needs more height, the rows
+        // of this one are moved apart, up to the spacing of the hardware, to fill it.
+        const base_k = scale * row_squeeze;
+        var ext = try measure(ctx, spec, &plate, base_k);
+        const natural = @max(ext.bottom - ext.top, spec.min_content_h);
+        plate.k = base_k;
+        const span = ext.y_bottom - ext.y_top;
+        if (spec.slots.len > 0 and tallest > natural and span > 0) {
+            const wanted = base_k + (tallest - natural) / span;
+            plate.k = std.math.clamp(wanted, base_k, scale * max_stretch);
+            ext = try measure(ctx, spec, &plate, plate.k);
         }
+        const left = ext.left;
+        const right = ext.right;
+        const top = ext.top;
+        const bottom = ext.bottom;
         plate.x_shift = -left;
-        plate.y_shift = -top;
+        plate.y_shift = if (spec.slots.len == 0) 0 else -top;
         var title_w: f64 = 0;
         var title_h: f64 = undefined;
         if (spec.title_font != null) try imgui.PushFont(.{ ctx, spec.title_font });
@@ -187,9 +219,9 @@ pub const Plate = struct {
         }
         plate.width = @max(@max(right - left, spec.min_width), title_w);
 
-        // The plates are all as tall as the tallest.
-        const content = @max(bottom - top, spec.min_content_h);
-        frame_tallest = @max(frame_tallest, content);
+        // The plates are all as tall as the tallest, which is measured with the rows as close as they come.
+        frame_tallest = @max(frame_tallest, natural);
+        const content = if (spec.slots.len == 0) spec.min_content_h else @max(bottom - top, spec.min_content_h);
         const controls_h = @max(content, tallest);
         const header = title_h + 4;
         plate.height = header + controls_h;
@@ -221,7 +253,7 @@ pub const Plate = struct {
             .y = if (slot.at_top)
                 self.origin.y + @max(button_r, self.line_h / 2)
             else
-                self.origin.y + self.y_shift + slot.y * scale * row_squeeze,
+                self.origin.y + self.y_shift + slot.y * self.k,
         };
     }
 
