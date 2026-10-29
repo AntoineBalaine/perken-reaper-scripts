@@ -1,5 +1,6 @@
 const imgui = @import("reaper_imgui");
 const knob = @import("knob");
+const module_plate = @import("components/module_plate.zig");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const styles = @import("styles.zig");
@@ -27,13 +28,28 @@ const row_key_radius = @import("components/button.zig").default_radius;
 /// The room that the key takes at the left of a row: the key, its margin and the space before the label.
 const row_key_width = row_key_radius * 2 + 8;
 
+/// The color with its alpha (the last byte of 0xRRGGBBAA) replaced.
+fn withAlpha(color: c_int, alpha: u32) c_int {
+    const bits: u32 = @bitCast(color);
+    return @bitCast((bits & 0xFFFFFF00) | alpha);
+}
+
 /// A row of the track list: a round key and a label that share one area, so that the key lights up
 /// when the mouse is on the label, and sinks when the row is held. Because the key is drawn in the
-/// middle of the row's height, it stays level with the text. Returns true when the row was clicked.
-fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]const u8, width: ?f64) !bool {
+/// middle of the row's height, it stays level with the text. The key and the label are in the color of the track.
+/// Returns true when the row was clicked.
+fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]const u8, width: ?f64, color: ?c_int, selected: bool) !bool {
     var id_buf: [32:0]u8 = undefined;
     const id = safePrint(&id_buf, "##row_{s}_{d}", .{ tag, index });
-    const clicked = try imgui.Selectable(.{ ctx, id, null, null, width });
+    // The highlight of the row is a faint tint of the color of the track, and not the accent of the theme,
+    // which hides the label. A track without a color is tinted with a light grey.
+    const tint = color orelse @as(c_int, @bitCast(@as(u32, 0xD8D8D8FF)));
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Header, withAlpha(tint, 0x38) });
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_HeaderHovered, withAlpha(tint, 0x26) });
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_HeaderActive, withAlpha(tint, 0x50) });
+    var shown_selected = selected;
+    const clicked = try imgui.Selectable(.{ ctx, id, &shown_selected, null, width });
+    try imgui.PopStyleColor(.{ ctx, 3 });
     const hovered = try imgui.IsItemHovered(.{ctx});
     const held = try imgui.IsItemActive(.{ctx});
 
@@ -51,8 +67,8 @@ fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]con
     const center_x = min_x + radius + 2;
     const center_y = (min_y + max_y) / 2;
     const dl = try imgui.GetWindowDrawList(.{ctx});
-    try knob.drawRoundKey(dl, center_x, center_y, radius, -1, .{ .hovered = hovered, .active = held });
-    try imgui.DrawList_AddText(.{ dl, center_x + radius + 6, center_y - text_h / 2, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), label });
+    try knob.drawRoundKey(dl, center_x, center_y, radius, color orelse -1, .{ .hovered = hovered, .active = held });
+    try imgui.DrawList_AddText(.{ dl, center_x + radius + 6, center_y - text_h / 2, color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), label });
     return clicked;
 }
 
@@ -105,15 +121,8 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
                 continue;
             }
 
-            // Normal track selection handling
-            if (is_selected) {
-                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-            }
-            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
-
             const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
-            if (try trackRow(ctx, "list", i, label, null)) {
+            if (try trackRow(ctx, "list", i, label, null, if (track.color != 0) track.color else null, is_selected)) {
                 action = .{ .select_track = tr_id };
             }
         }
@@ -128,11 +137,10 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     defer PopStyle(ctx) catch {};
 
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
-    // Add vertical separator after Input section
-    try vSeparator(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_Border }) });
 
-    try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    var top_x: f64 = undefined;
+    var top_y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &top_x, &top_y });
 
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
@@ -226,30 +234,27 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false)) {
                         rv = cc;
                     }
                 },
                 .fx_ctrl => {
                     var name: [TrackList.TrackNameSize:0]u8 = undefined;
                     name[0] = '\x00';
-                    var tr_id: ?c_int = null;
+                    var track_color: ?c_int = null;
+                    var is_selected = false;
 
                     if (i < state.fx_ctrl.track_list.name_count) {
                         name = state.fx_ctrl.track_list.track_names[i].name;
-                        tr_id = state.fx_ctrl.track_list.track_names[i].id;
-                        const is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
-
-                        if (is_selected) {
-                            const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                            try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-                        }
-                        defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                        const tr_id = state.fx_ctrl.track_list.track_names[i].id;
+                        const color = state.fx_ctrl.track_list.track_names[i].color;
+                        if (color != 0) track_color = color;
+                        is_selected = state.selectedTracks.contains(@intCast(tr_id));
                     }
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected)) {
                         rv = cc;
                     }
                 },
@@ -293,30 +298,27 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false)) {
                         rv = cc;
                     }
                 },
                 .fx_ctrl => {
                     var name: [TrackList.TrackNameSize:0]u8 = undefined;
                     name[0] = '\x00';
-                    var tr_id: ?c_int = null;
+                    var track_color: ?c_int = null;
+                    var is_selected = false;
 
                     if (i < state.fx_ctrl.track_list.name_count) {
                         name = state.fx_ctrl.track_list.track_names[i].name;
-                        tr_id = state.fx_ctrl.track_list.track_names[i].id;
-                        const is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
-
-                        if (is_selected) {
-                            const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                            try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-                        }
-                        defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                        const tr_id = state.fx_ctrl.track_list.track_names[i].id;
+                        const color = state.fx_ctrl.track_list.track_names[i].color;
+                        if (color != 0) track_color = color;
+                        is_selected = state.selectedTracks.contains(@intCast(tr_id));
                     }
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected)) {
                         rv = cc;
                     }
                 },
@@ -324,6 +326,12 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
             }
         }
     }
+
+    // The cards of the modules are as tall as the list, which they read on the next frame.
+    var bottom_x: f64 = undefined;
+    var bottom_y: f64 = undefined;
+    try imgui.GetItemRectMax(.{ ctx, &bottom_x, &bottom_y });
+    module_plate.target_height = bottom_y - top_y;
 
     return rv;
 }

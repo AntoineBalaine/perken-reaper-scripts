@@ -30,6 +30,7 @@ pub const UiState = struct {
     // so the UI lib can set its copy before rendering.
     main_font: imgui.FontPtr,
     icon_font: imgui.FontPtr,
+    tab_font: imgui.FontPtr,
     // FX browser data — pointers into fx_parser module globals.
     fx_plugins_by_type: *fx_types.FxByType,
     fx_chains: *fx_types.Directory,

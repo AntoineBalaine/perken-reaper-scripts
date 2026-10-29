@@ -127,10 +127,10 @@ pub fn drawWidget(
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    // A width that is given is the width of the widget, and a longer label overhangs it on both sides: a panel
-    // that places the knobs on fixed positions needs the cap to stay at the middle of the width it asked for.
+    // A width that is given is the width of the widget, and a longer label is cut by the clip rect of the
+    // widget, on both sides, so that the labels of two knobs never overlap: a panel that places the knobs on
+    // fixed positions needs the cap to stay at the middle of the width it asked for.
     const total_width = if (max_width) |max_w| @max(max_w, radius * 2) else @max(radius * 2, label_size.w);
-    const overhang = @max(0.0, (label_size.w - total_width) / 2);
 
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
@@ -140,7 +140,7 @@ pub fn drawWidget(
     };
 
     {
-        try imgui.PushClipRect(.{ ctx, widget_rect.min_x - overhang, widget_rect.min_y, widget_rect.max_x + overhang, widget_rect.max_y, true });
+        try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
 
         // Draw background color
         if (flags.knob_bg) |bg| {

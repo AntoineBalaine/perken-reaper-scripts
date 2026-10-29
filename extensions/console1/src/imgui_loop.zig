@@ -83,6 +83,9 @@ pub fn reset() void {
 
         const fontelloResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.ICON_FONT_SMALL);
         imgui.Detach(.{ context, fontelloResource }) catch {};
+
+        const tabResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.TAB);
+        imgui.Detach(.{ context, tabResource }) catch {};
     }
 
     if (hot_reloader) |*reloader| {
@@ -134,6 +137,7 @@ fn onTimer() callconv(.c) void {
     };
 
     MidiEvtsFxCtrl.syncTrackToggles(globals);
+    MidiEvtsFxCtrl.syncTrackColors(globals);
 
     var ui_state = UiState{
         .state = &globals.state,
@@ -145,6 +149,7 @@ fn onTimer() callconv(.c) void {
         .midi_connected = globals.m_midi_in != null,
         .main_font = c1_theme.fonts.MAIN,
         .icon_font = c1_theme.fonts.ICON_FONT_SMALL,
+        .tab_font = c1_theme.fonts.TAB,
         .fx_plugins_by_type = &fx_parser.pluginsByType,
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,

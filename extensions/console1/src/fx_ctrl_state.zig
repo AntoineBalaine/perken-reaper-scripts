@@ -18,7 +18,8 @@ pub const TrackList = struct {
     pub const PageSize = 20;
 
     // Fixed size buffer for track names
-    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8 },
+    /// `color` is the color of the track in the TCP, as an ImGui color made readable on a dark face, or 0 for none.
+    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8, color: c_int = 0 },
     name_count: usize = 0,
     blink_counter: u8 = 0, // For LED blinking
 

@@ -110,6 +110,7 @@ const GuiTestHarness = struct {
             .midi_connected = g.m_midi_in != null,
             .main_font = Theme.fonts.MAIN,
             .icon_font = Theme.fonts.ICON_FONT_SMALL,
+            .tab_font = null,
             .fx_plugins_by_type = &self.fx_plugins_by_type,
             .fx_chains = &self.fx_chains,
             .track_templates = &self.track_templates,

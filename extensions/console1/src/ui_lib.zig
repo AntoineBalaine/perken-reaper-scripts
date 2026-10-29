@@ -33,6 +33,7 @@ export fn ui_render(
     // font pointers each frame.
     c1_theme.fonts.MAIN = ui_state.main_font;
     c1_theme.fonts.ICON_FONT_SMALL = ui_state.icon_font;
+    c1_theme.fonts.TAB = ui_state.tab_font;
 
     if (gui_lib.main(ctx, ui_state, win_flags, style_manager)) |maybe_action| {
         if (maybe_action) |action| {

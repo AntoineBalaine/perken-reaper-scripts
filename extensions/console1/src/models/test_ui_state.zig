@@ -69,6 +69,7 @@ pub const TestUiStateBuilder = struct {
             .midi_connected = self.midi_connected,
             .main_font = null,
             .icon_font = null,
+            .tab_font = null,
             .fx_plugins_by_type = &self.fx_plugins_by_type,
             .fx_chains = &self.fx_chains,
             .track_templates = &self.track_templates,

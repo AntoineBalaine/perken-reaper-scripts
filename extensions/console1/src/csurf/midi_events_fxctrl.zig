@@ -42,6 +42,36 @@ pub fn syncTrackToggles(globals: *Globals) void {
     }
 }
 
+/// The color of a track as the track list shows it: the color of the track in the TCP, lightened when it is
+/// too dark to be read on the dark face of the panel, as 0xRRGGBBAA. 0 is no color.
+fn trackListColor(id: c_int) c_int {
+    const track = getTrack(id) orelse return 0;
+    const native = reaper.GetTrackColor(track);
+    if (native & 0x1000000 == 0) return 0;
+    var r: c_int = undefined;
+    var g: c_int = undefined;
+    var b: c_int = undefined;
+    reaper.ColorFromNative(native & 0xFFFFFF, &r, &g, &b);
+    std.debug.assert(r >= 0 and r <= 255 and g >= 0 and g <= 255 and b >= 0 and b <= 255);
+    const luma = @divTrunc(299 * r + 587 * g + 114 * b, 1000);
+    const readable_luma = 130;
+    if (luma < readable_luma) {
+        const t = @as(f64, @floatFromInt(readable_luma - luma)) / readable_luma * 0.7;
+        r = @intFromFloat(@as(f64, @floatFromInt(r)) + @as(f64, @floatFromInt(255 - r)) * t);
+        g = @intFromFloat(@as(f64, @floatFromInt(g)) + @as(f64, @floatFromInt(255 - g)) * t);
+        b = @intFromFloat(@as(f64, @floatFromInt(b)) + @as(f64, @floatFromInt(255 - b)) * t);
+    }
+    const rgba: u32 = (@as(u32, @intCast(r)) << 24) | (@as(u32, @intCast(g)) << 16) | (@as(u32, @intCast(b)) << 8) | 0xFF;
+    return @bitCast(rgba);
+}
+
+/// Because REAPER does not tell a control surface when the color of a track changes, the colors of the tracks
+/// on the page are read once per frame.
+pub fn syncTrackColors(globals: *Globals) void {
+    const list = &globals.state.fx_ctrl.track_list;
+    for (0..list.name_count) |i| list.track_names[i].color = trackListColor(list.track_names[i].id);
+}
+
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
     switch (cc) {
         .Inpt_disp_mode => {

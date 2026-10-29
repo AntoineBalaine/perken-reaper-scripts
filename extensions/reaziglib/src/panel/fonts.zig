@@ -9,7 +9,7 @@ const imgui = @import("reaper_imgui");
 
 pub const saira_regular: [:0]const u8 = @embedFile("font_saira_regular");
 pub const saira_bold: [:0]const u8 = @embedFile("font_saira_bold");
-const librestile: [:0]const u8 = @embedFile("font_librestile");
+pub const librestile: [:0]const u8 = @embedFile("font_librestile");
 
 /// The generic family that ReaImGui resolves to a font of the system.
 const system_family = "sans-serif";
