@@ -1,0 +1,24 @@
+@description Perken VR-09: a CLAP plugin to control the Roland VR-09
+@author Perken
+@version 0.1.0
+@provides
+  [linux64] FX/vr09.clap https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-linux-x86_64.clap
+  [linux-aarch64] FX/vr09.clap https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-linux-aarch64.clap
+  [win64] FX/vr09.clap https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-windows-x86_64.clap
+  [darwin64] FX/vr09.clap/Contents/MacOS/vr09 https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-macos-x86_64
+  [darwin64] FX/vr09.clap/Contents/Info.plist https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-Info.plist
+  [darwin-arm64] FX/vr09.clap/Contents/MacOS/vr09 https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-macos-aarch64
+  [darwin-arm64] FX/vr09.clap/Contents/Info.plist https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/vr09-v$version/vr09-Info.plist
+  FX/vr09-licenses/Librestile-LICENSE.txt https://github.com/AntoineBalaine/perken-reaper-scripts/raw/vr09-v$version/extensions/reaziglib/assets/fonts/Librestile-LICENSE.txt
+  FX/vr09-licenses/Librestile-OFL.txt https://github.com/AntoineBalaine/perken-reaper-scripts/raw/vr09-v$version/extensions/reaziglib/assets/fonts/Librestile-OFL.txt
+  FX/vr09-licenses/Saira-OFL.txt https://github.com/AntoineBalaine/perken-reaper-scripts/raw/vr09-v$version/extensions/reaziglib/assets/fonts/Saira-OFL.txt
+@changelog
+  First release as a ReaPack package.
+@link
+  Source repository https://github.com/AntoineBalaine/perken-reaper-scripts
+@about
+  # Perken VR-09
+
+  A CLAP plugin that controls the Roland VR-09: parameters, patches, MIDI and an audio insert.
+
+  ReaPack installs the plugin into UserPlugins/FX, which REAPER does not scan by default. Once, add that folder in Preferences > Plug-ins > CLAP and rescan.

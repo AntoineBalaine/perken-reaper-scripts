@@ -1,0 +1,18 @@
+@description ReaVim: vim mode for REAPER (extension)
+@author Perken
+@version 0.3.0
+@provides
+  [linux64] reaper_reavim.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/reavim-ext-v$version/reaper_reavim-linux-x86_64.so
+  [linux-aarch64] reaper_reavim.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/reavim-ext-v$version/reaper_reavim-linux-aarch64.so
+  [darwin64] reaper_reavim.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/reavim-ext-v$version/reaper_reavim-macos-x86_64.dylib
+  [darwin-arm64] reaper_reavim.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/reavim-ext-v$version/reaper_reavim-macos-aarch64.dylib
+  [win64] reaper_reavim.dll https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/reavim-ext-v$version/reaper_reavim-windows-x86_64.dll
+@changelog
+  First release as a ReaPack package.
+@link
+  Source repository https://github.com/AntoineBalaine/perken-reaper-scripts
+@about
+  # ReaVim extension
+
+  The compiled successor of the ReaVim Lua scripts. It does not replace your keymap.
+  Default bindings are built in; copy bindings.ini from the GitHub release to Data/Perken to edit them.
