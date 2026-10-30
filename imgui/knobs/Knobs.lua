@@ -1,4 +1,5 @@
 --[[
+@noindex
 @description Knobs: some knob components for your reaimgui projects
 @version
   0.0.1

@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Midi-fighter-twister: map selected fx in visible fx chain
 -- @version 0.0.3
 -- @author Perken
