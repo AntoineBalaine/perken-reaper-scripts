@@ -132,3 +132,35 @@ test "outside the fx_ctrl mode a tick keeps the absolute emulation" {
     h.tick(1, false);
     try testing.expectEqual(@as(f64, 0.5), h.value());
 }
+
+test "a tick of Volume moves the fader by 1/127 of its slider range" {
+    const h = try Harness.init();
+    defer h.deinit();
+    const utils = @import("utils");
+    _ = reaper.SetMediaTrackInfo_Value(h.track, "D_VOL", 1.0);
+    const before = utils.volToNormalized(1.0);
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = false } });
+    const after = utils.volToNormalized(reaper.GetMediaTrackInfo_Value(h.track, "D_VOL"));
+    try testing.expectApproxEqAbs(before + 1.0 / 127.0, after, 1e-6);
+    const expected: u8 = @intFromFloat(after * 127);
+    try testing.expectEqual(expected, h.globals.unit.leds.value(.Out_Vol));
+}
+
+test "a tick of Pan moves the pan by 1/127 of its range, and a tenth of that with shift" {
+    const h = try Harness.init();
+    defer h.deinit();
+    _ = reaper.SetMediaTrackInfo_Value(h.track, "D_PAN", 0.0);
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Pan, .delta = 1, .fine = false } });
+    try testing.expectApproxEqAbs(2.0 / 127.0, reaper.GetMediaTrackInfo_Value(h.track, "D_PAN"), 1e-9);
+    _ = reaper.SetMediaTrackInfo_Value(h.track, "D_PAN", 0.0);
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Pan, .delta = -1, .fine = true } });
+    try testing.expectApproxEqAbs(-0.2 / 127.0, reaper.GetMediaTrackInfo_Value(h.track, "D_PAN"), 1e-9);
+}
+
+test "Pan and Volume stop at the ends of their range" {
+    const h = try Harness.init();
+    defer h.deinit();
+    _ = reaper.SetMediaTrackInfo_Value(h.track, "D_PAN", 1.0);
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Pan, .delta = 1, .fine = false } });
+    try testing.expectEqual(@as(f64, 1.0), reaper.GetMediaTrackInfo_Value(h.track, "D_PAN"));
+}

@@ -66,6 +66,8 @@ const Mocks = struct {
     CSurf_OnStop: @TypeOf(reaper.CSurf_OnStop),
     CSurf_OnRewFwd: @TypeOf(reaper.CSurf_OnRewFwd),
     CSurf_OnZoom: @TypeOf(reaper.CSurf_OnZoom),
+    SLIDER2DB: @TypeOf(reaper.SLIDER2DB),
+    DB2SLIDER: @TypeOf(reaper.DB2SLIDER),
     CSurf_OnPlayRateChange: @TypeOf(reaper.CSurf_OnPlayRateChange),
     CSurf_OnRecArmChange: @TypeOf(reaper.CSurf_OnRecArmChange),
     GetToggleCommandState: @TypeOf(reaper.GetToggleCommandState),
@@ -546,6 +548,48 @@ pub fn CSurf_OnZoom(xdir: c_int, ydir: c_int) callconv(.c) void {
     _ = xdir;
     _ = ydir;
 }
+/// Sets the volume of the track and returns it, as REAPER does for an absolute change.
+pub fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.c) f64 {
+    std.debug.assert(!relative);
+    const track: ?*Track = @ptrCast(@alignCast(trackid));
+    const clamped = std.math.clamp(volume, 0.0, 4.0);
+    if (track) |t| t.info.volume = clamped;
+    return clamped;
+}
+
+pub fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = volume;
+    _ = ignoresurf;
+}
+
+/// Sets the pan of the track and returns it, as REAPER does for an absolute change.
+pub fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.c) f64 {
+    std.debug.assert(!relative);
+    const track: ?*Track = @ptrCast(@alignCast(trackid));
+    const clamped = std.math.clamp(pan, -1.0, 1.0);
+    if (track) |t| t.info.pan = clamped;
+    return clamped;
+}
+
+pub fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = pan;
+    _ = ignoresurf;
+}
+
+// An increasing and invertible stand-in for REAPER's fader scale, over the slider range 0 to 1000 and -150 to +12 dB.
+// It is not REAPER's curve: tests only rely on the two functions being inverse of each other and increasing.
+pub fn SLIDER2DB(y: f64) callconv(.c) f64 {
+    const t = std.math.clamp(y, 0.0, 1000.0) / 1000.0;
+    return -150.0 + 162.0 * std.math.sqrt(t);
+}
+
+pub fn DB2SLIDER(x: f64) callconv(.c) f64 {
+    const t = std.math.clamp((x + 150.0) / 162.0, 0.0, 1.0);
+    return 1000.0 * t * t;
+}
+
 pub fn CSurf_OnPlayRateChange(playrate: f64) callconv(.c) void {
     _ = playrate;
 }
@@ -641,16 +685,6 @@ pub fn CSurf_OnSoloChange(trackid: MediaTrack, solo: c_int) callconv(.c) bool {
     _ = solo;
     return true;
 }
-pub fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.c) f64 {
-    _ = trackid;
-    _ = relative;
-    return volume;
-}
-pub fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.c) f64 {
-    _ = trackid;
-    _ = relative;
-    return pan;
-}
 pub fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = mute;
@@ -659,16 +693,6 @@ pub fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper
 pub fn CSurf_SetSurfaceSolo(trackid: MediaTrack, solo: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = solo;
-    _ = ignoresurf;
-}
-pub fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
-    _ = trackid;
-    _ = volume;
-    _ = ignoresurf;
-}
-pub fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
-    _ = trackid;
-    _ = pan;
     _ = ignoresurf;
 }
 pub fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.c) *reaper.MediaTrack {
