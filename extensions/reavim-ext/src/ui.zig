@@ -514,10 +514,8 @@ fn renderSide() void {
             });
         }
         if (meta.recording) {
-            const k: keymod.Key = @bitCast(meta.record_register);
-            const reg_ch: u8 = if (k.vk >= 'A' and k.vk <= 'Z') k.vk + 32 else k.vk;
             imgui.api.SameLine(ctx, null, null);
-            textColored(ctx, rgba(0xFF3333FF), utils.safePrint(&line, "\xe2\x97\x8f{c}", .{reg_ch}));
+            textColored(ctx, rgba(0xFF3333FF), utils.safePrint(&line, "\xe2\x97\x8f{c}", .{meta.record_register}));
         }
     }
     if (imgui.api.IsItemHovered(ctx, null)) {
