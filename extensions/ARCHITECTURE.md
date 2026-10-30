@@ -143,7 +143,9 @@ The scripts in `main/`, `midi/` and the other folders came first, as
 individual ReaScripts. Later they were folded into reavim as custom actions,
 and the custom actions are what was ported. The table follows the file and
 action names; it was not checked script by script for identical behaviour.
-All of the Lua scripts remain in the repository and on ReaPack as they are.
+All of the Lua scripts remain in the repository. They also stay on ReaPack,
+except `reavim.lua`, which `reavim-ext` replaces and which is marked
+`@noindex`.
 
 | Folder | Compiled counterpart | State |
 |---|---|---|
@@ -156,7 +158,7 @@ All of the Lua scripts remain in the repository and on ReaPack as they are.
 | `imgui/shortcut_list` | None | Not ported |
 | `media_explorer/` (2 scripts) | None | Not ported, no plan |
 | `realearn/` (`lua_mapper`, `synth_map`) | None | Not ported; MIDI Fighter Twister support is the compiled `mft` extension |
-| `reavim/` | `reavim-ext` | Ported; marking the Lua version deprecated is still to do |
+| `reavim/` | `reavim-ext` | Ported; the Lua version is `@noindex` and no longer on ReaPack |
 | `deprecated/` | None | Frozen |
 
 ## What the extensions keep in REAPER's resource folder
