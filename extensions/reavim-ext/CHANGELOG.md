@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Macros, vim style**: `q{reg}` records the keys you type until `q`, `@{reg}` plays them back as if typed (counts, operators, visual modes, `.` and nested `@` all replay), `[count]@{reg}` repeats, `@@` replays the register played last, and `q{REG}` (an uppercase letter) appends to a register. Registers are the letters, digits and punctuation keys. They persist across restarts in `Data/Perken/macros.ini`, one `<register>=<keys>` line each, in the same notation as `bindings.ini`. Because REAPER has no failing motion to end a recursive macro on, playback stops after 100 nested `@` calls or 100000 replayed keys. Keys typed in insert mode pass through to REAPER and are not recorded; the `<esc>` that leaves insert mode is
+
 ### Changed
 - **Editing helpers moved to perken-utilities**: drums (flam/ras/crescendo), kawa chord voicings, routing (busses), InsertFxAtSlot, item fades/trims/stretch from the mouse, track volume ±3 dB / rename from VSTi preset / exclusive solo, envelope point actions, MIDI key snap and batch rename now live in the separate `perken-utilities` extension, so that reavim-ext only contains the vim grammar. Their keys stay in the default `bindings.ini` as commented-out `_PERKEN_<Action>` entries; uncomment them after installing perken-utilities
 - **Batch rename settings** move from the `[rename]` section of `bindings.ini` to `Data/Perken/perken-utilities.ini`

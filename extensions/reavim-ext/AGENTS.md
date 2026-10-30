@@ -29,6 +29,9 @@ Both live under REAPER's resource path (`Options -> Show REAPER resource path`):
   `src/default_bindings.ini` is used when absent). Read once at load.
 - `Data/Perken/reavim.ini` — extension-owned on/off persistence (`enabled=1/0`),
   written on toggle, read by `vim.restoreState()` at load.
+- `Data/Perken/macros.ini` — the macro registers, one `<register>=<keys>`
+  line each (vim key notation), written when a recording stops, read by
+  `meta.load()` at load.
 
 Three REAPER actions are registered (search "ReaVim" in the action list):
 `ReaVim: Toggle vim mode`, `ReaVim: Toggle whichkey window`, and `ReaVim: Edit

@@ -13,8 +13,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
-const win_file = @import("win_file.zig");
 const win_input = @import("win_input.zig");
+const perken_file = @import("perken_file.zig");
 const accel = @import("accel.zig");
 const swell = @import("swell_win.zig");
 const keymod = @import("key.zig");
@@ -61,33 +61,10 @@ pub fn setBindings(b: *config.Bindings) void {
 
 // On/off state persists across restarts in a small file the extension owns,
 // under REAPER's resource path.
-const persist_rel = "Data/Perken/reavim.ini";
-
-fn persistPath(buf: []u8) ?[]const u8 {
-    const resource = std.mem.span(Reaper.GetResourcePath());
-    return std.fmt.bufPrint(buf, "{s}/{s}", .{ resource, persist_rel }) catch null;
-}
+const persist_file = "reavim.ini";
 
 fn persistEnabled(on: bool) void {
-    const io = state.io();
-    const resource = std.mem.span(Reaper.GetResourcePath());
-    var dbuf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
-    var pbuf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = persistPath(&pbuf) orelse return;
-    const content = if (on) "enabled=1\n" else "enabled=0\n";
-
-    // See main.zig's loadBindings for why std.fs's *Absolute calls are
-    // avoided on Windows (stack overflow at REAPER's call depth).
-    if (builtin.os.tag == .windows) {
-        _ = win_file.makeDir(dir); // ok if it already exists (Data/ always does)
-        _ = win_file.writeFile(path, content);
-        return;
-    }
-    std.Io.Dir.createDirAbsolute(io, dir, .default_dir) catch {}; // ok if it already exists (Data/ always does)
-    const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch return;
-    defer file.close(io);
-    file.writeStreamingAll(io, content) catch {};
+    perken_file.write(persist_file, if (on) "enabled=1\n" else "enabled=0\n");
 }
 
 pub fn toggle() void {
@@ -101,18 +78,8 @@ pub fn toggle() void {
 /// Restore the on/off state persisted by a previous session.
 /// Call once at load, after bindings are set.
 pub fn restoreState() void {
-    const io = state.io();
-    var pbuf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = persistPath(&pbuf) orelse return;
     var content: [64]u8 = undefined;
-    const read: []const u8 = if (builtin.os.tag == .windows)
-        win_file.readFileInto(path, &content) orelse return
-    else got: {
-        const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return;
-        defer file.close(io);
-        const n = file.readPositionalAll(io, &content, 0) catch return;
-        break :got content[0..n];
-    };
+    const read = perken_file.readInto(persist_file, &content) orelse return;
     if (std.mem.indexOf(u8, read, "enabled=1") != null) {
         state.mode = .normal;
         log.info("vim mode: normal (restored)", .{});
@@ -317,6 +284,7 @@ pub fn onKey(msg: *accel.MSG) c_int {
     if (state.mode == .insert) {
         if (down and vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
             state.setModeToNormal();
+            meta.recordKey(.{ .vk = VK_ESCAPE });
             log.info("mode: normal", .{});
             return 1;
         }
@@ -355,8 +323,15 @@ pub fn onKey(msg: *accel.MSG) c_int {
         return 1;
     }
 
+    return engineKey(b, ctx, k, mods.ctrl or mods.alt, down);
+}
+
+/// The grammar's handling of one key in the normal and visual modes, shared
+/// by the live hook (which also sees key-ups) and macro playback. Returns
+/// the translateAccel value (0 = pass through, 1 = eat).
+fn engineKey(b: *config.Bindings, ctx: Context, k: keymod.Key, modified: bool, down: bool) c_int {
     // ESC: clear pending; exit visual modes; pass through otherwise.
-    if (vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
+    if (k.vk == VK_ESCAPE and !k.ctrl and !k.alt) {
         if (key_len > 0) {
             if (down) clearPending();
             return 1;
@@ -364,6 +339,7 @@ pub fn onKey(msg: *accel.MSG) c_int {
         if (state.mode == .visual_track or state.mode == .visual_timeline) {
             if (down) {
                 state.setModeToNormal();
+                meta.recordKey(k);
                 log.info("mode: normal", .{});
             }
             return 1;
@@ -380,9 +356,24 @@ pub fn onKey(msg: *accel.MSG) c_int {
     }
 
     // Key-ups: eat plain ones (their downs were eaten), pass modified ones.
-    if (up) return if (mods.ctrl or mods.alt) 0 else 1;
+    if (!down) return if (modified) 0 else 1;
 
-    return pushKey(b, ctx, k, mods.ctrl or mods.alt);
+    return pushKey(b, ctx, k, modified);
+}
+
+/// Feeds one key of a macro to the engine, as if it had been pressed. Keys
+/// typed in insert mode pass through to REAPER when they are live, and
+/// cannot be replayed, so only the <esc> that leaves insert mode acts here.
+pub fn feedKey(k: keymod.Key) void {
+    const b = bindings orelse return;
+    switch (state.mode) {
+        .off => {},
+        .insert => if (k.vk == VK_ESCAPE and !k.ctrl and !k.alt) {
+            state.setModeToNormal();
+            log.info("mode: normal", .{});
+        },
+        else => _ = engineKey(b, active_ctx, k, false, true),
+    }
 }
 
 /// Appends one key to the pending sequence and builds, runs, or keeps
@@ -403,13 +394,16 @@ pub fn pushKey(b: *config.Bindings, ctx: Context, k: keymod.Key, modified: bool)
         if (cmd.keys[0].def.register_action and
             cmd.keys[0].def.register_optional and
             cmd.keys[0].register == null and
-            !meta.recording)
+            !meta.recording and !meta.playing())
         {
             return 1; // keep key_buf intact; next key will extend to "qa"
         }
         setLastAction(cmd);
+        const kind = meta.metaKind(&cmd);
+        // Like vim, the q{reg} and q keys themselves stay out of the macro.
+        if (kind != .record_macro and kind != .stop_record_macro) meta.recordKeys(key_buf[0..key_len]);
         clearPending();
-        if (meta.metaKind(&cmd) != null) {
+        if (kind != null) {
             meta.handle(cmd, ctx);
         } else {
             Reaper.Undo_BeginBlock();

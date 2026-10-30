@@ -85,6 +85,27 @@ midiCommand = true
 repetitions = 5
 ```
 
+## Macros
+
+Macros follow vim: `q{reg}` starts recording the keys you type, `q` stops,
+`@{reg}` plays the register back through the engine as if the keys were typed,
+`[count]@{reg}` repeats it, `@@` replays the register played last, and
+`q{REG}` (uppercase) appends to the register. A register is a letter, a digit
+or a punctuation key. Because the macro holds keys rather than resolved
+commands, the mode at playback time decides what the keys do, and a macro can
+call another (or itself). Playback stops after 100 nested calls or 100000
+keys, since no REAPER action fails the way a vim motion does to end a
+recursive macro. The registers persist in `<resource>/Data/Perken/macros.ini`,
+one `<register>=<keys>` line each, in the notation of `bindings.ini`:
+
+```ini
+a=jjdd
+b=3@a<esc>
+```
+
+Keys typed in insert mode pass through to REAPER, so they are not recorded;
+only the `<esc>` that leaves insert mode is.
+
 ## Milestones
 
 - [x] **0 — probe**: register the accelerator hook, eat nothing, log every key message
