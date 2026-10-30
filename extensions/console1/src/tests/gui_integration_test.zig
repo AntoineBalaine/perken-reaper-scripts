@@ -108,6 +108,8 @@ const GuiTestHarness = struct {
             .settings_panel = if (g.settings_panel) |*panel| panel else null,
             .preferences = &g.preferences,
             .midi_connected = g.m_midi_in != null,
+            .legacy_mode = false,
+            .shift_held = false,
             .main_font = Theme.fonts.MAIN,
             .icon_font = Theme.fonts.ICON_FONT_SMALL,
             .tab_font = null,

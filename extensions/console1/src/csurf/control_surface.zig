@@ -139,9 +139,12 @@ export fn zRun() callconv(.c) void {
         while (globals.unit.popEvent()) |event| midi_events.onUnitEvent(globals, event);
     }
 
-    if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {
-        actions.dispatch(globals, .{ .midi_out = .blink });
-        if (globals.playState and !globals.pauseState) {
+    if (globals.state.current_mode == .fx_ctrl) {
+        const several_selected = globals.state.selectedTracks.count() > 1;
+        if (several_selected) actions.dispatch(globals, .{ .midi_out = .blink });
+        // Because the legacy mode only ever read the meters here while several tracks were selected, which looks like
+        // an indentation slip, the meters of the sysex mode are read whenever the transport plays.
+        if ((several_selected or globals.unit.isReady()) and globals.playState and !globals.pauseState) {
             actions.dispatch(globals, .{ .midi_out = .queryMeters });
         }
     }

@@ -22,6 +22,8 @@ pub const TestUiStateBuilder = struct {
     track_templates: fx_types.Directory,
     fx_tags: fx_types.FxTags,
     midi_connected: bool,
+    legacy_mode: bool = false,
+    shift_held: bool = false,
 
     // Owned style data for StyleManager construction
     main_style: styles.StyleStruct,
@@ -46,6 +48,8 @@ pub const TestUiStateBuilder = struct {
             .track_templates = .{ .path = "", .name = "", .subdirs = null, .files = null },
             .fx_tags = .{ .category = .{}, .developer = .{} },
             .midi_connected = true,
+            .legacy_mode = false,
+            .shift_held = false,
             .main_style = std.mem.zeroes(styles.StyleStruct),
             .config_style = std.mem.zeroes(styles.StyleStruct),
             .main_style_open = false,
@@ -67,6 +71,8 @@ pub const TestUiStateBuilder = struct {
             .settings_panel = null,
             .preferences = &self.preferences,
             .midi_connected = self.midi_connected,
+            .legacy_mode = self.legacy_mode,
+            .shift_held = self.shift_held,
             .main_font = null,
             .icon_font = null,
             .tab_font = null,

@@ -84,6 +84,7 @@ pub const TranslationKey = enum {
     fx_ctrl_Tr_tr_copy,
     fx_ctrl_Tr_tr_grp,
     fx_ctrl_disconnected,
+    fx_ctrl_legacy_mode,
     // Settings panel translations
     settings_title,
     settings_show_startup_message,
@@ -378,6 +379,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "fx_ctrl_Tr_tr_copy", "Copy" },
     .{ "fx_ctrl_Tr_tr_grp", "Grp" },
     .{ "fx_ctrl_disconnected", "Console disconnected" },
+    .{ "fx_ctrl_legacy_mode", "Console in legacy mode: no handshake answer" },
     .{ "settings_title", "Settings" },
     .{ "settings_show_startup_message", "Show Startup Message" },
     .{ "settings_show_feedback_window", "Show Feedback Window" },

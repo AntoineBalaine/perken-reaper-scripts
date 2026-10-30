@@ -262,6 +262,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     if (!ui.midi_connected) {
         try imgui.SameLine(.{ctx});
         try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_disconnected) });
+    } else if (ui.legacy_mode) {
+        try imgui.SameLine(.{ctx});
+        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_legacy_mode) });
     }
     return rv;
 }

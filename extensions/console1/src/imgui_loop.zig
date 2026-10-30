@@ -143,6 +143,8 @@ fn onTimer() callconv(.c) void {
         .settings_panel = if (globals.settings_panel) |*panel| panel else null,
         .preferences = &globals.preferences,
         .midi_connected = globals.m_midi_in != null,
+        .legacy_mode = globals.unit.isLegacyMode(),
+        .shift_held = globals.unit.shiftHeld(),
         .main_font = c1_theme.fonts.MAIN,
         .icon_font = c1_theme.fonts.ICON_FONT_SMALL,
         .tab_font = c1_theme.fonts.TAB,

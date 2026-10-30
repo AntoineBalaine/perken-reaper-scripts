@@ -25,6 +25,10 @@ pub const UiState = struct {
     settings_panel: ?*SettingsPanel,
     preferences: *const Preferences,
     midi_connected: bool,
+    // True when the handshake of the Console failed and it runs in the legacy CC mode.
+    legacy_mode: bool,
+    // True while shift is held on the Console.
+    shift_held: bool,
     // Because the host and UI lib each have their own copy of c1_theme.fonts
     // (they are separate compilation units), the host passes its font pointers
     // so the UI lib can set its copy before rendering.
