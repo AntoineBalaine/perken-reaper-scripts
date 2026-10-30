@@ -57,7 +57,7 @@ jobs:
             "windows-x86_64  x86_64-windows"
             "windows-aarch64 aarch64-windows"
           )
-          mkdir -p dist
+          mkdir -p dist/reapack
           for row in "${targets[@]}"; do
             read -r name tgt <<<"$row"
             echo "::group::$name ($tgt)"
@@ -68,6 +68,17 @@ jobs:
             mkdir -p "$pkg"
             # macOS gets a bundle (a folder), the others a single file.
             cp -R zig-out/vr09.clap "$pkg/"
+            # ReaPack installs bare files and cannot unpack a zip, so each
+            # file of the plugin is also uploaded on its own. On macOS the
+            # plugin is a bundle: its binary and its Info.plist go up as two
+            # files, and the index puts the bundle back together.
+            case "$name" in
+              macos-*)
+                cp zig-out/vr09.clap/Contents/MacOS/vr09 "dist/reapack/vr09-$name"
+                cp zig-out/vr09.clap/Contents/Info.plist dist/reapack/vr09-Info.plist ;;
+              *)
+                cp zig-out/vr09.clap "dist/reapack/vr09-$name.clap" ;;
+            esac
             cp README.md "$pkg/README.md"
             # The fonts are embedded in the plugin, and their licenses must travel with it.
             mkdir -p "$pkg/licenses"
@@ -80,13 +91,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: vr09-builds
-          path: extensions/vr09/dist/*.zip
+          path: |
+            extensions/vr09/dist/*.zip
+            extensions/vr09/dist/reapack/*
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/vr09-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: extensions/vr09/dist/*.zip
+          files: |
+            extensions/vr09/dist/*.zip
+            extensions/vr09/dist/reapack/*
           generate_release_notes: true
           fail_on_unmatched_files: true
           # Several extensions release from this repository, so no single

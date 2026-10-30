@@ -95,8 +95,10 @@ jobs:
         run: |
           set -euo pipefail
           pkg="dist/perken-utilities-${{ matrix.name }}"
-          mkdir -p "$pkg"
+          mkdir -p "$pkg" dist/reapack
           cp "zig-out/reaper_perken_utilities.${{ matrix.ext }}" "$pkg/"
+          # ReaPack installs bare files and cannot unpack a zip.
+          cp "zig-out/reaper_perken_utilities.${{ matrix.ext }}" "dist/reapack/reaper_perken_utilities-${{ matrix.name }}.${{ matrix.ext }}"
           cp README.md "$pkg/README.md"
           # cmake is on every runner image, unlike zip/7z.
           (cd dist && cmake -E tar cf "perken-utilities-${{ matrix.name }}.zip" --format=zip "perken-utilities-${{ matrix.name }}")
@@ -104,7 +106,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: perken-utilities-${{ matrix.name }}
-          path: extensions/perken-utilities/dist/*.zip
+          path: |
+            extensions/perken-utilities/dist/*.zip
+            extensions/perken-utilities/dist/reapack/*
 
   release:
     needs: build
@@ -118,7 +122,7 @@ jobs:
           path: artifacts/
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*/*.zip
+          files: artifacts/*/*
           generate_release_notes: true
           fail_on_unmatched_files: true
           # Several extensions release from this repository, so no single
