@@ -1,0 +1,99 @@
+const std = @import("std");
+const testing = std.testing;
+const reaper = @import("reaper").reaper;
+const models = @import("../models/models.zig");
+const Globals = @import("../globals.zig");
+const statemachine = @import("../statemachine.zig");
+const c1 = @import("../c1.zig");
+const midi_events = @import("../csurf/midi_events.zig");
+
+const Harness = struct {
+    arena: std.heap.ArenaAllocator,
+    reaper_teardown: @typeInfo(@TypeOf(models.reaper.setupTestModel)).@"fn".return_type.?,
+    midi_teardown: @typeInfo(@TypeOf(models.midi.setupMidiMocks)).@"fn".return_type.?,
+    globals: *Globals,
+
+    fn init(track_count: usize) !*Harness {
+        const self = try testing.allocator.create(Harness);
+        self.arena = std.heap.ArenaAllocator.init(testing.allocator);
+        self.reaper_teardown = models.reaper.setupTestModel(self.arena.allocator(), null, null);
+        self.midi_teardown = models.midi.setupMidiMocks(reaper);
+        Globals.instance = try .defaults(testing.allocator);
+        self.globals = &Globals.instance;
+        self.globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+        self.globals.state.current_mode = .fx_ctrl;
+        for (0..track_count) |_| reaper.InsertTrackAtIndex(0, false);
+        return self;
+    }
+
+    fn deinit(self: *Harness) void {
+        self.globals.deinit();
+        self.midi_teardown.teardown();
+        self.reaper_teardown.teardown();
+        self.arena.deinit();
+        testing.allocator.destroy(self);
+    }
+
+    fn press(self: *Harness, cc: c1.CCs) void {
+        midi_events.onUnitEvent(self.globals, .{ .press = cc });
+    }
+
+    fn shift(self: *Harness, held: bool) void {
+        self.globals.unit.input.shift_held = held;
+    }
+};
+
+test "shift with Tr1 to Tr6 opens the browser of the strip, shape, EQ, compressor, input and output" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    const expected = [_]struct { cc: c1.CCs, module: statemachine.ModulesList }{
+        .{ .cc = .Tr_tr1, .module = .STRIP },
+        .{ .cc = .Tr_tr2, .module = .GATE },
+        .{ .cc = .Tr_tr3, .module = .EQ },
+        .{ .cc = .Tr_tr4, .module = .COMP },
+        .{ .cc = .Tr_tr5, .module = .INPUT },
+        .{ .cc = .Tr_tr6, .module = .OUTPT },
+    };
+    for (expected) |entry| {
+        h.globals.state.current_mode = .fx_ctrl;
+        h.shift(true);
+        h.press(entry.cc);
+        try testing.expectEqual(statemachine.Mode.fx_sel, h.globals.state.current_mode);
+        try testing.expectEqual(entry.module, h.globals.state.fx_sel.current_category);
+    }
+}
+
+test "shift with Tr20 opens the settings, and a shifted press does not select a track" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_tr_id = 1;
+    h.shift(true);
+    h.press(.Tr_tr20);
+    try testing.expectEqual(statemachine.Mode.settings, h.globals.state.current_mode);
+    try testing.expectEqual(@as(?c_int, 1), h.globals.state.current_tr_id);
+}
+
+test "shift only has these functions in the fx_ctrl mode" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_mode = .transport;
+    h.shift(true);
+    // In the transport mode Tr1 loads the input, as it does without shift.
+    h.press(.Tr_tr1);
+    try testing.expectEqual(statemachine.Mode.fx_sel, h.globals.state.current_mode);
+    try testing.expectEqual(statemachine.ModulesList.INPUT, h.globals.state.fx_sel.current_category);
+}
+
+test "a plain Preset of the sysex unit no longer opens the mapping panel, and the legacy one still does" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.unit.link = .ready;
+    h.globals.unit.backend = .sysex;
+    h.press(.Inpt_preset);
+    try testing.expectEqual(statemachine.Mode.fx_ctrl, h.globals.state.current_mode);
+
+    h.globals.unit.link = .failed;
+    h.globals.unit.backend = .legacy_cc;
+    h.press(.Inpt_preset);
+    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+}

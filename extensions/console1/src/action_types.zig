@@ -147,6 +147,8 @@ pub const PgDirection = enum { up, down };
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
     track_select: c_int,
+    /// Selects the previous (-1) or the next (1) track in the order of REAPER, and moves the page along.
+    step_track: i8,
     blink_leds: struct {
         blink_state: bool,
     },

@@ -27,6 +27,7 @@ pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = tr } });
             }
         },
+        .step_track => |direction| stepTrack(globals, direction),
         .blink_leds => |led_state| {
             const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
             const track_count = reaper.GetNumTracks() + 1; // +  1 to account for master
@@ -89,6 +90,40 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
             try midi_out.send(0xB0, cc, 0x7F);
         }
     }
+}
+
+/// Selects the neighbor of the current track, and shows the page that it is on.
+fn stepTrack(globals: *Globals, direction: i8) void {
+    const track_count: c_int = reaper.GetNumTracks() + 1; // including master
+    const current = globals.state.current_tr_id orelse return;
+    const step = planStep(current, direction, track_count) orelse return;
+
+    if (step.page != globals.state.fx_ctrl.current_page) {
+        globals.state.fx_ctrl.current_page = step.page;
+        updateTrackNames(globals);
+        if (globals.preferences.focus_page_tracks) focusPageTracks(globals);
+        actions.dispatch(globals, .{ .midi_out = .page_change });
+    }
+    actions.dispatch(globals, .{ .track_list = .{ .track_select = step.track } });
+}
+
+pub const TrackStep = struct { track: c_int, page: u8 };
+
+/// The track that a step from `current` lands on, with its page, or null at the first and the last track.
+/// The track ids are REAPER's, with 0 for the master.
+pub fn planStep(current: c_int, direction: i8, track_count: c_int) ?TrackStep {
+    std.debug.assert(direction == 1 or direction == -1);
+    std.debug.assert(track_count > 0);
+    const next = std.math.clamp(current + direction, 0, track_count - 1);
+    if (next == current) return null;
+    return .{ .track = next, .page = @intCast(@as(usize, @intCast(next)) / TrackList.PageSize) };
+}
+
+test planStep {
+    try std.testing.expectEqual(TrackStep{ .track = 20, .page = 1 }, planStep(19, 1, 26).?);
+    try std.testing.expectEqual(TrackStep{ .track = 19, .page = 0 }, planStep(20, -1, 26).?);
+    try std.testing.expectEqual(@as(?TrackStep, null), planStep(0, -1, 26));
+    try std.testing.expectEqual(@as(?TrackStep, null), planStep(25, 1, 26));
 }
 
 fn handlePageChange(globals: *Globals, direction: PgDirection) void {

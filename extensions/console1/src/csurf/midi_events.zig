@@ -6,6 +6,7 @@ const c1 = @import("../c1.zig");
 const Globals = @import("../globals.zig").Globals;
 const actions = @import("../actions.zig");
 const Unit = @import("../unit/unit.zig");
+const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
 const ModulesList = @import("../statemachine.zig").ModulesList;
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
@@ -37,6 +38,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
 /// An event of the unit in sysex mode. While nothing but the emulation of the legacy unit exists, a tick or a press ends in
 /// the same call as a CC did.
 pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
+    if (globals.state.current_mode == .fx_ctrl and globals.unit.shiftHeld()) {
+        if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
+    }
     if (globals.unit.input.legacyValue(event)) |legacy| onControl(globals, legacy.cc, legacy.value);
 }
 
@@ -46,7 +50,8 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
     mode_switch: switch (globals.state.current_mode) {
         .fx_ctrl => {
             switch (cc) {
-                .Inpt_preset => {
+                // The sysex unit has no mapping panel on this button: it is the presets', which do not exist yet.
+                .Inpt_preset => if (!globals.unit.isReady()) {
                     actions.dispatch(globals, .{ .change_mode = .mapping_panel });
                     actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
                 },

@@ -12,6 +12,8 @@ const log = std.log.scoped(.csurf);
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 const utils = @import("utils");
 const TrackState = @import("../track_state.zig");
+const Unit = @import("../unit/unit.zig");
+const ModulesList = @import("../statemachine.zig").ModulesList;
 const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
 
 var tmp: [4096:0]u8 = undefined;
@@ -22,6 +24,39 @@ fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
         reaper.CSurf_TrackFromID(id, constants.g_csurf_mcpmode)
     else
         null;
+}
+
+/// The functions of the buttons while shift is held in the fx_ctrl mode of the sysex unit. It returns whether the event
+/// was taken, so that a shifted press does not also do what the plain press does. The release of a button is never
+/// taken, and shift with the knobs is the fine adjust, which the tick carries.
+pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
+    switch (event) {
+        .press => |cc| {
+            const module: ModulesList = switch (cc) {
+                .Tr_tr1 => .STRIP,
+                .Tr_tr2 => .GATE,
+                .Tr_tr3 => .EQ,
+                .Tr_tr4 => .COMP,
+                .Tr_tr5 => .INPUT,
+                .Tr_tr6 => .OUTPT,
+                .Tr_tr20 => {
+                    actions.dispatch(globals, .{ .settings = .open });
+                    return true;
+                },
+                // Saving a preset comes with the presets, which do not exist yet.
+                .Inpt_preset => return true,
+                else => return false,
+            };
+            actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });
+            return true;
+        },
+        .tick => |tick| {
+            if (tick.cc != .Out_Vol) return false;
+            actions.dispatch(globals, .{ .track_list = .{ .step_track = if (tick.delta > 0) 1 else -1 } });
+            return true;
+        },
+        .release => return false,
+    }
 }
 
 /// Sets one of the toggles of the selected track in the state that the panel draws.

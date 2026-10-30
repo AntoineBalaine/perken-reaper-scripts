@@ -25,7 +25,8 @@ knob_pos: [256]u8 = @splat(0),
 /// The last value that a three-state button (Order and Sidechain) reported, for its cycle of 00, 3F, 7F.
 button_state: [256]u8 = @splat(0),
 
-/// Reads one control message of the unit. Shift is kept here and is not an event. A release of a button is an event,
+/// Reads one control message of the unit. Shift is kept here and is not an event. A tick does not move the emulated
+/// position: `legacyValue` does, for the consumers that still want an absolute value. A release of a button is an event,
 /// and a message of an id that no control has is dropped.
 pub fn handle(self: *Input, message: protocol.ControlMessage) ?ControlEvent {
     if (message.id == protocol.shift_id) {
@@ -38,9 +39,6 @@ pub fn handle(self: *Input, message: protocol.ControlMessage) ?ControlEvent {
         return if (message.value != 0) .{ .press = cc } else .{ .release = cc };
     }
     const delta: i8 = if (message.value != 0) 1 else -1;
-    const step = if (self.shift_held) fine_step else coarse_step;
-    const moved = std.math.clamp(@as(i16, self.knob_pos[@backingInt(cc)]) + delta * step, 0, 127);
-    self.knob_pos[@backingInt(cc)] = @intCast(moved);
     return .{ .tick = .{ .cc = cc, .delta = delta, .fine = self.shift_held } };
 }
 
@@ -48,7 +46,14 @@ pub fn handle(self: *Input, message: protocol.ControlMessage) ?ControlEvent {
 /// A press of Order or Sidechain cycles through 00, 3F and 7F, as the legacy unit's value did.
 pub fn legacyValue(self: *Input, event: ControlEvent) ?struct { cc: c1.CCs, value: u8 } {
     switch (event) {
-        .tick => |tick| return .{ .cc = tick.cc, .value = self.knob_pos[@backingInt(tick.cc)] },
+        .tick => |tick| {
+            // Because a tick that something else consumed (shift and Volume selects a track) must not move the
+            // position that the next tick of the knob starts from, the position only moves here.
+            const step = if (tick.fine) fine_step else coarse_step;
+            const moved = std.math.clamp(@as(i16, self.knob_pos[@backingInt(tick.cc)]) + tick.delta * step, 0, 127);
+            self.knob_pos[@backingInt(tick.cc)] = @intCast(moved);
+            return .{ .cc = tick.cc, .value = @intCast(moved) };
+        },
         .press => |cc| {
             if (cc == .Tr_order or cc == .Tr_ext_sidechain) {
                 const next: u8 = switch (self.button_state[@backingInt(cc)]) {
@@ -74,18 +79,27 @@ fn control(id: u8, value: u8) protocol.ControlMessage {
     return .{ .id = id, .value = value };
 }
 
+/// A message of a knob, read and then given to a consumer that wants the absolute value.
+fn tickValue(input: *Input, id: u8, value: u8) u8 {
+    return input.legacyValue(input.handle(control(id, value)).?).?.value;
+}
+
+test "a tick that nobody takes does not move the emulated position" {
+    var input: Input = .{};
+    input.setKnobPosition(.Out_Vol, 50);
+    _ = input.handle(control(ids.idOf(.Out_Vol).?, 0x7F));
+    try std.testing.expectEqual(@as(u8, 50), input.knob_pos[@backingInt(c1.CCs.Out_Vol)]);
+}
+
 test "a tick moves the emulated position by 3, and by 1 while shift is held" {
     var input: Input = .{};
     const gain = ids.idOf(.Inpt_Gain).?;
-    _ = input.handle(control(gain, 0x7F));
-    try std.testing.expectEqual(@as(u8, 3), input.knob_pos[@backingInt(c1.CCs.Inpt_Gain)]);
+    try std.testing.expectEqual(@as(u8, 3), tickValue(&input, gain, 0x7F));
     try std.testing.expectEqual(@as(?ControlEvent, null), input.handle(control(protocol.shift_id, 0x7F)));
     try std.testing.expect(input.shift_held);
-    const event = input.handle(control(gain, 0x7F)).?;
-    try std.testing.expect(event.tick.fine);
-    try std.testing.expectEqual(@as(u8, 4), input.knob_pos[@backingInt(c1.CCs.Inpt_Gain)]);
-    _ = input.handle(control(gain, 0x00));
-    try std.testing.expectEqual(@as(u8, 3), input.knob_pos[@backingInt(c1.CCs.Inpt_Gain)]);
+    try std.testing.expect(input.handle(control(gain, 0x7F)).?.tick.fine);
+    try std.testing.expectEqual(@as(u8, 4), tickValue(&input, gain, 0x7F));
+    try std.testing.expectEqual(@as(u8, 3), tickValue(&input, gain, 0x00));
     _ = input.handle(control(protocol.shift_id, 0));
     try std.testing.expect(!input.shift_held);
 }
@@ -93,18 +107,15 @@ test "a tick moves the emulated position by 3, and by 1 while shift is held" {
 test "the emulated position is clamped to 0 and 127" {
     var input: Input = .{};
     const vol = ids.idOf(.Out_Vol).?;
-    _ = input.handle(control(vol, 0x00));
-    try std.testing.expectEqual(@as(u8, 0), input.knob_pos[@backingInt(c1.CCs.Out_Vol)]);
+    try std.testing.expectEqual(@as(u8, 0), tickValue(&input, vol, 0x00));
     input.setKnobPosition(.Out_Vol, 126);
-    _ = input.handle(control(vol, 0x7F));
-    try std.testing.expectEqual(@as(u8, 127), input.knob_pos[@backingInt(c1.CCs.Out_Vol)]);
+    try std.testing.expectEqual(@as(u8, 127), tickValue(&input, vol, 0x7F));
 }
 
 test "feedback sets the position that the next tick starts from" {
     var input: Input = .{};
     input.setKnobPosition(.Eq_HiGain, 60);
-    _ = input.handle(control(ids.idOf(.Eq_HiGain).?, 0x7F));
-    try std.testing.expectEqual(@as(u8, 63), input.knob_pos[@backingInt(c1.CCs.Eq_HiGain)]);
+    try std.testing.expectEqual(@as(u8, 63), tickValue(&input, ids.idOf(.Eq_HiGain).?, 0x7F));
 }
 
 test "a press and a release of a button are two events, and a press has the value 7F" {
@@ -146,7 +157,7 @@ test "any sequence of ticks and feedback keeps every position in range" {
                 try std.testing.expectEqual(fed, input.knob_pos[@backingInt(cc)]);
             },
             1 => _ = input.handle(control(protocol.shift_id, if (random.boolean()) 0x7F else 0)),
-            else => _ = input.handle(control(ids.idOf(cc).?, if (random.boolean()) 0x7F else 0)),
+            else => _ = tickValue(&input, ids.idOf(cc).?, if (random.boolean()) 0x7F else 0),
         }
         for (knobs) |knob| try std.testing.expect(input.knob_pos[@backingInt(knob)] <= 127);
     }
