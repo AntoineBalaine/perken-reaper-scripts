@@ -59,6 +59,8 @@ pauseState: bool = false,
 
 pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     var globals = Globals{};
+    // Because deinit always checks this allocator for leaks, it must be a valid empty one when the caller owns the memory.
+    globals.gpa_int = .{};
 
     globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
     const alloc = globals.arena_int.allocator();
