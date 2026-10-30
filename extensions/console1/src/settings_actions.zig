@@ -4,6 +4,7 @@ const SettingsPanel = @import("settings_panel.zig");
 const Preferences = @import("settings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const hooks = @import("hooks.zig");
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.settings);
 
 pub const SettingsActions = @import("action_types.zig").SettingsActions;
@@ -138,6 +139,11 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
         },
         .install_presets => {
             hooks.runInstallPresets(globals);
+        },
+        .scroll_by => |delta| {
+            if (globals.settings_panel) |*settings_panel| {
+                step.wrap(&settings_panel.scroll_position_rel, delta, comptime countFields(@TypeOf(globals.preferences)));
+            }
         },
         .scroll => |new_pos| {
             if (globals.settings_panel) |*settings_panel| {

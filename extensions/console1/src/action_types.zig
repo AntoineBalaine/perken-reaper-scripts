@@ -50,6 +50,8 @@ pub const FxCtrlAction = union(enum) {
 pub const FxSelActions = union(enum) {
     select_fx: StringPool.StringRef,
     scroll: u8,
+    /// One row up (-1) or down (1), from a tick of the sysex unit.
+    scroll_by: i8,
     confirm: void,
     back: void,
     toggle_module_browser: ModulesList,
@@ -67,6 +69,7 @@ pub const MappingPanelAction = union(enum) {
     enter_assign: ModulesList,
     exit_to_fx_ctrl: void,
     browse_scroll: u8,
+    browse_scroll_by: i8,
     browse_select_module: ModulesList,
     browse_confirm: void,
     browse_cancel: void,
@@ -101,6 +104,7 @@ pub const SettingsActions = union(enum) {
     save,
     cancel,
     scroll: u8,
+    scroll_by: i8,
     toggle,
     update_val: SettingsValUpdate,
     install_presets,

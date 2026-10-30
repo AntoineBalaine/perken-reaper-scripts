@@ -6,6 +6,7 @@ const PhysicalModule = statemachine.PhysicalModule;
 const Globals = @import("globals.zig").Globals;
 const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.mapping_actions);
 const TaggedMapping = mappings.TaggedMapping;
 const reaper = @import("reaper").reaper;
@@ -207,6 +208,13 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 const module_values = comptime std.enums.values(ModulesList);
                 browse.selected_module = module_values[browse.scroll_position_rel];
             }
+        },
+
+        .browse_scroll_by => |delta| {
+            var browse = &globals.state.mapping_panel.mode.browse;
+            step.wrap(&browse.scroll_position_rel, delta, comptime std.enums.values(ModulesList).len);
+            const module_values = comptime std.enums.values(ModulesList);
+            browse.selected_module = module_values[browse.scroll_position_rel];
         },
 
         .browse_select_module => |module| {

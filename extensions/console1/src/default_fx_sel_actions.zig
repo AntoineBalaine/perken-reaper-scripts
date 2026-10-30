@@ -5,6 +5,7 @@ const Globals = @import("globals.zig").Globals;
 const ModulesList = statemachine.ModulesList;
 const dispatch = @import("actions.zig").dispatch;
 const utils = @import("utils");
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.default_fx_sel_actions);
 
 pub fn defaultFxSelActions(globals: *Globals, sel_action: @import("fx_sel_actions.zig").FxSelActions) void {
@@ -87,6 +88,22 @@ pub fn defaultFxSelActions(globals: *Globals, sel_action: @import("fx_sel_action
                         @intCast(mapping_offsets.items.len),
                         1,
                     );
+                },
+            }
+        },
+        .scroll_by => |delta| {
+            const state = &globals.state.default_fx_sel;
+            state.scroll_changed = true;
+            switch (state.sub_mode) {
+                .browse_fx => {
+                    const fx_count: usize = switch (state.current_category) {
+                        inline else => |impl| globals.mappings_list.list.get(impl).count(),
+                    };
+                    step.wrap(&state.scroll_position_rel, delta, fx_count);
+                },
+                .select_mapping => |*sel| {
+                    const mapping_offsets = globals.mappings_list.list.get(state.current_category).get(sel.fx_string_pool_offset) orelse return;
+                    step.wrap(&sel.scroll_position_rel, delta, mapping_offsets.items.len);
                 },
             }
         },

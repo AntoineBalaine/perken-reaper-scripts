@@ -42,10 +42,28 @@ pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
         if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
     }
     switch (event) {
-        .tick => |tick| if (MidiEvtsFxCtrl.onTick(globals, tick)) return,
+        .tick => |tick| {
+            if (tick.cc == .Out_Vol and scrollList(globals, if (tick.delta > 0) 1 else -1)) return;
+            if (MidiEvtsFxCtrl.onTick(globals, tick)) return;
+        },
         else => {},
     }
     if (globals.unit.input.legacyValue(event)) |legacy| onControl(globals, legacy.cc, legacy.value);
+}
+
+/// Volume scrolls the list of the browse modes by a row for each tick. It returns whether the mode has such a list.
+fn scrollList(globals: *Globals, delta: i8) bool {
+    switch (globals.state.current_mode) {
+        .fx_sel => actions.dispatch(globals, .{ .fx_sel = .{ .scroll_by = delta } }),
+        .default_fx_sel => actions.dispatch(globals, .{ .default_fx_sel = .{ .scroll_by = delta } }),
+        .settings => actions.dispatch(globals, .{ .settings = .{ .scroll_by = delta } }),
+        .mapping_panel => switch (globals.state.mapping_panel.mode) {
+            .browse => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll_by = delta } }),
+            .assign => return false,
+        },
+        else => return false,
+    }
+    return true;
 }
 
 /// What the control `cc` does in the current mode, with the value that the legacy unit would have sent for it.

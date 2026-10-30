@@ -7,6 +7,7 @@ const ModulesList = statemachine.ModulesList;
 const PhysicalModule = statemachine.PhysicalModule;
 const constants = @import("constants.zig");
 const dispatch = @import("actions.zig").dispatch;
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
@@ -225,6 +226,17 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                         @intCast(mapping_offsets.items.len),
                         1,
                     );
+                },
+            }
+        },
+        .scroll_by => |delta| {
+            globals.state.fx_sel.scroll_changed = true;
+            const scroll_mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
+            switch (globals.state.fx_sel.sub_mode) {
+                .browse_fx => step.wrap(&globals.state.fx_sel.scroll_position_rel, delta, scroll_mappings.count()),
+                .select_mapping => |*sel| {
+                    const mapping_offsets = scroll_mappings.get(sel.fx_string_pool_offset) orelse return;
+                    step.wrap(&sel.scroll_position_rel, delta, mapping_offsets.items.len);
                 },
             }
         },

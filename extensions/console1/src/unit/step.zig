@@ -58,3 +58,25 @@ test "settings that are not positive are invalid" {
     try std.testing.expect(!(Settings{ .fine_multiplier = std.math.nan(f64) }).valid());
     try std.testing.expect((Settings{}).valid());
 }
+
+/// Moves a list position by `delta` rows and wraps around the `count` rows, as the scroll of the legacy knob did.
+pub fn wrap(position: anytype, delta: i32, count: usize) void {
+    if (count == 0) return;
+    const moved = @mod(@as(i64, @intCast(position.*)) + delta, @as(i64, @intCast(count)));
+    position.* = @intCast(moved);
+}
+
+test wrap {
+    var position: u8 = 0;
+    wrap(&position, -1, 5);
+    try std.testing.expectEqual(@as(u8, 4), position);
+    wrap(&position, 1, 5);
+    try std.testing.expectEqual(@as(u8, 0), position);
+    wrap(&position, 1, 5);
+    try std.testing.expectEqual(@as(u8, 1), position);
+    wrap(&position, 1, 0);
+    try std.testing.expectEqual(@as(u8, 1), position);
+    var big: usize = 3;
+    wrap(&big, -7, 4);
+    try std.testing.expectEqual(@as(usize, 0), big);
+}
