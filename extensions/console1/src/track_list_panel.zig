@@ -213,6 +213,34 @@ pub fn shiftLabel(cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
     return tr(translations, key);
 }
 
+/// What a button of the track list does in the browser of the plugins: the plugin browser of a module on the first six
+/// rows, and the settings on the last one, as the buttons of the controller do there. Unlike the rows of the fx_ctrl mode,
+/// they do it without shift.
+pub fn browserLabel(cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
+    const key: TranslationKey = switch (cc) {
+        .Tr_tr1 => .fx_sel_Tr_tr1,
+        .Tr_tr2 => .fx_sel_Tr_tr2,
+        .Tr_tr3 => .fx_sel_Tr_tr3,
+        .Tr_tr4 => .fx_sel_Tr_tr4,
+        .Tr_tr5 => .fx_sel_Tr_tr5,
+        .Tr_tr6 => .fx_sel_Tr_tr6,
+        .Tr_tr20 => .trsprt_Tr_tr20,
+        else => return null,
+    };
+    return tr(translations, key);
+}
+
+/// The alternative use that a row shows, in the accent color, at its right edge: the use with shift in the fx_ctrl mode,
+/// under the name of the track until shift is held, and the use of the browser in the browser mode, which needs no shift
+/// and has no track name to share the row with.
+fn altText(mode: statemachine.Mode, cc: c1.CCs, shift_held: bool, translations: *TranslationStore) ?AltText {
+    return switch (mode) {
+        .fx_ctrl => if (shiftLabel(cc, translations)) |text| .{ .text = text, .color = ui_helpers.altColor(shift_held), .on_top = shift_held } else null,
+        .fx_sel => if (browserLabel(cc, translations)) |text| .{ .text = text, .color = ui_helpers.altColor(true), .on_top = true } else null,
+        else => null,
+    };
+}
+
 pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
@@ -222,7 +250,6 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
 
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
-    const accent = ui_helpers.altColor(shift_held);
 
     // The width of a row is that of a name of this many letters of average width: a longer name is cut by the row.
     const widest_name: [22]u8 = @splat('n');
@@ -316,17 +343,8 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
         };
         for (first_column_ccs, 0..) |cc, i| {
             switch (mode) {
-                .fx_sel, .transport => {
+                .transport => {
                     const cc_key: ?TranslationKey = switch (mode) {
-                        .fx_sel => switch (cc) {
-                            .Tr_tr1 => .fx_sel_Tr_tr1,
-                            .Tr_tr2 => .fx_sel_Tr_tr2,
-                            .Tr_tr3 => .fx_sel_Tr_tr3,
-                            .Tr_tr4 => .fx_sel_Tr_tr4,
-                            .Tr_tr5 => .fx_sel_Tr_tr5,
-                            .Tr_tr6 => .fx_sel_Tr_tr6,
-                            else => null,
-                        },
                         .transport => null,
                         else => null,
                     };
@@ -338,13 +356,14 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                         rv = cc;
                     }
                 },
-                .fx_ctrl => {
+                .fx_ctrl, .fx_sel => {
                     var name: [TrackList.TrackNameSize:0]u8 = undefined;
                     name[0] = '\x00';
                     var track_color: ?c_int = null;
                     var is_selected = false;
 
-                    if (i < state.fx_ctrl.track_list.name_count) {
+                    // The browser mode shows the keys of the browser and not the tracks, so its rows have no name.
+                    if (mode == .fx_ctrl and i < state.fx_ctrl.track_list.name_count) {
                         name = state.fx_ctrl.track_list.track_names[i].name;
                         const tr_id = state.fx_ctrl.track_list.track_names[i].id;
                         const color = state.fx_ctrl.track_list.track_names[i].color;
@@ -355,7 +374,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
                     // A row that has an alternative use always shows it, in the accent: under the name, and over it while
                     // shift is held.
-                    const alt: ?AltText = if (shiftLabel(cc, translations)) |text| .{ .text = text, .color = accent, .on_top = shift_held } else null;
+                    const alt = altText(mode, cc, shift_held, translations);
 
                     if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected, alt)) {
                         rv = cc;
@@ -380,7 +399,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
 
         for (second_column_ccs, 10..) |cc, i| {
             switch (mode) {
-                .fx_sel, .transport => {
+                .transport => {
                     const cc_key: ?TranslationKey = switch (mode) {
                         .transport => switch (cc) {
                             .Tr_tr11 => .trsprt_Tr_tr11,
@@ -400,13 +419,14 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                         rv = cc;
                     }
                 },
-                .fx_ctrl => {
+                .fx_ctrl, .fx_sel => {
                     var name: [TrackList.TrackNameSize:0]u8 = undefined;
                     name[0] = '\x00';
                     var track_color: ?c_int = null;
                     var is_selected = false;
 
-                    if (i < state.fx_ctrl.track_list.name_count) {
+                    // The browser mode shows the keys of the browser and not the tracks, so its rows have no name.
+                    if (mode == .fx_ctrl and i < state.fx_ctrl.track_list.name_count) {
                         name = state.fx_ctrl.track_list.track_names[i].name;
                         const tr_id = state.fx_ctrl.track_list.track_names[i].id;
                         const color = state.fx_ctrl.track_list.track_names[i].color;
@@ -417,7 +437,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
                     // A row that has an alternative use always shows it, in the accent: under the name, and over it while
                     // shift is held.
-                    const alt: ?AltText = if (shiftLabel(cc, translations)) |text| .{ .text = text, .color = accent, .on_top = shift_held } else null;
+                    const alt = altText(mode, cc, shift_held, translations);
 
                     if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected, alt)) {
                         rv = cc;

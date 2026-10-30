@@ -153,6 +153,7 @@ pub fn main(
                             .Tr_tr4 => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
                             .Tr_tr5 => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
                             .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
+                            .Tr_tr20 => rv = .{ .settings = .open },
                             else => {},
                         }
                     }
