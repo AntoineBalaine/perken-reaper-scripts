@@ -15,6 +15,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 | routing | RouteToBusses, BuildBusses |
 | fx | InsertFxAtSlot (stub) |
 | items | paste before cursor, 2 ms fades, fades and trims from the mouse, split at note starts, stretch to cursor, ConformItemsToSessionTempo (asks for the original BPM of the selected items, then stretches them by session tempo / original tempo so that their notes land on the session grid; the session tempo is read at the start of the earliest item, and the item positions scale around that start) |
+| paste_rhythm | PasteRhythmToPitches: copy a MIDI item whose notes are the rhythm, select the item to rewrite, run the action. Each rhythm position gets the pitches of the chord that was playing there, with the rhythm's velocities. |
 | tracks | volume ±3 dB, rename from the VSTi preset, exclusive solo |
 | envelope | point min/max/center, nudge points, delete points, toggle at time selection, select points |
 | keysnap (MIDI editor) | toggleKeySnap (stub) |
