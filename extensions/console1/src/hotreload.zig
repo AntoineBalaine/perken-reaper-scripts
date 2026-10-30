@@ -13,6 +13,7 @@ const UiGetLastActionFn = *const fn () callconv(.c) *const action_types.ModeActi
 pub const RenderResult = union(enum) {
     no_action,
     action: action_types.ModeAction,
+    window_closed,
     render_error,
 };
 
@@ -67,7 +68,8 @@ pub const HotReloader = struct {
         if (self.ui_render) |render_fn| {
             const result = render_fn(ctx, win_flags, globals, style_manager);
             return switch (result) {
-                0 => .render_error,
+                0 => .window_closed,
+                -1 => .render_error,
                 1 => .no_action,
                 2 => {
                     if (self.ui_get_last_action) |get_action| {

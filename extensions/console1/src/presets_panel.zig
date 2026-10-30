@@ -11,6 +11,10 @@ const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const substituteFirst = @import("translations.zig").substituteFirst;
 
+/// Because the list of presets is a child window with a draw list of its own, and a splitter only works on the draw list
+/// that it was created for, the highlight of its rows cannot share the splitter of the rows of the modules.
+var list_splitter: imgui.DrawListSplitterPtr = null;
+
 pub fn drawPresetsPanel(
     ctx: imgui.ContextPtr,
     state: *PresetsState,
@@ -19,6 +23,7 @@ pub fn drawPresetsPanel(
 ) !?actions.PresetsAction {
     var rv: ?actions.PresetsAction = null;
     var buffer: [768:0]u8 = undefined;
+    var text_buffer: [768:0]u8 = undefined;
 
     try imgui.Text(.{ ctx, tr(translations, switch (state.purpose) {
         .load => .presets_title_load,
@@ -31,17 +36,18 @@ pub fn drawPresetsPanel(
             try imgui.Text(.{ ctx, tr(translations, .presets_pick_module) });
             for (state.rows, 0..) |row, index| {
                 const has_fx = row.fx_index != null;
-                const label = std.mem.printSentinel(&buffer, "{s}    {s}##row{d}", .{
+                // Because the highlight draws its own text, it takes the text without the id that follows the "##".
+                const text = std.mem.printSentinel(&text_buffer, "{s}    {s}", .{
                     @tagName(row.module),
                     if (has_fx) row.fx_name else tr(translations, .mapping_no_fx),
-                    index,
                 }, 0) catch continue;
+                const label = std.mem.printSentinel(&buffer, "{s}##row{d}", .{ text, index }, 0) catch continue;
                 if (!has_fx) try imgui.BeginDisabled(.{ctx});
                 const clicked = try imgui.Selectable(.{ ctx, label });
                 if (!has_fx) try imgui.EndDisabled(.{ctx});
                 if (clicked and has_fx) rv = .{ .pick = index };
                 if (index == state.module_cursor) {
-                    try ui_helpers.drawInvertedSlctblColors(ctx, label, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                    try ui_helpers.drawInvertedSlctblColors(ctx, text, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
                 }
             }
         },
@@ -56,7 +62,7 @@ pub fn drawPresetsPanel(
                     const label = std.mem.printSentinel(&label_buffer, "{s}##preset{d}", .{ name, index }, 0) catch continue;
                     if (try imgui.Selectable(.{ ctx, label })) rv = .{ .pick = index };
                     if (index == state.preset_cursor) {
-                        try ui_helpers.drawInvertedSlctblColors(ctx, label, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                        try ui_helpers.drawInvertedSlctblColors(ctx, name, &list_splitter, try imgui.GetWindowDrawList(.{ctx}));
                         if (state.scroll_changed) {
                             try imgui.SetScrollHereY(.{ ctx, null });
                             state.scroll_changed = false;

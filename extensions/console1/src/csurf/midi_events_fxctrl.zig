@@ -7,6 +7,7 @@ const Globals = @import("../globals.zig").Globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const csurf = @import("control_surface.zig");
+const ids = @import("../unit/ids.zig");
 const reaeq = @import("../reaeq.zig");
 const log = std.log.scoped(.csurf);
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
@@ -66,6 +67,7 @@ pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
 /// parameter that the automation or the mouse moved does not make the knob jump. It returns whether the tick was taken.
 pub fn onTick(globals: *Globals, tick: @FieldType(Unit.ControlEvent, "tick")) bool {
     if (globals.state.current_mode != .fx_ctrl) return false;
+    globals.state.fx_ctrl.touchKnob(tick.cc, csurf.nowMs());
     const settings = globals.preferences.stepSettings();
     const step = step_size.size(settings, tick.delta, tick.fine);
     switch (tick.cc) {
@@ -177,6 +179,8 @@ pub fn trackListColor(id: c_int) c_int {
 }
 
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
+    // The legacy unit turns its knobs through here, and the sysex unit through `onTick`.
+    if (ids.isKnob(cc)) globals.state.fx_ctrl.touchKnob(cc, csurf.nowMs());
     switch (cc) {
         .Inpt_disp_mode => {
             actions.dispatch(globals, .{ .change_mode = .transport });
@@ -235,18 +239,11 @@ pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) vo
             }
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
-                        null,
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.routeSideChain(
                         tr,
                         @fromBackingInt(@intCast(val)),
                         globals.preferences.manual_routing,
-                        globals.preferences.default_fx,
-                        &globals.map_store,
-                        &globals.preferences,
-                        globals.arena_int.allocator(),
-                        io,
-                        &globals.mappings_list,
-                    ) catch {},
+                    ),
                     else => {},
                 }
             }

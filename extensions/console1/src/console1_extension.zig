@@ -100,6 +100,9 @@ test {
     _ = @import("unit/input.zig");
     _ = @import("unit/unit.zig");
     _ = @import("unit/step.zig");
+    _ = @import("unit/accel.zig");
+    _ = @import("param_text.zig");
+    _ = @import("track_list_panel.zig");
     _ = @import("models/models.zig");
     _ = @import("tests/mode_switch_tests.zig");
     _ = @import("tests/settings_pbt.zig");

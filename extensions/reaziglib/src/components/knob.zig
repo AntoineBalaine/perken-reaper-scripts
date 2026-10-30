@@ -44,6 +44,13 @@ pub const ControlFlags = struct {
     no_val_display: bool = false,
     /// When non-null, the knob draws a filled rectangle behind the widget with this color.
     knob_bg: ?c_int = null,
+    /// When true, the value popup shows even though the mouse is not on the knob, because something else turns it.
+    popup: bool = false,
+    /// When true, the cap has no pointer, because something else is drawn on it, such as an icon.
+    no_pointer: bool = false,
+    /// When true, Enter in the box where a value is typed hands over the text, which the caller reads, instead of
+    /// reading it as a normalized number.
+    edit_text: bool = false,
 };
 pub const Rectangle = struct {
     min_x: f64,
@@ -56,10 +63,21 @@ pub const KnobResult = union(enum) {
     active,
     value_dclick,
     value_submit: f64,
+    /// The text that was typed, for a knob whose value is read by the caller.
+    text_submit: [24]u8,
     value_cancel,
 };
 
 pub const EditMode = ?*[24]u8;
+
+/// Which box of typed value has the focus: the hash of the id of its knob, or 0 when none has.
+var focused_edit: u64 = 0;
+
+/// The selection color with only a third of its opacity.
+fn fadedSelection(color: c_int) c_int {
+    const bits: u32 = @bitCast(color);
+    return @bitCast((bits & 0xFFFFFF00) | 0x55);
+}
 
 pub const LabelId = struct {
     label: [:0]const u8,
@@ -105,7 +123,7 @@ pub fn centerOffsetY(label_height: f64) f64 {
 /// space under the letters and the ring of LEDs is thinner than the knob, the label can come this close.
 const label_knob_overlap = 3.0;
 
-const label_text_padding = 2.0;
+pub const label_text_padding = 2.0;
 
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
@@ -176,7 +194,7 @@ pub fn drawWidget(
         if (active) result = .active;
 
         const drwLs = try imgui.GetWindowDrawList(.{ctx});
-        try drawCapKnob(drwLs, center_x, center_y, radius, value.*, flags.trackStart, .{ .hovered = isHovered, .active = active, .disabled = flags.disabled });
+        try drawCapKnob(drwLs, center_x, center_y, radius, value.*, flags.trackStart, .{ .hovered = isHovered, .active = active, .disabled = flags.disabled, .no_pointer = flags.no_pointer });
 
         // The popups are not clipped to the widget, as they stand over the label and above the knob.
         try imgui.PopClipRect(.{ctx});
@@ -190,7 +208,16 @@ pub fn drawWidget(
                 try imgui.SetCursorScreenPos(.{ ctx, center_x - edit_w / 2, center_y - radius - frame_h - 4 });
                 try imgui.PushItemWidth(.{ ctx, edit_w });
                 defer imgui.PopItemWidth(.{ctx}) catch {};
-                try imgui.SetKeyboardFocusHere(.{ctx});
+                // Because the box must lose the focus when the mouse clicks outside of it, the focus is only asked for once
+                // for each box, when it opens.
+                const edit_hash = std.hash.Wyhash.hash(0, label_id.id);
+                if (focused_edit != edit_hash) {
+                    try imgui.SetKeyboardFocusHere(.{ctx});
+                    focused_edit = edit_hash;
+                }
+                // Because the accent of the theme is as bright as the text that it lies under, the selection is faded.
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_TextSelectedBg, fadedSelection(try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg })) });
+                defer imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
                 var val_edit_id_buf: [48]u8 = undefined;
                 const val_edit_id = std.mem.printSentinel(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}, 0) catch "##val_edit";
@@ -206,19 +233,27 @@ pub fn drawWidget(
 
                 if (enter_pressed) {
                     const text = std.mem.sliceTo(edit_buf, 0);
-                    if (std.fmt.parseFloat(f64, text)) |parsed| {
+                    if (flags.edit_text) {
+                        result = .{ .text_submit = edit_buf.* };
+                    } else if (std.fmt.parseFloat(f64, text)) |parsed| {
                         result = .{ .value_submit = std.math.clamp(parsed, 0.0, 1.0) };
                     } else |_| {
                         result = .value_cancel;
                     }
+                    focused_edit = 0;
                 } else if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) {
                     result = .value_cancel;
+                    focused_edit = 0;
+                } else if (try imgui.IsItemDeactivated(.{ctx})) {
+                    // The box lost the focus, because the mouse clicked outside of it.
+                    result = .value_cancel;
+                    focused_edit = 0;
                 }
             } else {
                 if (isHovered and try imgui.IsMouseClicked(.{ ctx, imgui.MouseButton_Right })) {
                     result = .value_dclick;
                 }
-                if (active) {
+                if (active or flags.popup) {
                     var buf: [24]u8 = undefined;
                     const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.mem.printSentinel(&buf, "{d:.2}", .{value.*}, 0);
                     try drawValuePopup(ctx, center_x, center_y - radius, val_fmt);
@@ -434,6 +469,8 @@ pub const CapState = struct {
     hovered: bool = false,
     active: bool = false,
     disabled: bool = false,
+    /// The cap has no pointer.
+    no_pointer: bool = false,
 };
 
 fn hexColor(hex: u32) c_int {
@@ -505,16 +542,18 @@ pub fn drawCapKnob(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, value: 
     const edge = if (state.hovered or state.active) faded(led_orange, 0xAA) else theme.knob_edge;
     try imgui.DrawList_AddCircle(.{ dl, cx, y, cap_r, edge, 0 });
 
-    const a = angle(value, 0.0, 1.0);
-    try imgui.DrawList_AddLine(.{
-        dl,
-        cx + @cos(a) * cap_r * 0.35,
-        y + @sin(a) * cap_r * 0.35,
-        cx + @cos(a) * cap_r * 0.85,
-        y + @sin(a) * cap_r * 0.85,
-        if (state.disabled) theme.text_dim else theme.text,
-        2,
-    });
+    if (!state.no_pointer) {
+        const a = angle(value, 0.0, 1.0);
+        try imgui.DrawList_AddLine(.{
+            dl,
+            cx + @cos(a) * cap_r * 0.35,
+            y + @sin(a) * cap_r * 0.35,
+            cx + @cos(a) * cap_r * 0.85,
+            y + @sin(a) * cap_r * 0.85,
+            if (state.disabled) theme.text_dim else theme.text,
+            2,
+        });
+    }
 
     if (state.disabled) {
         try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, ring_r + led_r + 1, hexColor(0x00000066), 0 });

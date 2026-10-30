@@ -1,3 +1,4 @@
+const std = @import("std");
 const imgui = @import("reaper_imgui");
 const knob = @import("knob");
 const module_plate = @import("components/module_plate.zig");
@@ -9,6 +10,8 @@ const styles_components = @import("styles_components.zig");
 const State = @import("statemachine.zig").State;
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const safePrint = @import("utils").safePrint;
+const ui_helpers = @import("ui_helpers.zig");
+const panel_theme = @import("panel_theme");
 const c1 = @import("c1.zig");
 const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
@@ -35,11 +38,30 @@ fn withAlpha(color: c_int, alpha: u32) c_int {
     return @bitCast((bits & 0xFFFFFF00) | alpha);
 }
 
+/// The alternative use of a row: a text in its own color, at the right edge of the row. It lies under the name of the track,
+/// and over it while shift is held, which is when the row does that use.
+const AltText = struct { text: [:0]const u8, color: c_int, on_top: bool };
+
+/// The color that the row shows behind its text: the plate, with the highlight of the row over it. It follows the colors
+/// that the row gives its `Selectable`, which are the tint of the track at three opacities.
+fn rowBackground(tint: c_int, selected: bool, hovered: bool, held: bool) c_int {
+    const alpha: u32 = if (held) 0x50 else if (hovered) 0x26 else if (selected) 0x38 else 0;
+    const base: u32 = @bitCast(panel_theme.panel_bg);
+    const over: u32 = @bitCast(tint);
+    var result: u32 = base & 0xFF;
+    inline for ([_]u5{ 24, 16, 8 }) |shift| {
+        const below: u32 = (base >> shift) & 0xFF;
+        const above: u32 = (over >> shift) & 0xFF;
+        result |= ((below * (0xFF - alpha) + above * alpha) / 0xFF) << shift;
+    }
+    return @bitCast(result);
+}
+
 /// A row of the track list: a round key and a label that share one area, so that the key lights up
 /// when the mouse is on the label, and sinks when the row is held. Because the key is drawn in the
 /// middle of the row's height, it stays level with the text. The key and the label are in the color of the track.
 /// Returns true when the row was clicked.
-fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]const u8, width: ?f64, color: ?c_int, selected: bool) !bool {
+fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]const u8, width: ?f64, color: ?c_int, selected: bool, alt: ?AltText) !bool {
     var id_buf: [32:0]u8 = undefined;
     const id = safePrint(&id_buf, "##row_{s}_{d}", .{ tag, index });
     // The highlight of the row is a faint tint of the color of the track, and not the accent of the theme,
@@ -71,16 +93,55 @@ fn trackRow(ctx: imgui.ContextPtr, tag: []const u8, index: usize, label: [:0]con
     try knob.drawRoundKey(dl, center_x, center_y, radius, color orelse -1, .{ .hovered = hovered, .active = held });
     // The label is cut at the edge of the row, so that a long name does not run into the next column.
     try imgui.PushClipRect(.{ ctx, min_x, min_y, max_x, max_y, true });
-    try imgui.DrawList_AddText(.{ dl, center_x + radius + 6, center_y - text_h / 2, color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), label });
+    const text_x = center_x + radius + 6;
+    const background = rowBackground(tint, shown_selected, hovered, held);
+    const name_color = color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text });
+    if (alt) |alternative| {
+        var alt_w: f64 = undefined;
+        var alt_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, alternative.text, &alt_w, &alt_h });
+        const alt_x = max_x - alt_w - 6;
+        if (alternative.on_top) {
+            // The name is drawn first, and the alternative covers what it overlaps with a background of the plate.
+            try imgui.DrawList_AddText(.{ dl, text_x, center_y - text_h / 2, name_color, label });
+            try imgui.DrawList_AddRectFilled(.{ dl, alt_x - 4, min_y + 1, max_x, max_y - 1, background, 0 });
+            try imgui.DrawList_AddText(.{ dl, alt_x, center_y - alt_h / 2, alternative.color, alternative.text });
+        } else {
+            // The alternative is drawn first, so that it lies under the name, which has a background of the plate that
+            // hides the part of the alternative that it overlaps.
+            try imgui.DrawList_AddText(.{ dl, alt_x, center_y - alt_h / 2, alternative.color, alternative.text });
+            try imgui.DrawList_AddRectFilled(.{ dl, text_x - 2, min_y + 1, text_x + text_w + 4, max_y - 1, background, 0 });
+            try imgui.DrawList_AddText(.{ dl, text_x, center_y - text_h / 2, name_color, label });
+        }
+    } else {
+        try imgui.DrawList_AddText(.{ dl, text_x, center_y - text_h / 2, name_color, label });
+    }
     try imgui.PopClipRect(.{ctx});
     return clicked;
+}
+
+/// The text of the page. Because the language packs write it as "Page {d}", the number takes the place of the "{d}", and
+/// a pack that only says "Page" gets the number after it.
+pub fn pageText(buf: [:0]u8, template: [:0]const u8, page: usize) [:0]const u8 {
+    const placeholder = "{d}";
+    var number_buf: [24]u8 = undefined;
+    const number = std.fmt.bufPrint(&number_buf, "{d}", .{page}) catch return template;
+    const index = std.mem.indexOf(u8, template, placeholder) orelse return safePrint(buf, "{s} {s}", .{ template, number });
+    return safePrint(buf, "{s}{s}{s}", .{ template[0..index], number, template[index + placeholder.len ..] });
+}
+
+test "the page number takes the place of the placeholder, or follows a template without one" {
+    var buf: [64:0]u8 = undefined;
+    try std.testing.expectEqualStrings("Page 3", pageText(&buf, "Page {d}", 3));
+    try std.testing.expectEqualStrings("Page 3", pageText(&buf, "Page", 3));
+    try std.testing.expectEqualStrings("3rd page", pageText(&buf, "{d}rd page", 3));
 }
 
 pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?TrackListPanelAction {
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
 
-    try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.RIGHT });
+    try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.RIGHT, imgui.Cond_FirstUseEver });
 
     var action: ?TrackListPanelAction = null;
 
@@ -126,7 +187,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
             }
 
             const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
-            if (try trackRow(ctx, "list", i, label, null, if (track.color != 0) track.color else null, is_selected)) {
+            if (try trackRow(ctx, "list", i, label, null, if (track.color != 0) track.color else null, is_selected, null)) {
                 action = .{ .select_track = tr_id };
             }
         }
@@ -135,7 +196,24 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     return action;
 }
 
-pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
+/// What a button of the track list does while shift is held in the fx_ctrl mode, as `shiftFunction` of the MIDI events
+/// has it: the browsers of the plugins on the first six rows, and the settings on the last one. The other rows keep
+/// their track.
+pub fn shiftLabel(cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
+    const key: TranslationKey = switch (cc) {
+        .Tr_tr1 => .trsprt_Tr_tr6,
+        .Tr_tr2 => .trsprt_Tr_tr2,
+        .Tr_tr3 => .trsprt_Tr_tr3,
+        .Tr_tr4 => .trsprt_Tr_tr4,
+        .Tr_tr5 => .trsprt_Tr_tr1,
+        .Tr_tr6 => .trsprt_Tr_tr5,
+        .Tr_tr20 => .trsprt_Tr_tr20,
+        else => return null,
+    };
+    return tr(translations, key);
+}
+
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
@@ -144,6 +222,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
+    const accent = ui_helpers.altColor(shift_held);
 
     // The width of a row is that of a name of this many letters of average width: a longer name is cut by the row.
     const widest_name: [22]u8 = @splat('n');
@@ -173,7 +252,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     };
     const pg_up_label_val = if (pg_up_key) |key| tr(translations, key) else null;
     const pg_up_label = pg_up_label_val orelse "-";
-    const page_text = safePrint(&buf, "{s} {d}", .{ tr(translations, .track_list_page), state.fx_ctrl.current_page + 1 });
+    const page_text = pageText(&buf, tr(translations, .track_list_page), state.fx_ctrl.current_page + 1);
 
     // The page column is as wide as its widest line: the page number, or a button with its label.
     const button_r = @import("components/button.zig").default_radius;
@@ -248,19 +327,14 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                             .Tr_tr6 => .fx_sel_Tr_tr6,
                             else => null,
                         },
-                        .transport => switch (cc) {
-                            .Tr_tr3 => .trsprt_Eq_eq,
-                            .Tr_tr4 => .trsprt_Comp_comp,
-                            .Tr_tr6 => .trsprt_Tr_tr6,
-                            else => null,
-                        },
+                        .transport => null,
                         else => null,
                     };
                     const cc_label = if (cc_key) |key| tr(translations, key) else null;
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false, null)) {
                         rv = cc;
                     }
                 },
@@ -279,8 +353,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                     }
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+                    // A row that has an alternative use always shows it, in the accent: under the name, and over it while
+                    // shift is held.
+                    const alt: ?AltText = if (shiftLabel(cc, translations)) |text| .{ .text = text, .color = accent, .on_top = shift_held } else null;
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected, alt)) {
                         rv = cc;
                     }
                 },
@@ -319,7 +396,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, null, false, null)) {
                         rv = cc;
                     }
                 },
@@ -338,8 +415,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                     }
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+                    // A row that has an alternative use always shows it, in the accent: under the name, and over it while
+                    // shift is held.
+                    const alt: ?AltText = if (shiftLabel(cc, translations)) |text| .{ .text = text, .color = accent, .on_top = shift_held } else null;
 
-                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected)) {
+                    if (try trackRow(ctx, "col", i, label, selectable_width, track_color, is_selected, alt)) {
                         rv = cc;
                     }
                 },

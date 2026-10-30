@@ -41,6 +41,16 @@ pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
     if (globals.state.current_mode == .fx_ctrl and globals.unit.shiftHeld()) {
         if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
     }
+    // The end of the loop is the alternative use of the button of the loop start.
+    if (globals.state.current_mode == .transport and globals.unit.shiftHeld()) {
+        switch (event) {
+            .press => |cc| if (cc == .Eq_hp_shape) {
+                actions.dispatch(globals, .{ .transport = .loop_end });
+                return;
+            },
+            else => {},
+        }
+    }
     switch (event) {
         .tick => |tick| {
             if (globals.state.current_mode == .transport) {
@@ -133,46 +143,37 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
             switch (cc) {
                 .Inpt_HiCut => actions.dispatch(globals, .{ .transport = .{ .rate = val } }),
                 .Inpt_disp_mode => actions.dispatch(globals, .{ .change_mode = .fx_ctrl }),
-                .Inpt_disp_on => {
+                // Because the panel of the transport mode puts these controls on the cards, and the controller has to do
+                // what the panel does, the buttons below are the ones of the panel (see `gui_lib.zig`).
+                .Out_mute => {
                     if (globals.state.current_mode == .suspended) {
                         actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
                     }
                     actions.dispatch(globals, .set_fx_ctrl_gui);
                 },
-                .Tr_tr1,
-                .Tr_tr2,
-                .Tr_tr3,
-                .Tr_tr4,
-                .Tr_tr5,
-                => |cc_| {
-                    const module: ModulesList = switch (cc_) {
-                        .Tr_tr1 => .INPUT,
-                        .Tr_tr2 => .GATE,
-                        .Tr_tr3 => .EQ,
-                        .Tr_tr4 => .COMP,
-                        .Tr_tr5 => .OUTPT,
-                        else => unreachable,
-                    };
-                    actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });
-                },
-                .Tr_tr6 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .STRIP } }),
+                .Comp_comp => actions.dispatch(globals, .{ .transport = .marker_set }),
+                .Inpt_filt_to_comp => actions.dispatch(globals, .{ .transport = .play }),
+                .Inpt_phase_inv => actions.dispatch(globals, .{ .transport = .stop }),
+                .Inpt_preset => actions.dispatch(globals, .{ .transport = .rec }),
+                // The track buttons keep the browsers that they had.
+                .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
                 .Tr_tr11 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
                 .Tr_tr12 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
                 .Tr_tr13 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
                 .Tr_tr14 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
                 .Tr_tr15 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
-                .Tr_tr17 => actions.dispatch(globals, .{ .transport = .play }),
-                .Tr_tr18 => actions.dispatch(globals, .{ .transport = .stop }),
-                .Tr_tr19 => actions.dispatch(globals, .{ .transport = .rec }),
-                .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
-                .Eq_eq => actions.dispatch(globals, .{ .transport = .loop_toggle }),
-                .Eq_lp_shape => actions.dispatch(globals, .{ .transport = .loop_start }),
-                .Eq_hp_shape => actions.dispatch(globals, .{ .transport = .loop_end }),
+                .Eq_lp_shape => actions.dispatch(globals, .{ .transport = .loop_toggle }),
+                // Because the legacy unit has no shift, the button only starts the loop there. The sysex unit ends it
+                // while shift is held (see `onUnitEvent`).
+                .Eq_hp_shape => actions.dispatch(globals, .{ .transport = .loop_start }),
                 .Eq_LoGain => actions.dispatch(globals, .{ .transport = .{ .scrub = val } }),
                 .Eq_LoMidGain => actions.dispatch(globals, .{ .transport = .{ .jog = val } }),
-                .Eq_HiMidGain => actions.dispatch(globals, .{ .transport = .{ .jog_marker = val } }),
+                .Comp_Attack => actions.dispatch(globals, .{ .transport = .{ .jog_marker = val } }),
                 .Eq_HiGain => actions.dispatch(globals, .{ .transport = .{ .jog_item = val } }),
-                .Comp_comp => actions.dispatch(globals, .{ .transport = .marker_set }),
                 .Out_Vol => actions.dispatch(globals, .{ .transport = .{ .tr_sel = val } }),
                 .Out_Drive => actions.dispatch(globals, .{ .transport = .{ .zoom_horizontal = val } }),
                 .Out_DriveChar => actions.dispatch(globals, .{ .transport = .{ .zoom_vertical = val } }),

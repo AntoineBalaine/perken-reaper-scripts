@@ -156,7 +156,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_PREV, 0 });
                 }
                 if (new_pos != globals.state.transport.jog_marker) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiMidGain, .value = globals.state.transport.jog_marker } } });
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Attack, .value = globals.state.transport.jog_marker } } });
                 }
             }
         },
@@ -260,7 +260,7 @@ fn transportKnob(globals: *Globals, cc: c1.CCs, delta: i8, fine: bool) void {
             pReaper.CSurf_ScrubAmt(.{SCRUB_STEP * @as(f64, @floatFromInt(amount))});
         },
         .Eq_LoMidGain => jogBy(amount),
-        .Eq_HiMidGain => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_MARKER_NEXT) else @as(c_int, RprCmds.ID_MARKER_PREV), 0 }),
+        .Comp_Attack => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_MARKER_NEXT) else @as(c_int, RprCmds.ID_MARKER_PREV), 0 }),
         .Eq_HiGain => jogItemBy(delta),
         .Out_Drive => pReaper.CSurf_OnZoom(.{ amount, 0 }),
         .Out_DriveChar => pReaper.CSurf_OnZoom(.{ 0, amount }),

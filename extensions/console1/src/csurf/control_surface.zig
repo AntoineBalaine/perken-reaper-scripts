@@ -114,8 +114,18 @@ export fn zCloseNoReset() callconv(.c) void {
 }
 
 /// The tick count of the host, in milliseconds. It is not available before REAPER has given its functions.
-fn nowMs() u64 {
+pub fn nowMs() u64 {
     return if (c.GetTickCount) |getTickCount| getTickCount() else 0;
+}
+
+/// Whether the Shift key of the computer's keyboard is held right now, whichever window has the focus. Because a modifier
+/// that is pressed on its own sends no key message, it is polled through SWELL, as the whichkey window of ReaVim does. It
+/// is false before REAPER has given its functions.
+pub fn keyboardShiftHeld() bool {
+    const vk_shift = 0x10;
+    const key_down_bit = 0x8000;
+    const getAsyncKeyState = c.GetAsyncKeyState orelse return false;
+    return (getAsyncKeyState(vk_shift) & key_down_bit) != 0;
 }
 
 export fn zRun() callconv(.c) void {
@@ -126,8 +136,15 @@ export fn zRun() callconv(.c) void {
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
         const now = nowMs();
-        while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
-            const size: usize = @intCast(c.MIDI_event_size(evts));
+        while (c.MDEvtLs_EnumItems(list, &l)) |evts| {
+            // Because the host once reported a negative size, which crashed REAPER on the cast, an event that is
+            // not at least one byte long is skipped and logged.
+            const raw_size = c.MIDI_event_size(evts);
+            if (raw_size < 1) {
+                log.err("MIDI event skipped, its size is {d}", .{raw_size});
+                continue;
+            }
+            const size: usize = @intCast(raw_size);
             const message = c.MIDI_event_message(evts);
             if (size > 3 and message[0] == 0xF0) {
                 globals.unit.onSysex(message[0..size], now);

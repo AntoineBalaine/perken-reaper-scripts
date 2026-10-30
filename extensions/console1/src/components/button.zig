@@ -30,6 +30,13 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
     }
 }
 
+/// The space between a label and the alternative label that stands after it on the same line.
+pub const alt_gap = 8.0;
+
+/// A second text with the label of a button, in a color of its own: the use that the button has while shift is held. It is
+/// on a line under the label, or on the same line, after the label, when `same_line` is true.
+pub const AltLabel = struct { text: [:0]const u8, color: c_int, same_line: bool = false };
+
 pub fn roundButton(
     ctx: imgui.ContextPtr,
     label: [:0]const u8,
@@ -43,6 +50,10 @@ pub fn roundButton(
     latched: ?bool,
     /// A small symbol drawn on the button.
     icon: ?Icon,
+    /// The color of the label, which is the color of the text of the theme when it is null.
+    label_color: ?c_int,
+    /// A second line under the label.
+    alt_label: ?AltLabel,
 ) !bool {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else default_radius;
@@ -51,13 +62,18 @@ pub fn roundButton(
     var rv: bool = false;
 
     // Check if label is empty
-    const has_label = label.len > 0;
+    const has_label = label.len > 0 or alt_label != null;
 
-    // Calculate text size for label
-    var label_size: Size = .{ .w = 0, .h = 0 };
-    if (has_label) {
-        try imgui.CalcTextSize(.{ ctx, label, &label_size.w, &label_size.h });
-    }
+    // Calculate text size for label, which is the size of the two lines together when there is a second one
+    var first_size: Size = .{ .w = 0, .h = 0 };
+    var alt_size: Size = .{ .w = 0, .h = 0 };
+    if (label.len > 0) try imgui.CalcTextSize(.{ ctx, label, &first_size.w, &first_size.h });
+    if (alt_label) |alt| try imgui.CalcTextSize(.{ ctx, alt.text, &alt_size.w, &alt_size.h });
+    const alt_same_line = if (alt_label) |alt| alt.same_line else false;
+    const label_size: Size = if (alt_same_line)
+        .{ .w = first_size.w + alt_gap + alt_size.w, .h = @max(first_size.h, alt_size.h) }
+    else
+        .{ .w = @max(first_size.w, alt_size.w), .h = first_size.h + alt_size.h };
     const text_padding = 2.0;
 
     // Get current cursor position
@@ -117,13 +133,27 @@ pub fn roundButton(
                 .right => center_y - label_size.h / 2,
             };
 
-            try imgui.DrawList_AddText(.{
-                draw_list,
-                label_pos_x,
-                label_pos_y,
-                try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
-                label,
-            });
+            // Because the lines of a label above or below the key are centered, each line moves by the room that the
+            // widest one leaves it. The lines of a label at the right start at the same edge.
+            const centered = text_pos != .right;
+            if (label.len > 0) {
+                try imgui.DrawList_AddText(.{
+                    draw_list,
+                    label_pos_x + if (centered) (label_size.w - first_size.w) / 2 else 0,
+                    label_pos_y,
+                    label_color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
+                    label,
+                });
+            }
+            if (alt_label) |alt| {
+                try imgui.DrawList_AddText(.{
+                    draw_list,
+                    if (alt.same_line) label_pos_x + first_size.w + alt_gap else label_pos_x + if (centered) (label_size.w - alt_size.w) / 2 else 0,
+                    if (alt.same_line) label_pos_y else label_pos_y + first_size.h,
+                    alt.color,
+                    alt.text,
+                });
+            }
 
             hit.min_x = @min(hit.min_x, label_pos_x);
             hit.min_y = @min(hit.min_y, label_pos_y);

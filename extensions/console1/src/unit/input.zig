@@ -10,8 +10,8 @@ const Input = @This();
 pub const ControlEvent = union(enum) {
     press: c1.CCs,
     release: c1.CCs,
-    /// One tick of a knob. The delta is signed and its size is meant to grow with the speed, which is not
-    /// implemented: it is always 1 or -1. Fine is true while shift is held.
+    /// One tick of a knob. The delta is signed and is always 1 or -1 here, because `Unit` scales it by the speed of the
+    /// knob before anyone else reads it. Fine is true while shift is held.
     tick: struct { cc: c1.CCs, delta: i8, fine: bool },
 };
 

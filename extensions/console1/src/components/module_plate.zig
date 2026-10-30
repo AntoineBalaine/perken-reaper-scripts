@@ -308,7 +308,14 @@ pub const Plate = struct {
                 if (label.len > 0) try imgui.CalcTextSize(.{ ctx, label, &label_w, &label_h });
                 try imgui.SetCursorScreenPos(.{ ctx, c.x - @max(2 * button_r, label_w) / 2, c.y - button_r });
             },
-            else => try imgui.SetCursorScreenPos(.{ ctx, c.x - button_r, c.y - @max(2 * button_r, self.line_h) / 2 }),
+            else => {
+                // Because a label of two lines is taller than the key, the key stays level with the slot only when the
+                // widget starts above it by half of the label's height.
+                var label_h: f64 = self.line_h;
+                var label_w: f64 = undefined;
+                if (label.len > 0) try imgui.CalcTextSize(.{ ctx, label, &label_w, &label_h });
+                try imgui.SetCursorScreenPos(.{ ctx, c.x - button_r, c.y - @max(2 * button_r, label_h) / 2 });
+            },
         }
     }
 

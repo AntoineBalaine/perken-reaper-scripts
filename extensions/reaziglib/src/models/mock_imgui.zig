@@ -206,6 +206,7 @@ const ImguiMocks = struct {
     SetNextWindowDockID: @TypeOf(imgui.api.SetNextWindowDockID),
     SetNextItemAllowOverlap: @TypeOf(imgui.api.SetNextItemAllowOverlap),
     IsItemActive: @TypeOf(imgui.api.IsItemActive),
+    IsItemDeactivated: @TypeOf(imgui.api.IsItemDeactivated),
     IsItemHovered: @TypeOf(imgui.api.IsItemHovered),
     IsMouseDoubleClicked: @TypeOf(imgui.api.IsMouseDoubleClicked),
     IsMouseClicked: @TypeOf(imgui.api.IsMouseClicked),
@@ -612,6 +613,7 @@ pub const MockImGui = struct {
     const SetNextWindowDockID = &mockSetNextWindowDockID;
     const SetNextItemAllowOverlap = &mockVoidCtx;
     const IsItemActive = &mockIsItemActive;
+    const IsItemDeactivated = &mockIsItemDeactivated;
     const IsItemHovered = &mockIsItemHovered;
     const IsMouseDoubleClicked = &mockIsMouseDoubleClicked;
     const IsMouseClicked = &mockIsMouseClicked;
@@ -1193,6 +1195,10 @@ fn mockIsMouseClicked(_: imgui.ContextPtr, _: c_int, _: ?*bool) callconv(.c) boo
 fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.double_click_targets.contains(m.last_invisible_button_label);
+}
+
+fn mockIsItemDeactivated(_: imgui.ContextPtr) callconv(.c) bool {
+    return false;
 }
 
 fn mockIsItemActive(_: imgui.ContextPtr) callconv(.c) bool {

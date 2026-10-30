@@ -29,6 +29,9 @@ pub const MidiInput = struct {
 pub const WidgetInput = struct {
     cc: CCs,
     value: f64,
+    /// The text that the user typed for the value, which the host reads as the parameter writes its values. When it is
+    /// set, `value` is the value that the knob had.
+    text: ?[24]u8 = null,
 };
 
 pub const FxCtrlAction = union(enum) {

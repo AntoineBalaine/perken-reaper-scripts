@@ -42,12 +42,11 @@ export fn ui_render(
         }
         return 1;
     } else |err| {
-        // Because the host takes every 0 for a closed window, an error is
-        // reported here, or a failing frame would look like a closed window.
-        if (err != error.WindowClosed) {
-            log.err("ui_render failed: {s}; imgui: {?s}", .{ @errorName(err), imgui.last_error });
-        }
-        return 0;
+        // Because the host takes every 0 for a closed window, a failing frame answers with -1,
+        // or it would look like a window that the user closed.
+        if (err == error.WindowClosed) return 0;
+        log.err("ui_render failed: {s}; imgui: {?s}", .{ @errorName(err), imgui.last_error });
+        return -1;
     }
 }
 

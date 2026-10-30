@@ -1,4 +1,5 @@
 const imgui = @import("reaper_imgui");
+const Knobs = @import("knob");
 
 pub fn drawInvertedSlctblColors(
     ctx: imgui.ContextPtr,
@@ -47,4 +48,25 @@ pub fn drawInvertedSlctblColors(
         text_color,
         display_text,
     });
+}
+
+/// The accent color of the theme of REAPER, made opaque: the color that a selected row or a header has. Only the button
+/// that opens the FX chain uses it.
+pub fn themeAccent(ctx: imgui.ContextPtr) !c_int {
+    const color: u32 = @bitCast(try imgui.GetStyleColor(.{ ctx, imgui.Col_Header }));
+    return @bitCast(color | 0xFF);
+}
+
+/// The accent color of the interface: the orange of the lit LEDs and of the labels of the modules. It marks what is
+/// the alternative use of a control, and what is lit.
+pub fn accentColor() c_int {
+    return Knobs.led_orange;
+}
+
+/// The accent color of an alternative label: a little faded while shift is not held, so that it looks more saturated when
+/// the control is about to do that use.
+pub fn altColor(shift_held: bool) c_int {
+    const faded_alpha: u32 = 0xB0;
+    const bits: u32 = @bitCast(accentColor());
+    return @bitCast(if (shift_held) bits else (bits & 0xFFFFFF00) | faded_alpha);
 }

@@ -7,6 +7,7 @@ const ids = @import("ids.zig");
 const protocol = @import("protocol.zig");
 const LedState = @import("led_state.zig");
 const Input = @import("input.zig");
+const Accel = @import("accel.zig");
 pub const ControlEvent = Input.ControlEvent;
 const log = std.log.scoped(.unit);
 
@@ -65,6 +66,7 @@ backend: Backend = .legacy_cc,
 link: Link = .idle,
 leds: LedState = .off,
 input: Input = .{},
+accel: Accel = .{},
 sender: ?Sender = null,
 counter: u7 = first_counter,
 last_acked: ?u7 = null,
@@ -134,7 +136,7 @@ pub fn onSysex(self: *Unit, bytes: []const u8, now_ms: u64) void {
         protocol.Kind.control => {
             const control = protocol.parseControl(message) orelse return;
             if (self.link != .ready) return;
-            if (self.input.handle(control)) |event| self.push(event);
+            if (self.input.handle(control)) |event| self.push(self.accelerated(event, now_ms));
         },
         protocol.Kind.ack => {
             if (message.payload.len == 1) self.last_acked = @intCast(message.payload[0] & 0x7F);
@@ -144,6 +146,18 @@ pub fn onSysex(self: *Unit, bytes: []const u8, now_ms: u64) void {
             if (message.kind == protocol.Kind.version_answer) log.info("unit firmware: {s}", .{message.payload});
             self.answer(message.kind, now_ms);
         },
+    }
+}
+
+/// The event, with the delta of a tick scaled by the speed of its knob. The other events are left as they are.
+pub fn accelerated(self: *Unit, event: ControlEvent, now_ms: u64) ControlEvent {
+    switch (event) {
+        .tick => |knob| {
+            var scaled = knob;
+            scaled.delta = self.accel.scale(knob.cc, knob.delta, knob.fine, now_ms);
+            return .{ .tick = scaled };
+        },
+        else => return event,
     }
 }
 

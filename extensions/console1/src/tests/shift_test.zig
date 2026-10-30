@@ -134,3 +134,31 @@ test "shift with Volume stops at the first and the last track" {
     midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = true } });
     try testing.expectEqual(@as(?c_int, 3), h.globals.state.current_tr_id);
 }
+
+test "in the transport mode the buttons of the cards do not open a browser of plugins" {
+    // Because the harness owns the global state, each button gets a harness of its own, one after the other.
+    const without_browser = [_]c1.CCs{ .Inpt_disp_on, .Shp_shape, .Eq_eq, .Tr_order, .Comp_comp, .Eq_lp_shape, .Eq_hp_shape };
+    for (without_browser) |cc| {
+        const h = try Harness.init(2);
+        defer h.deinit();
+        h.globals.state.current_mode = .transport;
+        h.press(cc);
+        try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    }
+}
+
+test "in the transport mode the Sidechain button has no use, since the settings are on shift in the fx_ctrl mode" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_mode = .transport;
+    h.press(.Tr_ext_sidechain);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+}
+
+test "with shift in the fx_ctrl mode, the last row of the track list opens the settings" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.shift(true);
+    h.press(.Tr_tr20);
+    try testing.expectEqual(statemachine.Mode.settings, h.globals.state.current_mode);
+}

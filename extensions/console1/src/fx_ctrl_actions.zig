@@ -17,7 +17,7 @@ const csurf = @import("csurf/control_surface.zig");
 const utils = @import("utils");
 const reaeq = @import("reaeq.zig");
 const TrackState = @import("track_state.zig");
-
+const param_text = @import("param_text.zig");
 const log = std.log.scoped(.midi_input);
 
 pub const MidiInput = @import("action_types.zig").MidiInput;
@@ -34,10 +34,20 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
             );
             onMidiEvent_FxCtrl(io, input.cc, input.value, globals);
         },
-        .panel_input => |input| {
+        .panel_input => |panel| {
+            var input = panel;
+            // A value that was typed is read as the plugin writes its values, and a text that is not one is dropped.
+            if (panel.text) |text| {
+                input.value = typedValue(globals, panel.cc, text) orelse return;
+                input.text = null;
+            }
             // Special handling for our three controls
             switch (input.cc) {
-                .Inpt_preset => {
+                // Because the controller opens the screen of the presets when the unit is in the sysex mode, the button of
+                // the panel opens the same screen, and only the legacy unit has the mapping panel on this button.
+                .Inpt_preset => if (globals.unit.isReady()) {
+                    actions.dispatch(globals, .{ .presets = .{ .enter = .load } });
+                } else {
                     actions.dispatch(globals, .{ .change_mode = .mapping_panel });
                     actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
                 },
@@ -103,18 +113,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         const routing: SCRouting = @fromBackingInt(@intCast(@as(u8, @intFromFloat(input.value))));
-                        globals.state.fx_ctrl.validateTrack(
-                            null,
-                            media_track,
-                            routing,
-                            globals.preferences.manual_routing,
-                            globals.preferences.default_fx,
-                            &globals.map_store,
-                            &globals.preferences,
-                            globals.arena_int.allocator(),
-                            io,
-                            &globals.mappings_list,
-                        ) catch {};
+                        globals.state.fx_ctrl.routeSideChain(media_track, routing, globals.preferences.manual_routing);
                     }
                 },
                 .Tr_order => {
@@ -195,6 +194,34 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
         else => {},
         // ... other fx_ctrl actions
     }
+}
+
+/// Where the text of a parameter is asked for, for `param_text.solve`.
+const TypedParam = struct { track: reaper.MediaTrack, fx: c_int, param: c_int };
+
+fn formatNormalized(context: ?*anyopaque, normalized: f64, buf: *[64:0]u8) bool {
+    const target: *const TypedParam = @ptrCast(@alignCast(context.?));
+    return reaper.TrackFX_FormatParamValueNormalized(target.track, target.fx, target.param, normalized, @ptrCast(buf), buf.len);
+}
+
+/// The normalized value for the text that was typed on a knob: the value that the plugin writes with that number, or the
+/// text itself as a normalized number when the plugin writes no numbers. It is null for a text that is neither.
+fn typedValue(globals: *Globals, cc: c1.CCs, text: [24]u8) ?f64 {
+    const typed = std.mem.sliceTo(&text, 0);
+    if (globals.state.current_tr_id) |tr_id| {
+        if (globals.state.fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
+            if (fxp.param_index != TrackState.FxParam.SYNTHETIC) {
+                var target: TypedParam = .{
+                    .track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode),
+                    .fx = fxp.fx_index,
+                    .param = @intCast(fxp.param_index),
+                };
+                if (param_text.solve(typed, .{ .context = &target, .format = formatNormalized })) |value| return value;
+            }
+        }
+    }
+    const parsed = std.fmt.parseFloat(f64, std.mem.trim(u8, typed, " \t")) catch return null;
+    return std.math.clamp(parsed, 0.0, 1.0);
 }
 
 fn handlePanelParamInput(globals: *Globals, input: WidgetInput) void {

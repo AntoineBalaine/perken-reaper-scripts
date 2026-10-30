@@ -55,7 +55,7 @@ test "every knob of the transport mode takes a tick without moving the emulated 
     const h = try Harness.init(2);
     defer h.deinit();
     h.globals.state.current_tr_id = 1;
-    const knobs = [_]c1.CCs{ .Inpt_HiCut, .Eq_LoGain, .Eq_LoMidGain, .Eq_HiMidGain, .Eq_HiGain, .Out_Drive, .Out_DriveChar, .Out_Pan, .Out_Vol, .Comp_Thresh };
+    const knobs = [_]c1.CCs{ .Inpt_HiCut, .Eq_LoGain, .Eq_LoMidGain, .Comp_Attack, .Eq_HiGain, .Out_Drive, .Out_DriveChar, .Out_Pan, .Out_Vol, .Comp_Thresh };
     for (knobs) |cc| {
         h.globals.unit.input.setKnobPosition(cc, 40);
         h.tick(cc, 1);

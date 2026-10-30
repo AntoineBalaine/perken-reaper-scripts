@@ -21,6 +21,9 @@ const TransportState = @import("action_types.zig").TransportState;
 const LabelPool = @import("track_state.zig").LabelPool;
 
 const button = @import("components/button.zig");
+const ui_helpers = @import("ui_helpers.zig");
+const param_text = @import("param_text.zig");
+const mft_icons = @import("mft/mft_icons.zig");
 const module_plate = @import("components/module_plate.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 
@@ -100,11 +103,8 @@ fn moduleTitle(mode: Mode, card: ModuleCard) [:0]const u8 {
     };
 }
 
-/// The accent color of the theme of REAPER, made opaque: the color that a selected row or a header has.
-fn themeAccent(ctx: imgui.ContextPtr) !c_int {
-    const color: u32 = @bitCast(try imgui.GetStyleColor(.{ ctx, imgui.Col_Header }));
-    return @bitCast(color | 0xFF);
-}
+/// The color of the label of a control while shift is held and the control has another use.
+const dimmed_label: c_int = @bitCast(@as(u32, 0x8A8A8AFF));
 
 /// The symbol of a transport button: only in the transport mode, where the buttons are the transport's.
 fn transportIcon(mode: Mode, icon: button.Icon) ?button.Icon {
@@ -129,21 +129,25 @@ fn renderMappableButton(
     const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
     const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
     const color: ?c_int = if (mapped and val) Knobs.led_orange else null;
-    // In the transport mode, the bypass button of a card opens the browser of the plugins of its module, as the
-    // entry of the track list did, and the two buttons of the loop are the transport's. They have the labels of
-    // the transport, as they are not parameters of a plugin.
-    const transport_key: ?TranslationKey = switch (cc) {
-        .Shp_shape => .trsprt_Tr_tr2,
-        .Eq_eq => .trsprt_Tr_tr3,
-        .Comp_comp => .trsprt_Tr_tr4,
-        .Eq_lp_shape => .trsprt_Eq_lp_shape,
-        .Eq_hp_shape => .trsprt_Eq_hp_shape,
-        else => null,
-    };
-    if (mode == .transport and transport_key != null) {
-        const browse_label = tr(translations, transport_key.?);
-        try plate.button(ctx, slot, browse_label, .right);
-        if (try roundButton(.{ ctx, browse_label, "##" ++ @tagName(cc), null, null, text_pos, false, null })) {
+    // In the transport mode, the buttons of the cards are the ones of the transport: the loop, its start and its end
+    // (which is the alternative of the start button while shift is held), and the marker. The others have no use there.
+    if (mode == .transport) {
+        const accent = ui_helpers.altColor(fx_state.shift_held);
+        const used = switch (cc) {
+            .Eq_lp_shape, .Eq_hp_shape, .Comp_comp => true,
+            else => false,
+        };
+        const transport_label: [:0]const u8 = switch (cc) {
+            .Eq_lp_shape => tr(translations, .trsprt_Eq_eq),
+            .Eq_hp_shape => tr(translations, .trsprt_Eq_lp_shape),
+            .Comp_comp => tr(translations, .trsprt_Comp_comp),
+            else => "",
+        };
+        const alt: ?button.AltLabel = if (cc == .Eq_hp_shape) .{ .text = tr(translations, .trsprt_Eq_hp_shape), .color = accent } else null;
+        var joined_buf: [96:0]u8 = undefined;
+        const joined: [:0]const u8 = if (alt) |a| std.mem.printSentinel(&joined_buf, "{s}\n{s}", .{ transport_label, a.text }, 0) catch transport_label else transport_label;
+        try plate.button(ctx, slot, joined, .right);
+        if (try roundButton(.{ ctx, transport_label, "##" ++ @tagName(cc), null, null, text_pos, !used, null, null, null, null, alt })) {
             return .{ .cc = cc, .value = 1 };
         }
         return null;
@@ -211,9 +215,22 @@ fn toWidgetInput(result: Knobs.KnobResult, cc: c1.CCs, normalized: f64, fx_state
         .active => return .{ .cc = cc, .value = normalized },
         .value_dclick => {
             fx_state.editing_cc = cc;
-            const written = std.mem.printSentinel(&fx_state.edit_buf, "{d:.4}", .{normalized}, 0) catch "";
-            @memset(fx_state.edit_buf[written.len..], 0);
+            // The box shows the value as the plugin writes it, when that has a number that can be typed back, and the
+            // normalized value otherwise.
+            const formatted = fx_state.track_state.label_pool.getFmtValue(cc);
+            const typed_back = fx_state.track_state.forward_map.get(cc) != null and param_text.scaledNumber(formatted) != null;
+            @memset(&fx_state.edit_buf, 0);
+            if (typed_back) {
+                const length = @min(formatted.len, fx_state.edit_buf.len - 1);
+                @memcpy(fx_state.edit_buf[0..length], formatted[0..length]);
+            } else {
+                _ = std.mem.printSentinel(&fx_state.edit_buf, "{d:.4}", .{normalized}, 0) catch {};
+            }
             return null;
+        },
+        .text_submit => |text| {
+            fx_state.editing_cc = null;
+            return .{ .cc = cc, .value = normalized, .text = text };
         },
         .value_submit => |val| {
             fx_state.editing_cc = null;
@@ -226,6 +243,64 @@ fn toWidgetInput(result: Knobs.KnobResult, cc: c1.CCs, normalized: f64, fx_state
     }
 }
 
+/// A knob of the panel. Because the id of each knob is the name of its control, the knob that the controller turned a
+/// moment ago shows its value as it does while the mouse drags it.
+fn drawKnob(
+    fx_state: *const FxCtrlState,
+    mode: Mode,
+    ctx: imgui.ContextPtr,
+    value: *f64,
+    label_id: Knobs.LabelId,
+    flags: Knobs.ControlFlags,
+    max_width: ?f64,
+    edit_mode: Knobs.EditMode,
+) !?Knobs.KnobResult {
+    var shown = flags;
+    const cc = std.meta.stringToEnum(c1.CCs, label_id.id);
+    if (cc) |known| {
+        shown.popup = fx_state.knobPopupVisible(known);
+        // The knobs of the plugin's parameters are typed in the units that the plugin writes them in.
+        shown.edit_text = fx_state.track_state.forward_map.get(known) != null;
+        // The cap of a knob that carries an icon has no pointer, as the icon takes its place.
+        shown.no_pointer = mode == .transport and !flags.disabled and transportKnobIcon(known) != null;
+    }
+    // The widget is as wide as it is given, and at least as wide as the knob, so the icon can be placed before it is drawn.
+    var origin: Knobs.Position = .{ .x = undefined, .y = undefined };
+    try imgui.GetCursorScreenPos(.{ ctx, &origin.x, &origin.y });
+    const result = try Knobs.drawWidget(ctx, value, label_id, shown, max_width, edit_mode);
+    if (mode == .transport and !flags.disabled) {
+        if (cc) |known| {
+            if (transportKnobIcon(known)) |icon| try drawCapIcon(ctx, origin, max_width, icon);
+        }
+    }
+    return result;
+}
+
+/// The icon of the knobs of the transport mode that have one, which are the ones of the MFT.
+fn transportKnobIcon(cc: c1.CCs) ?mft_icons.Icon {
+    return switch (cc) {
+        .Eq_LoGain, .Eq_LoMidGain, .Eq_HiGain => .jog,
+        .Comp_Attack => .marker,
+        .Out_Drive => .zoom_h,
+        .Out_DriveChar => .zoom_v,
+        .Out_Pan => .grid,
+        else => null,
+    };
+}
+
+/// Draws an icon of the MFT at the center of the cap of a knob: the strokes in the color of the text, and the details
+/// that move in the accent. `origin` is where the widget starts.
+fn drawCapIcon(ctx: imgui.ContextPtr, origin: Knobs.Position, max_width: ?f64, icon: mft_icons.Icon) !void {
+    var label_w: f64 = undefined;
+    var label_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &label_w, &label_h });
+    const width = @max(max_width orelse 0, Knobs.knob_size);
+    const center_x = origin.x + width / 2;
+    const center_y = origin.y + Knobs.centerOffsetY(label_h);
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    mft_icons.draw(dl, icon, center_x, center_y, Knobs.knob_size * 0.2, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), ui_helpers.accentColor(), false, null);
+}
+
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = ui.state.current_mode;
     const fx_state = &ui.state.fx_ctrl;
@@ -235,7 +310,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
     module_plate.startFrame();
-    if (try inputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |input_rv| {
+    if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf)) |input_rv| {
         rv = input_rv;
     }
     try sectional(ctx);
@@ -250,7 +325,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, translations, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
@@ -347,7 +422,7 @@ const out_slots = struct {
     const all = [_]Slot{ Tr_order, Out_Drive, Out_DriveChar, Out_Pan, Tr_ext_sidechain, Out_solo, Out_mute, Out_Vol };
 };
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, shift_held: bool, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -356,20 +431,21 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     const disp_on_fx_label: [:0]const u8 = "FX";
 
     // The labels of the buttons are translations of the panel, and so are the same in every mode.
-    const labels = [_][:0]const u8{ try widestOf(ctx, &.{ disp_on_fx_label, tr(translations, .trsprt_Tr_tr1) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .trsprt_Tr_tr17) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .trsprt_Tr_tr18) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_preset), tr(translations, .trsprt_Tr_tr19) }) };
+    // Because the label of the preset button has the alternative label after it, the plate is as wide as both together.
+    var preset_with_alt_buf: [96:0]u8 = undefined;
+    const preset_with_alt = std.mem.printSentinel(&preset_with_alt_buf, "{s}  {s}", .{ tr(translations, .fx_ctrl_Inpt_preset), tr(translations, .preset_save) }, 0) catch tr(translations, .fx_ctrl_Inpt_preset);
+    const labels = [_][:0]const u8{ try widestOf(ctx, &.{disp_on_fx_label}), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .trsprt_Tr_tr17) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .trsprt_Tr_tr18) }), try widestOf(ctx, &.{ preset_with_alt, tr(translations, .trsprt_Tr_tr19) }) };
     const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input), .title_alternatives = &moduleTitles(.input), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
 
     const disp_on_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
-        // In the transport mode, the button opens the browser of the input plugins, as the entry of the track list did.
-        .transport => .trsprt_Tr_tr1,
         else => null,
     };
     const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
     const disp_on_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
     const disp_on_display_label: [:0]const u8 = if (disp_on_fx_mode) disp_on_fx_label else disp_on_label orelse "-";
     try plate.button(ctx, input_slots.Inpt_disp_on, disp_on_display_label, .right);
-    const disp_on_color: ?c_int = if (disp_on_label == null or mode == .transport) null else try themeAccent(ctx);
+    const disp_on_color: ?c_int = if (disp_on_label == null or mode == .transport) null else try ui_helpers.themeAccent(ctx);
     if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null, disp_on_color, disp_on_fx_mode and fx_state.display != null })) {
         rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
     }
@@ -398,7 +474,9 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         };
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
         try plate.knob(ctx, input_slots.Inpt_Gain);
-        if (try Knobs.drawWidget(
+        if (try drawKnob(
+            fx_state,
+            mode,
             ctx,
             &gain_prm.normalized,
             label_id,
@@ -449,7 +527,9 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         else
             fx_state.values.get(hicut_cc).?.param.normalized;
         try plate.knob(ctx, input_slots.Inpt_HiCut);
-        if (try Knobs.drawWidget(
+        if (try drawKnob(
+            fx_state,
+            mode,
             ctx,
             &hicut_val,
             hicut_label_id,
@@ -464,7 +544,9 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
         var locut_prm = fx_state.values.get(locut_cc).?.param;
         try plate.knob(ctx, input_slots.Inpt_LoCut);
-        if (try Knobs.drawWidget(
+        if (try drawKnob(
+            fx_state,
+            mode,
             ctx,
             &locut_prm.normalized,
             locut_label_id,
@@ -485,8 +567,12 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     };
     const preset_label = if (preset_key) |key| tr(translations, key) else null;
     const preset_display_label: [:0]const u8 = preset_label orelse "-";
+    // The alternative use of the button, which is saving a preset while shift is held on the controller, always stands
+    // after the label, in the accent color of the interface. While shift is held, the label itself is dimmed.
+    const preset_alt: ?button.AltLabel = if (mode == .fx_ctrl) .{ .text = tr(translations, .preset_save), .color = ui_helpers.altColor(shift_held), .same_line = true } else null;
+    const preset_color: ?c_int = if (mode == .fx_ctrl and shift_held) dimmed_label else null;
     try plate.button(ctx, input_slots.Inpt_preset, preset_display_label, .right);
-    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null, null, null, transportIcon(mode, .rec) })) {
+    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null, null, null, transportIcon(mode, .rec), preset_color, preset_alt })) {
         rv = .{ .cc = .Inpt_preset, .value = 1.0 };
     }
 
@@ -555,7 +641,9 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             };
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
             try plate.knob(ctx, shape_slots.Shp_Gate);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &gate_prm.normalized,
                 label_id,
@@ -605,7 +693,9 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // First knob
             var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
             try plate.knob(ctx, shape_slots.Shp_GateRelease);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &release_prm.normalized,
                 release_label_id,
@@ -619,7 +709,9 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Second knob
             var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
             try plate.knob(ctx, shape_slots.Shp_sustain);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &sustain_prm.normalized,
                 sustain_label_id,
@@ -633,7 +725,9 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Third knob
             var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
             try plate.knob(ctx, shape_slots.Shp_Punch);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &punch_prm.normalized,
                 punch_label_id,
@@ -670,7 +764,6 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         paramLabel(fx_state, .Eq_HiGain),
         tr(translations, .trsprt_Eq_LoGain),
         tr(translations, .trsprt_Eq_LoMidGain),
-        tr(translations, .trsprt_Eq_HiMidGain),
         tr(translations, .trsprt_Eq_HiGain),
     });
     const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq) });
@@ -707,7 +800,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // First knob
             var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
             try plate.knob(ctx, eq_slots.Eq_LoFrq);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lofreq_prm.normalized,
                 lofreq_label_id,
@@ -724,7 +819,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             else
                 fx_state.values.get(.Eq_LoGain).?.param.normalized;
             try plate.knob(ctx, eq_slots.Eq_LoGain);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &logain_val,
                 logain_label_id,
@@ -769,7 +866,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // First knob
             var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
             try plate.knob(ctx, eq_slots.Eq_LoMidQ);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidq_prm.normalized,
                 lomidq_label_id,
@@ -783,7 +882,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // Second knob
             var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
             try plate.knob(ctx, eq_slots.Eq_LoMidFrq);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidfreq_prm.normalized,
                 lomidfreq_label_id,
@@ -800,7 +901,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             else
                 fx_state.values.get(.Eq_LoMidGain).?.param.normalized;
             try plate.knob(ctx, eq_slots.Eq_LoMidGain);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidgain_val,
                 lomidgain_label_id,
@@ -834,10 +937,10 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidFrq) else null,
             };
 
-            const himidgain_disabled = !eq3_is_fx and mode != .transport;
+            const himidgain_disabled = !eq3_is_fx;
             const himidgain_no_val_display = himidgain_disabled or value_display_disabled;
             const himidgain_label_id = Knobs.LabelId{
-                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidGain) else if (mode == .transport) tr(translations, .trsprt_Eq_HiMidGain) else "-",
+                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidGain) else "-",
                 .id = "Eq_HiMidGain",
                 .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidGain) else null,
             };
@@ -845,7 +948,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // First knob
             var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
             try plate.knob(ctx, eq_slots.Eq_HiMidQ);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidq_prm.normalized,
                 himidq_label_id,
@@ -859,7 +964,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // Second knob
             var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
             try plate.knob(ctx, eq_slots.Eq_HiMidFrq);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidfreq_prm.normalized,
                 himidfreq_label_id,
@@ -871,12 +978,11 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             }
 
             // Third knob
-            var himidgain_val: f64 = if (mode == .transport)
-                @as(f64, @floatFromInt(transport.jog_marker)) / 127.0
-            else
-                fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
+            var himidgain_val: f64 = fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
             try plate.knob(ctx, eq_slots.Eq_HiMidGain);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidgain_val,
                 himidgain_label_id,
@@ -917,7 +1023,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             // First knob
             var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
             try plate.knob(ctx, eq_slots.Eq_HiFrq);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &hifreq_prm.normalized,
                 hifreq_label_id,
@@ -934,7 +1042,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             else
                 fx_state.values.get(.Eq_HiGain).?.param.normalized;
             try plate.knob(ctx, eq_slots.Eq_HiGain);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &higain_val,
                 higain_label_id,
@@ -951,7 +1061,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -962,6 +1072,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         paramLabel(fx_state, .Comp_Attack),
         paramLabel(fx_state, .Comp_Release),
         paramLabel(fx_state, .Comp_Thresh),
+        tr(translations, .trsprt_Eq_HiMidGain),
     });
     const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp) });
 
@@ -995,7 +1106,9 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // First knob
             var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
             try plate.knob(ctx, comp_slots.Comp_Ratio);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &ratio_prm.normalized,
                 ratio_label_id,
@@ -1009,7 +1122,9 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Second knob
             var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
             try plate.knob(ctx, comp_slots.Comp_DryWet);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &drywet_prm.normalized,
                 drywet_label_id,
@@ -1028,10 +1143,11 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Calculate max width for this column's knobs
             const comp2_pool = &fx_state.track_state.label_pool;
             const comp2_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
-            const attack_disabled = !comp2_is_fx;
+            // In the transport mode, the attack knob is the jog of the markers.
+            const attack_disabled = !comp2_is_fx and mode != .transport;
             const attack_no_val_display = attack_disabled or value_display_disabled;
             const attack_label_id = Knobs.LabelId{
-                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else "-",
+                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else if (mode == .transport) tr(translations, .trsprt_Eq_HiMidGain) else "-",
                 .id = try std.mem.printSentinel(id_buf, "Comp_Attack", .{}, 0),
                 .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Attack) else null,
             };
@@ -1054,8 +1170,11 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
 
             // First knob
             var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
+            if (mode == .transport) attack_prm.normalized = @as(f64, @floatFromInt(transport.jog_marker)) / 127.0;
             try plate.knob(ctx, comp_slots.Comp_Attack);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &attack_prm.normalized,
                 attack_label_id,
@@ -1069,7 +1188,9 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Second knob
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
             try plate.knob(ctx, comp_slots.Comp_Release);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &release_prm.normalized,
                 release_label_id,
@@ -1083,7 +1204,9 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             // Third knob
             var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
             try plate.knob(ctx, comp_slots.Comp_Thresh);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &thresh_prm.normalized,
                 thresh_label_id,
@@ -1148,8 +1271,6 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .@"S-C-EQ" => .fx_ctrl_Tr_order_s_c_eq,
                     .@"S-EQ-C" => .fx_ctrl_Tr_order_s_eq_c,
                 },
-                // In the transport mode, the button opens the browser of the output plugins.
-                .transport => .trsprt_Tr_tr5,
                 else => null,
             };
             const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
@@ -1157,9 +1278,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const tr_order_disabled = (tr_order_label == null);
             try plate.button(ctx, out_slots.Tr_order, tr_order_display_label, .right);
             if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
-                if (mode == .transport) {
-                    rv = .{ .cc = .Tr_order, .value = 0 };
-                } else {
+                {
                     const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
                         .@"EQ-S-C" => .@"S-C-EQ",
                         .@"S-C-EQ" => .@"S-EQ-C",
@@ -1210,7 +1329,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             else
                 fx_state.values.get(.Out_Drive).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_Drive);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &drive_val,
                 drive_label_id,
@@ -1227,7 +1348,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             else
                 fx_state.values.get(.Out_DriveChar).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_DriveChar);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &char_val,
                 char_label_id,
@@ -1244,7 +1367,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             else
                 fx_state.values.get(.Out_Pan).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_Pan);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &pan_val,
                 pan_label_id,
@@ -1273,8 +1398,6 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .toShape => .fx_ctrl_Tr_ext_sidechain_shape,
                     .toComp => .fx_ctrl_Tr_ext_sidechain_comp,
                 },
-                // In the transport mode, the button opens the settings, as the entry of the track list did.
-                .transport => .trsprt_Tr_tr20,
                 else => null,
             };
             const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
@@ -1282,9 +1405,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const ext_sidechain_disabled = (ext_sidechain_label == null);
             try plate.button(ctx, out_slots.Tr_ext_sidechain, ext_sidechain_display_label, .right);
             if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
-                if (mode == .transport) {
-                    rv = .{ .cc = .Tr_ext_sidechain, .value = 0 };
-                } else {
+                {
                     const next_routing: SCRouting = switch (fx_state.scRouting) {
                         .off => .toShape,
                         .toShape => .toComp,
@@ -1342,7 +1463,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             else
                 fx_state.values.get(.Out_Vol).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_Vol);
-            if (try Knobs.drawWidget(
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &vol_val,
                 label_id,

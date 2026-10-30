@@ -6,7 +6,6 @@ const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const UiState = @import("ui_state.zig").UiState;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
-const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("action_types.zig");
 const mapping_panel = @import("mapping_panel.zig");
@@ -22,6 +21,21 @@ pub const GuiError = error{
     WindowClosed,
 };
 
+/// What the row of the track list does while shift is held, which is what the shift of the controller does: the browser
+/// of the plugins of a module on the first six rows, and the settings on the last one. It matches `shiftLabel`.
+fn shiftAction(cc: c1.CCs) ?actions.ModeAction {
+    return switch (cc) {
+        .Tr_tr1 => .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
+        .Tr_tr2 => .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
+        .Tr_tr3 => .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
+        .Tr_tr4 => .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
+        .Tr_tr5 => .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
+        .Tr_tr6 => .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
+        .Tr_tr20 => .{ .settings = .open },
+        else => null,
+    };
+}
+
 pub fn main(
     ctx: imgui.ContextPtr,
     ui: *UiState,
@@ -35,14 +49,9 @@ pub fn main(
 
     var rv: ?actions.ModeAction = null;
 
-    try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
+    try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM, imgui.Cond_FirstUseEver });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, win_flags })) {
         defer imgui.End(.{ctx}) catch {};
-        const bar_result = try ButtonsBar(ctx, ui.translations);
-        open = bar_result.open;
-        if (bar_result.action) |action| {
-            rv = action;
-        }
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         switch (ui.state.current_mode) {
             .fx_ctrl => {
@@ -52,15 +61,20 @@ pub fn main(
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_pg_up => rv = .{ .track_list = .{ .page_change = .up } },
                             .Tr_pg_dn => rv = .{ .track_list = .{ .page_change = .down } },
                             else => {
-                                const track_id = @backingInt(tr_cc) - @backingInt(c1.CCs.Tr_tr1);
-                                if (track_id < ui.state.fx_ctrl.track_list.name_count) {
-                                    const tr_id = ui.state.fx_ctrl.track_list.track_names[track_id].id;
-                                    rv = .{ .track_list = .{ .track_select = tr_id } };
+                                // While shift is held, a row that shows an alternative use does that use.
+                                if (ui.shift_held and shiftAction(tr_cc) != null) {
+                                    rv = shiftAction(tr_cc);
+                                } else {
+                                    const track_id = @backingInt(tr_cc) - @backingInt(c1.CCs.Tr_tr1);
+                                    if (track_id < ui.state.fx_ctrl.track_list.name_count) {
+                                        const tr_id = ui.state.fx_ctrl.track_list.track_names[track_id].id;
+                                        rv = .{ .track_list = .{ .track_select = tr_id } };
+                                    }
                                 }
                             },
                         }
@@ -131,7 +145,7 @@ pub fn main(
 
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
                             .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
@@ -210,22 +224,18 @@ pub fn main(
                     switch (ctrl_input.cc) {
                         .Inpt_disp_mode => rv = .{ .change_mode = .fx_ctrl },
                         .Out_mute => rv = .set_fx_ctrl_gui,
-                        .Inpt_disp_on => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
-                        .Shp_shape => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
-                        .Tr_order => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
-                        .Tr_ext_sidechain => rv = .{ .settings = .open },
                         .Out_Vol => rv = .{ .transport = .{ .tr_sel = val } },
                         .Out_Drive => rv = .{ .transport = .{ .zoom_horizontal = val } },
                         .Out_DriveChar => rv = .{ .transport = .{ .zoom_vertical = val } },
                         .Out_Pan => rv = .{ .transport = .{ .grid = val } },
-                        .Eq_eq => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
-                        .Eq_lp_shape => rv = .{ .transport = .loop_start },
-                        .Eq_hp_shape => rv = .{ .transport = .loop_end },
+                        .Eq_lp_shape => rv = .{ .transport = .loop_toggle },
+                        // The button starts the loop, and ends it while shift is held on the controller.
+                        .Eq_hp_shape => rv = .{ .transport = if (ui.shift_held) .loop_end else .loop_start },
                         .Eq_LoGain => rv = .{ .transport = .{ .scrub = val } },
                         .Eq_LoMidGain => rv = .{ .transport = .{ .jog = val } },
-                        .Eq_HiMidGain => rv = .{ .transport = .{ .jog_marker = val } },
+                        .Comp_Attack => rv = .{ .transport = .{ .jog_marker = val } },
                         .Eq_HiGain => rv = .{ .transport = .{ .jog_item = val } },
-                        .Comp_comp => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
+                        .Comp_comp => rv = .{ .transport = .marker_set },
                         .Inpt_HiCut => rv = .{ .transport = .{ .rate = val } },
                         .Out_solo => rv = .{ .transport = .snap_tgl },
                         .Inpt_filt_to_comp => rv = .{ .transport = .play },
@@ -237,13 +247,8 @@ pub fn main(
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
-                            // Loop and marker set took the places of the browsers of the EQ and the compressor, which
-                            // are at the top left of their cards in this mode.
-                            .Tr_tr3 => rv = .{ .transport = .loop_toggle },
-                            .Tr_tr4 => rv = .{ .transport = .marker_set },
-                            .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
                             .Tr_tr11 => rv = .{ .transport = .{ .automation_mode = .trim } },
                             .Tr_tr12 => rv = .{ .transport = .{ .automation_mode = .read } },
                             .Tr_tr13 => rv = .{ .transport = .{ .automation_mode = .latch } },
