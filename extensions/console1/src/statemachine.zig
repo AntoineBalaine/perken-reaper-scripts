@@ -69,13 +69,16 @@ pub const Mode = enum {
     settings,
     /// Default Fx selection - in settings
     default_fx_sel,
+    /// Loading and saving the presets of the FX of the modules
+    presets,
     /// if the user toggles the extension
     suspended,
 };
 
 // Helper for valid transitions
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
-    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport },
+    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport, .presets },
+    .presets = &.{ .fx_ctrl, .suspended },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel, .suspended },
     .default_fx_sel = &.{ .settings, .default_fx_sel, .suspended },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
@@ -93,6 +96,7 @@ pub const State = struct {
     default_fx_sel: FxSelectionState = .{},
     transport: TransportState = .{},
     mapping_panel: MappingPanelState,
+    presets: PresetsState,
 
     // Shared state
     current_tr_id: ?c_int = null,
@@ -103,6 +107,7 @@ pub const State = struct {
         return .{
             .fx_ctrl = FxControlState.init(gpa),
             .mapping_panel = MappingPanelState.init(),
+            .presets = PresetsState.init(gpa),
             // Shared state uses default values
         };
     }
@@ -110,8 +115,69 @@ pub const State = struct {
     pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
         self.fx_ctrl.deinit();
         self.mapping_panel.deinit();
+        self.presets.deinit();
         self.selectedTracks.deinit(allocator);
         // Any other cleanup needed...
+    }
+};
+
+pub const PresetsPurpose = enum { load, save };
+
+pub const PresetsStage = enum {
+    /// The modules, each with the FX that it has
+    modules,
+    /// The presets of the FX of the module that was chosen, to load one
+    presets,
+    /// The name to save the preset under
+    name,
+    /// The name is the one of a preset that exists
+    overwrite,
+};
+
+pub const PresetsMessage = enum { none, no_presets, unsupported_fx, save_failed };
+
+pub const PresetsRow = struct {
+    module: ModulesList,
+    /// Null when the module has no FX on the track
+    fx_index: ?c_int,
+    fx_name: [:0]const u8,
+};
+
+/// The screen that loads or saves the presets of the FX of the modules.
+pub const PresetsState = struct {
+    /// Holds the rows, the names and everything else that the screen shows, until it is entered again.
+    arena: std.heap.ArenaAllocator,
+    purpose: PresetsPurpose = .load,
+    stage: PresetsStage = .modules,
+    rows: []const PresetsRow = &.{},
+    module_cursor: usize = 0,
+    /// The FX of the module that was chosen
+    fx_index: c_int = 0,
+    names: []const [:0]const u8 = &.{},
+    preset_cursor: usize = 0,
+    name_buffer: [256:0]u8 = @splat(0),
+    message: PresetsMessage = .none,
+    /// Set when the cursor moved, so that the list scrolls to it
+    scroll_changed: bool = false,
+    /// The position that the legacy knob had when it last scrolled the list
+    scroll_position_abs: u8 = 0,
+
+    pub fn init(gpa: std.mem.Allocator) PresetsState {
+        return .{ .arena = std.heap.ArenaAllocator.init(gpa) };
+    }
+
+    /// Forgets what the screen showed, for a new visit
+    pub fn reset(self: *PresetsState, purpose: PresetsPurpose) void {
+        _ = self.arena.reset(.retain_capacity);
+        self.* = .{ .arena = self.arena, .purpose = purpose };
+    }
+
+    pub fn deinit(self: *PresetsState) void {
+        self.arena.deinit();
+    }
+
+    pub fn nameSlice(self: *const PresetsState) []const u8 {
+        return std.mem.sliceTo(&self.name_buffer, 0);
     }
 };
 

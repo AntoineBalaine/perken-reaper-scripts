@@ -61,6 +61,7 @@ fn scrollList(globals: *Globals, delta: i8) bool {
         .fx_sel => actions.dispatch(globals, .{ .fx_sel = .{ .scroll_by = delta } }),
         .default_fx_sel => actions.dispatch(globals, .{ .default_fx_sel = .{ .scroll_by = delta } }),
         .settings => actions.dispatch(globals, .{ .settings = .{ .scroll_by = delta } }),
+        .presets => actions.dispatch(globals, .{ .presets = .{ .scroll_by = delta } }),
         .mapping_panel => switch (globals.state.mapping_panel.mode) {
             .browse => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll_by = delta } }),
             .assign => return false,
@@ -76,8 +77,10 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
     mode_switch: switch (globals.state.current_mode) {
         .fx_ctrl => {
             switch (cc) {
-                // The sysex unit has no mapping panel on this button: it is the presets', which do not exist yet.
-                .Inpt_preset => if (!globals.unit.isReady()) {
+                // The sysex unit has no mapping panel on this button: it loads a preset.
+                .Inpt_preset => if (globals.unit.isReady()) {
+                    actions.dispatch(globals, .{ .presets = .{ .enter = .load } });
+                } else {
                     actions.dispatch(globals, .{ .change_mode = .mapping_panel });
                     actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
                 },
@@ -110,6 +113,12 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
                 .Tr_tr5 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .OUTPT } }),
                 else => {},
             }
+        },
+        .presets => switch (cc) {
+            .Out_Vol => actions.dispatch(globals, .{ .presets = .{ .scroll = val } }),
+            .Out_solo => actions.dispatch(globals, .{ .presets = .confirm }),
+            .Out_mute => actions.dispatch(globals, .{ .presets = .cancel }),
+            else => {},
         },
         .settings => {
             switch (cc) {

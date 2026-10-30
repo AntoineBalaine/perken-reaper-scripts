@@ -44,6 +44,28 @@ pub fn ButtonsBar(
             try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings) });
         }
 
+        { // load a preset
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+            defer imgui.PopFont(.{ctx}) catch {};
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.arrow_down), defaults.button_size, defaults.button_size })) {
+                rv.action = .{ .presets = .{ .enter = .load } };
+            }
+        }
+        if (try imgui.IsItemHovered(.{ctx})) {
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_load_preset) });
+        }
+
+        { // save a preset
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+            defer imgui.PopFont(.{ctx}) catch {};
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.save), defaults.button_size, defaults.button_size })) {
+                rv.action = .{ .presets = .{ .enter = .save } };
+            }
+        }
+        if (try imgui.IsItemHovered(.{ctx})) {
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_save_preset) });
+        }
+
         if (comptime @field(config, "test")) {
             { // mapping panel shortcut (dev only)
                 try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });

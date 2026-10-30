@@ -44,8 +44,10 @@ pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
                     actions.dispatch(globals, .{ .settings = .open });
                     return true;
                 },
-                // Saving a preset comes with the presets, which do not exist yet.
-                .Inpt_preset => return true,
+                .Inpt_preset => {
+                    actions.dispatch(globals, .{ .presets = .{ .enter = .save } });
+                    return true;
+                },
                 else => return false,
             };
             actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });

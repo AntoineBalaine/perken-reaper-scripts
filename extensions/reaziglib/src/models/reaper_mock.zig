@@ -67,6 +67,10 @@ const Mocks = struct {
     CSurf_OnRewFwd: @TypeOf(reaper.CSurf_OnRewFwd),
     CSurf_OnZoom: @TypeOf(reaper.CSurf_OnZoom),
     SLIDER2DB: @TypeOf(reaper.SLIDER2DB),
+    TrackFX_GetPreset: @TypeOf(reaper.TrackFX_GetPreset),
+    TrackFX_SetPreset: @TypeOf(reaper.TrackFX_SetPreset),
+    TrackFX_GetUserPresetFilename: @TypeOf(reaper.TrackFX_GetUserPresetFilename),
+    GetTrackStateChunk: @TypeOf(reaper.GetTrackStateChunk),
     CSurf_ScrubAmt: @TypeOf(reaper.CSurf_ScrubAmt),
     GetTrackColor: @TypeOf(reaper.GetTrackColor),
     CSurf_OnSelectedChange: @TypeOf(reaper.CSurf_OnSelectedChange),
@@ -887,6 +891,53 @@ pub fn CSurf_SetSurfaceSelected(trackid: MediaTrack, selected: bool, ignoresurf:
 pub fn GetTrackColor(track: MediaTrack) callconv(.c) c_int {
     _ = track;
     return 0;
+}
+
+/// The path that the mock gives as the preset file of every FX. The tests set it.
+pub var user_preset_path: []const u8 = "";
+/// The chunk that the mock gives for every track. The tests set it.
+pub var track_chunk: []const u8 = "";
+/// The name that the mock gives as the preset showing in the dropdown of every FX, or "" for none.
+pub var current_preset_name: []const u8 = "";
+/// The name of the last preset that was activated through TrackFX_SetPreset.
+pub var activated_preset: [256]u8 = undefined;
+pub var activated_preset_len: usize = 0;
+
+fn copyToBuffer(source: []const u8, buffer: [*]u8, size: c_int) void {
+    if (size <= 0) return;
+    const len = @min(@as(usize, @intCast(size)) - 1, source.len);
+    @memcpy(buffer[0..len], source[0..len]);
+    buffer[len] = 0;
+}
+
+pub fn TrackFX_GetPreset(track: MediaTrack, fx: c_int, presetnameOut: [*:0]u8, presetnameOut_sz: c_int) callconv(.c) bool {
+    _ = track;
+    _ = fx;
+    copyToBuffer(current_preset_name, presetnameOut, presetnameOut_sz);
+    return current_preset_name.len > 0;
+}
+
+pub fn TrackFX_SetPreset(track: MediaTrack, fx: c_int, presetname: [*:0]const u8) callconv(.c) bool {
+    _ = track;
+    _ = fx;
+    const name = std.mem.span(presetname);
+    activated_preset_len = @min(name.len, activated_preset.len);
+    @memcpy(activated_preset[0..activated_preset_len], name[0..activated_preset_len]);
+    return true;
+}
+
+pub fn TrackFX_GetUserPresetFilename(track: MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.c) void {
+    _ = track;
+    _ = fx;
+    copyToBuffer(user_preset_path, @ptrCast(fnOut), fnOut_sz);
+}
+
+/// Like REAPER, the chunk is cut when the buffer is too small.
+pub fn GetTrackStateChunk(track: MediaTrack, strNeedBig: *c_char, strNeedBig_sz: c_int, isundoOptional: bool) callconv(.c) bool {
+    _ = track;
+    _ = isundoOptional;
+    copyToBuffer(track_chunk, @ptrCast(strNeedBig), strNeedBig_sz);
+    return true;
 }
 
 pub fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.c) void {

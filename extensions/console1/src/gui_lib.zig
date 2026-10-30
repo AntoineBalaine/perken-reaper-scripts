@@ -10,6 +10,7 @@ const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("action_types.zig");
 const mapping_panel = @import("mapping_panel.zig");
+const presets_panel = @import("presets_panel.zig");
 const module_selection_panel = @import("module_selection_panel.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
@@ -191,6 +192,14 @@ pub fn main(
                     };
                     if (map_action) |action| {
                         rv = .{ .mapping_panel = action };
+                    }
+                }
+                imgui.EndChild(.{ctx}) catch {};
+            },
+            .presets => {
+                if (try imgui.BeginChild(.{ ctx, "##presets_content", 0, 0, null, imgui.WindowFlags_None })) {
+                    if (try presets_panel.drawPresetsPanel(ctx, &ui.state.presets, ui.drwls_splitter, ui.translations)) |presets_action| {
+                        rv = .{ .presets = presets_action };
                     }
                 }
                 imgui.EndChild(.{ctx}) catch {};

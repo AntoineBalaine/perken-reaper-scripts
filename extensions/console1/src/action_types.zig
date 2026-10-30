@@ -150,6 +150,21 @@ pub const TransportAction = union(enum) {
     knob_by: struct { cc: CCs, delta: i8, fine: bool },
 };
 
+// Presets
+
+pub const PresetsAction = union(enum) {
+    /// Opens the screen to load or to save presets
+    enter: @import("statemachine.zig").PresetsPurpose,
+    /// A position of the legacy knob
+    scroll: u8,
+    /// One row up (-1) or down (1), from a tick of the sysex unit
+    scroll_by: i8,
+    /// A row that was clicked: the cursor goes to it, and it is confirmed
+    pick: usize,
+    confirm,
+    cancel,
+};
+
 // Track List
 
 pub const PgDirection = enum { up, down };
@@ -211,6 +226,7 @@ pub const ModeAction = union(enum) {
     fx_sel: FxSelActions,
     transport: TransportAction,
     mapping_panel: MappingPanelAction,
+    presets: PresetsAction,
     settings: SettingsActions,
     default_fx_sel: FxSelActions,
     Csurf: CsurfAction,

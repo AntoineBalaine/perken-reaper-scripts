@@ -49,9 +49,17 @@ fn onModeEntry(globals: *Globals, mode: Mode, unit: *Unit) void {
         .settings => prefsEntry(globals, unit),
         .suspended => clearAllLEDs(unit),
         .transport => transportEntry(unit),
+        .presets => presetsEntry(unit),
         else => clearAllLEDs(unit),
         // etc.
     }
+}
+
+/// Solo confirms and Mute cancels, as they do in the browsers.
+fn presetsEntry(unit: *Unit) void {
+    clearAllLEDs(unit);
+    setButtonLED(c1.CCs.Out_solo, true, unit);
+    setButtonLED(c1.CCs.Out_mute, true, unit);
 }
 
 fn transportEntry(unit: *Unit) void {
