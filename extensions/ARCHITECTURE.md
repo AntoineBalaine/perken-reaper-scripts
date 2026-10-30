@@ -152,7 +152,7 @@ except `reavim.lua`, which `reavim-ext` replaces and which is marked
 | `main/drum_actions/` (flam, 3stroke, 5stroke, crescendo, decrescendo) | `perken-utilities` drums: `Flam`, `Ras3`, `Ras5`, `Crescendo`, `Decrescendo` | Ported |
 | `main/Routing/` (`CreateBusses`, `routeColorsToBusses`) | `perken-utilities` routing: `BuildBusses`, `RouteToBusses` | Ported |
 | `midi/` (25 chord-voicing and note-selection scripts, plus helper folders: `doubleFifthUp`, `drop_2`, `select_top_note`, …) | `perken-utilities` kawa actions (23) | Ported |
-| `main/pasteRhythmToPitches.lua` | None | Not ported yet (`pasteRhythm`) |
+| `main/pasteRhythmToPitches.lua` | `perken-utilities` paste_rhythm: `PasteRhythmToPitches` | Ported; the Lua is `@noindex` |
 | `main/utilities/` | Their shared helpers live in `reaziglib/src/reaper_helpers.zig` | Helpers only; `itemNamesToMarkers.lua` has no counterpart |
 | `imgui/knobs` | The Zig `knob` module in reaziglib | Same purpose, written in Zig |
 | `imgui/shortcut_list` | None | Not ported |
