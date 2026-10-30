@@ -65,6 +65,12 @@ pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
     if (globals.unit.input.legacyValue(event)) |legacy| onControl(globals, legacy.cc, legacy.value);
 }
 
+/// Whether the browser of plugins is inside a menu, or inside the mappings of a plugin, which Cancel leaves first.
+fn fxSelIsInside(globals: *Globals) bool {
+    const state = globals.state.fx_sel;
+    return state.menu_depth > 0 or state.sub_mode == .select_mapping;
+}
+
 /// Volume scrolls the list of the browse modes by a row for each tick. It returns whether the mode has such a list.
 fn scrollList(globals: *Globals, delta: i8) bool {
     switch (globals.state.current_mode) {
@@ -101,7 +107,8 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
             switch (cc) {
                 .Out_Vol => actions.dispatch(globals, .{ .fx_sel = .{ .scroll = val } }),
                 .Out_solo => actions.dispatch(globals, .{ .fx_sel = .confirm }),
-                .Out_mute => actions.dispatch(globals, .{ .fx_sel = .close_browser }),
+                // Cancel steps out of a menu, or out of the mappings of a plugin, before it closes the browser.
+                .Out_mute => actions.dispatch(globals, .{ .fx_sel = if (fxSelIsInside(globals)) .back else .close_browser }),
                 .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
                 .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
                 .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),

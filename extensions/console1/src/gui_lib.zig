@@ -135,10 +135,11 @@ pub fn main(
                     switch (ctrl_input.cc) {
                         .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
                         .Out_solo => rv = .{ .fx_sel = .confirm },
-                        .Out_mute => rv = switch (ui.state.fx_sel.sub_mode) {
-                            .browse_fx => .{ .fx_sel = .close_browser },
-                            .select_mapping => .{ .fx_sel = .back },
-                        },
+                        // Cancel steps out of a menu, or out of the mappings of a plugin, before it closes the browser.
+                        .Out_mute => rv = if (ui.state.fx_sel.menu_depth > 0 or ui.state.fx_sel.sub_mode == .select_mapping)
+                            .{ .fx_sel = .back }
+                        else
+                            .{ .fx_sel = .close_browser },
                         else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
                     }
                 }
@@ -162,7 +163,8 @@ pub fn main(
                 const module = ui.state.fx_sel.current_category;
                 const list = ui.mappings_list.list.get(module);
                 const current_index = switch (ui.state.fx_sel.sub_mode) {
-                    .browse_fx => ui.state.fx_sel.scroll_position_rel,
+                    // Because the browser has levels, the cursor is the one of the level that is open.
+                    .browse_fx => ui.state.fx_sel.cursorPtr().*,
                     .select_mapping => |sel| sel.scroll_position_rel,
                 };
                 var fx_hl = fx_sel_panel.HighlightConfig{

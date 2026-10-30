@@ -56,6 +56,8 @@ pub const FxSelActions = union(enum) {
     /// One row up (-1) or down (1), from a tick of the sysex unit.
     scroll_by: i8,
     confirm: void,
+    /// Opens the menu that is the entry of the level that is open, which a click on it does.
+    enter_menu: usize,
     back: void,
     toggle_module_browser: ModulesList,
     fx_chain: struct { path: []const u8 },

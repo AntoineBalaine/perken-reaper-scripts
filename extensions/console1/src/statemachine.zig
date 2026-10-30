@@ -6,6 +6,7 @@
 //    - Update debug overlay to show new structures
 
 const std = @import("std");
+const fx_browser = @import("fx_browser.zig");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
@@ -198,9 +199,53 @@ pub const FxSelSubMode = union(enum) {
 pub const FxSelectionState = struct {
     current_category: ModulesList = .COMP,
     scroll_position_abs: u8 = 0,
+    /// The cursor of the first level of the browser, which is the one where the browser starts.
     scroll_position_rel: usize = 0,
     sub_mode: FxSelSubMode = .browse_fx,
     scroll_changed: bool = false,
+    /// How many menus of the browser are open, one inside the other. The first level is level 0.
+    menu_depth: u8 = 0,
+    /// The entry that was entered at each level, which leads to the level after it.
+    menu_path: [fx_browser.max_depth]usize = @splat(0),
+    /// The cursor of each open level below the first, which has its cursor in `scroll_position_rel`.
+    menu_cursor: [fx_browser.max_depth]usize = @splat(0),
+
+    /// The cursor of the level that is open.
+    pub fn cursorPtr(self: *FxSelectionState) *usize {
+        return if (self.menu_depth == 0) &self.scroll_position_rel else &self.menu_cursor[self.menu_depth - 1];
+    }
+
+    /// The entries that lead from the first level to the level that is open.
+    pub fn path(self: *const FxSelectionState) []const usize {
+        return self.menu_path[0..self.menu_depth];
+    }
+
+    /// Opens the menu that is the entry `index` of the level that is open, and puts the cursor on that entry first, so
+    /// that leaving the menu finds it there.
+    pub fn enterMenu(self: *FxSelectionState, index: usize) void {
+        std.debug.assert(self.menu_depth < fx_browser.max_depth);
+        self.cursorPtr().* = index;
+        self.menu_path[self.menu_depth] = index;
+        self.menu_cursor[self.menu_depth] = 0;
+        self.menu_depth += 1;
+        self.scroll_changed = true;
+    }
+
+    /// Closes the menu that is open, which puts the cursor back on the entry that opened it.
+    pub fn leaveMenu(self: *FxSelectionState) void {
+        std.debug.assert(self.menu_depth > 0);
+        self.menu_depth -= 1;
+        self.scroll_changed = true;
+    }
+
+    /// Back to the first level, with its cursor on its first entry.
+    pub fn resetMenus(self: *FxSelectionState) void {
+        self.menu_depth = 0;
+        self.menu_path = @splat(0);
+        self.menu_cursor = @splat(0);
+        self.scroll_position_abs = 0;
+        self.scroll_position_rel = 0;
+    }
 };
 
 pub const SettingsSelectionState = struct {
