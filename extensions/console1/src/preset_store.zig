@@ -8,22 +8,24 @@
 //!   [Preset0]
 //!   Data=<hex of the state><two hex digits of checksum>
 //!   Data_1=...                      (only for a state longer than 32768 hex digits)
-//!   Name=My preset
 //!   Len=<bytes of the state>
+//!   Name=My preset
 //!
-//! The state comes from the chunk of the track: the base64 lines of a VST, or the slider line of a JS. The way of doing
+//! The state comes from the chunk of the track: the base64 lines of a VST, the slider line of a JS, or the lines of
+//! the block of a CLAP, each followed by a NUL (the CLAP layout was read from a preset that REAPER saved itself). The way of doing
 //! this was published for REAPER scripts by EUGEN27771 ("Save VST Preset to preset file", Cockos forum, thread 178127),
 //! and the checksum and length rules were checked against 1092 of the 1100 presets of a REAPER preset folder.
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-pub const FxKind = enum { vst, js };
+pub const FxKind = enum { vst, js, clap };
 
 /// The part of a track chunk that one plug-in takes: its first line, the lines in between and the closing line.
 pub const FxBlock = struct {
     kind: FxKind,
-    /// The lines between the first and the last one, trimmed, each without its newline.
+    /// The lines between the first and the last one, trimmed, each without its newline. A block that is inside the
+    /// plug-in's own, such as the `<STATE` of a CLAP, has its first and last lines here too.
     lines: []const []const u8,
 };
 
@@ -83,15 +85,57 @@ pub fn checksum(hex: []const u8, buffer: *[2]u8) []const u8 {
     return buffer[0..kept.len];
 }
 
+const config_line_capacity = 512;
+
+/// The CFG line of a CLAP block with `name` as its last word, as REAPER writes it when it saves a preset: "CFG 4 360 64
+/// RefA", and "CFG 4 360 64 "Two Words"" when the name has a space. The first four words are kept.
+fn clapConfigLine(line: []const u8, name: []const u8, buffer: *[config_line_capacity]u8) []const u8 {
+    var words = std.mem.tokenizeScalar(u8, line, ' ');
+    var prefix_end: usize = 0;
+    var count: usize = 0;
+    while (words.next()) |word| {
+        count += 1;
+        prefix_end = words.index;
+        _ = word;
+        if (count == 4) break;
+    }
+    const prefix = if (count == 4) line[0..prefix_end] else "CFG 4 0 0";
+    const quote: ?u8 = if (std.mem.indexOfAny(u8, name, " \t\"'`") == null)
+        null
+    else if (std.mem.indexOfScalar(u8, name, '"') == null)
+        '"'
+    else if (std.mem.indexOfScalar(u8, name, '\'') == null)
+        '\''
+    else
+        '`';
+    const written = if (quote) |q|
+        std.fmt.bufPrint(buffer, "{s} {c}{s}{c}", .{ prefix, q, name, q })
+    else
+        std.fmt.bufPrint(buffer, "{s} {s}", .{ prefix, name });
+    return written catch prefix;
+}
+
 /// The hex of the state to put in a preset of this plug-in, with `name` as its name. The caller owns the result.
 pub fn presetHex(allocator: Allocator, block: FxBlock, name: []const u8) ![]u8 {
     var hex: std.ArrayList(u8) = .empty;
     errdefer hex.deinit(allocator);
+    var config_buffer: [config_line_capacity]u8 = undefined;
     switch (block.kind) {
         .js => {
             // The slider line, with no separator, and then the name.
             for (block.lines) |line| try appendHex(&hex, allocator, line);
             try appendHex(&hex, allocator, name);
+        },
+        .clap => {
+            // The lines of the block, each followed by a NUL. The CFG line has the name of the preset as its last word.
+            for (block.lines) |line| {
+                if (std.mem.startsWith(u8, line, "CFG ")) {
+                    try appendHex(&hex, allocator, clapConfigLine(line, name, &config_buffer));
+                } else {
+                    try appendHex(&hex, allocator, line);
+                }
+                try appendHex(&hex, allocator, &.{0});
+            }
         },
         .vst => {
             if (block.lines.len == 0) return error.EmptyChunk;
@@ -105,7 +149,7 @@ pub fn presetHex(allocator: Allocator, block: FxBlock, name: []const u8) ![]u8 {
     return hex.toOwnedSlice(allocator);
 }
 
-/// Finds the plug-in at `fx_index` of the FX chain in the chunk of a track. Only a VST (VST3 included) and a JS are
+/// Finds the plug-in at `fx_index` of the FX chain in the chunk of a track. Only a VST (VST3 included), a JS and a CLAP are
 /// known, so null is also what any other kind of plug-in gives. The lines point into the chunk, and the slice of them is
 /// owned by the caller.
 pub fn extractFxBlock(allocator: Allocator, track_chunk: []const u8, fx_index: usize) !?FxBlock {
@@ -132,9 +176,19 @@ pub fn extractFxBlock(allocator: Allocator, track_chunk: []const u8, fx_index: u
                 current = fx_count;
                 fx_count += 1;
                 if (current.? == fx_index) {
-                    kind = if (isBlockStart(line, "VST")) .vst else if (isBlockStart(line, "JS")) .js else null;
+                    kind = if (isBlockStart(line, "VST"))
+                        .vst
+                    else if (isBlockStart(line, "JS"))
+                        .js
+                    else if (isBlockStart(line, "CLAP"))
+                        .clap
+                    else
+                        null;
                     if (kind == null) return null;
                 }
+            } else if (current != null and current.? == fx_index) {
+                // A block inside the plug-in's own, such as the state of a CLAP.
+                try body.append(allocator, line);
             }
             depth += 1;
             continue;
@@ -145,9 +199,10 @@ pub fn extractFxBlock(allocator: Allocator, track_chunk: []const u8, fx_index: u
                 return .{ .kind = kind.?, .lines = try body.toOwnedSlice(allocator) };
             }
             if (depth == 0) return null;
+            if (depth >= 2 and current != null and current.? == fx_index) try body.append(allocator, line);
             continue;
         }
-        if (depth == 2 and current != null and current.? == fx_index) try body.append(allocator, line);
+        if (depth >= 2 and current != null and current.? == fx_index) try body.append(allocator, line);
     }
     body.deinit(allocator);
     return null;
@@ -197,7 +252,7 @@ fn appendPresetBlock(out: *std.ArrayList(u8), allocator: Allocator, number: usiz
         try out.append(allocator, '\n');
         start = end;
     }
-    try out.print(allocator, "Name={s}\nLen={d}\n", .{ name, hex.len / 2 });
+    try out.print(allocator, "Len={d}\nName={s}\n", .{ hex.len / 2, name });
 }
 
 /// The content of the preset file after the preset `name` was written to it: the preset of that name is replaced, or a
@@ -361,7 +416,7 @@ const sample_chunk =
     \\AwQF
     \\UHJvZw==
     \\>
-    \\<CLAP "CLAP: Something" x 0 ""
+    \\<AU "AU: Something" x 0 ""
     \\AAAA
     \\>
     \\>
@@ -389,6 +444,48 @@ test "the plug-ins of the chain are found by their position, and other kinds are
     try testing.expectEqual(@as(?FxBlock, null), try extractFxBlock(testing.allocator, sample_chunk, 3));
 }
 
+test "a CLAP preset is the lines of its block, each followed by a NUL, with the name on the CFG line" {
+    const lines = [_][]const u8{ "CFG 4 360 64 \"\"", "<STATE", "AAEC", "AwQF", ">" };
+    const hex = try presetHex(testing.allocator, .{ .kind = .clap, .lines = &lines }, "Two Words");
+    defer testing.allocator.free(hex);
+    const expected = "CFG 4 360 64 \"Two Words\"\x00<STATE\x00AAEC\x00AwQF\x00>\x00";
+    var bytes: [expected.len]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&bytes, hex);
+    try testing.expectEqualStrings(expected, &bytes);
+
+    const plain = try presetHex(testing.allocator, .{ .kind = .clap, .lines = &lines }, "RefA");
+    defer testing.allocator.free(plain);
+    const expected_plain = "CFG 4 360 64 RefA\x00<STATE\x00AAEC\x00AwQF\x00>\x00";
+    var plain_bytes: [expected_plain.len]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&plain_bytes, plain);
+    try testing.expectEqualStrings(expected_plain, &plain_bytes);
+}
+
+test "a CLAP block is found with its nested state, and the CFG line takes a name with a quote" {
+    const chunk =
+        \\<TRACK
+        \\<FXCHAIN
+        \\<CLAP "CLAP: VR-09 (Perken)" com.perken.vr09 ""
+        \\CFG 4 0 0 ""
+        \\<STATE
+        \\AAEC
+        \\>
+        \\>
+        \\>
+        \\>
+    ;
+    const block = (try extractFxBlock(testing.allocator, chunk, 0)).?;
+    defer testing.allocator.free(block.lines);
+    try testing.expectEqual(FxKind.clap, block.kind);
+    try testing.expectEqual(@as(usize, 4), block.lines.len);
+    try testing.expectEqualStrings("<STATE", block.lines[1]);
+    try testing.expectEqualStrings(">", block.lines[3]);
+
+    var buffer: [config_line_capacity]u8 = undefined;
+    try testing.expectEqualStrings("CFG 4 0 0 'say \"hi\"'", clapConfigLine("CFG 4 0 0 \"\"", "say \"hi\"", &buffer));
+    try testing.expectEqualStrings("CFG 4 0 0 X", clapConfigLine("CFG", "X", &buffer));
+}
+
 test "the names of a preset file are listed in order" {
     const content = "[General]\nNbPresets=2\n\n[Preset0]\nData=00\nName=First one\nLen=0\n\n[Preset1]\nName=Second\nData=0\nLen=0\n";
     const names = try presetNames(testing.allocator, content);
@@ -403,7 +500,7 @@ test "the names of a preset file are listed in order" {
 test "a preset written to a new file makes the file REAPER expects" {
     const written = try withPreset(testing.allocator, null, "Mine", "0102");
     defer testing.allocator.free(written);
-    try testing.expectEqualStrings("[General]\nNbPresets=1\n\n[Preset0]\nData=01023\nName=Mine\nLen=2\n", written);
+    try testing.expectEqualStrings("[General]\nNbPresets=1\n\n[Preset0]\nData=01023\nLen=2\nName=Mine\n", written);
 }
 
 test "a new preset is added at the end and the count goes up" {
@@ -411,7 +508,7 @@ test "a new preset is added at the end and the count goes up" {
     const written = try withPreset(testing.allocator, content, "New", "FF");
     defer testing.allocator.free(written);
     try testing.expectEqualStrings(
-        "[General]\nNbPresets=2\n\n[Preset0]\nData=0A0A14\nName=Old\nLen=2\n\n[Preset1]\nData=FFFF\nName=New\nLen=1\n",
+        "[General]\nNbPresets=2\n\n[Preset0]\nData=0A0A14\nName=Old\nLen=2\n\n[Preset1]\nData=FFFF\nLen=1\nName=New\n",
         written,
     );
     const names = try presetNames(testing.allocator, written);
@@ -424,7 +521,7 @@ test "a preset of an existing name is replaced in place" {
     const written = try withPreset(testing.allocator, content, "A", "0303");
     defer testing.allocator.free(written);
     try testing.expect(std.mem.indexOf(u8, written, "NbPresets=2") != null);
-    try testing.expect(std.mem.indexOf(u8, written, "Data=03036\nName=A\nLen=2") != null);
+    try testing.expect(std.mem.indexOf(u8, written, "Data=03036\nLen=2\nName=A") != null);
     try testing.expect(std.mem.indexOf(u8, written, "Data=02\nName=B\nLen=1") != null);
     const names = try presetNames(testing.allocator, written);
     defer testing.allocator.free(names);

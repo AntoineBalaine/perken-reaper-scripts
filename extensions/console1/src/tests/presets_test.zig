@@ -22,10 +22,10 @@ const chunk_with_vst =
     \\>
 ;
 
-const chunk_with_clap =
+const chunk_with_au =
     \\<TRACK
     \\<FXCHAIN
-    \\<CLAP "CLAP: Something" x 0 ""
+    \\<AU "AU: Something" x 0 ""
     \\AAAA
     \\>
     \\>
@@ -260,7 +260,7 @@ test "an empty name is not saved" {
 test "saving the preset of a kind of FX that is not known says so" {
     const h = try Harness.init();
     defer h.deinit();
-    reaper_mock.track_chunk = chunk_with_clap;
+    reaper_mock.track_chunk = chunk_with_au;
     h.send(.{ .enter = .save });
     h.send(.confirm);
     @memcpy(h.presets().name_buffer[0.."X".len], "X");

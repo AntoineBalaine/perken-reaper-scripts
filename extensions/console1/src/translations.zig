@@ -397,7 +397,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "presets_title_save", "Save a preset" },
     .{ "presets_pick_module", "Pick a module" },
     .{ "presets_none", "This FX has no user presets" },
-    .{ "presets_unsupported", "Presets of this kind of FX cannot be saved (only VST and JS)" },
+    .{ "presets_unsupported", "Presets of this kind of FX cannot be saved (only VST, JS and CLAP)" },
     .{ "presets_save_failed", "The preset could not be saved" },
     .{ "settings_knob_fine", "Knob fine adjust (shift)" },
     .{ "settings_title", "Settings" },
