@@ -264,71 +264,21 @@ Added by the shift functions and the presets:
 - `src/fx_ctrl_actions.zig:42`: the `.Inpt_preset` case of `panel_input`, which is the Preset button of the screen, changes in the same way. The screen then needs another way to open the mapping panel, which is a button of the panel, or the automatic opening.
 - `src/csurf/midi_events_fxctrl.zig`: `shiftFunction` is added here.
 - `src/tracklist_actions.zig`: a `step_track` action (`TrackListAction` in `src/action_types.zig`) with a direction, which selects the neighbor of the current track and moves `current_page` with it.
-- Phase 4, the presets: a new mode in `src/statemachine.zig` (the `Mode` enum, its state and `valid_transitions`), a new action union in `src/action_types.zig` and a handler file next to `fx_sel_actions.zig`, its dispatch in `src/actions.zig`, a panel next to `fx_sel_panel.zig`, its LEDs in `src/midi_out.zig` (`onModeEntry`), and the REAPER calls in `src/pReaper.zig`. `src/save_preset_dialog.zig` is a name dialog that no code calls, and it returns a mapping panel action, so it would have to be made general to be reused.
+- Phase 4, the presets (done, see the section on the presets screen below):
 
-## Risks, and what to check before building
-
-Each of these is a small experiment, and the first two decide whether the layer works inside REAPER at all.
-
-1. Does REAPER deliver the unit's sysex as whole events? The code has never seen one. Log the size of every event in `OnMidiEvent` for a minute, and expect 15 and 16 bytes for the events and 88 bytes for the challenge answer.
-2. Does the threaded output send a 111-byte event? `CreateThreadedMIDIOutput` copies a message, and it has only been used with 3-byte events here. Send the handshake and one state frame from the extension and watch for the acknowledgements. If the threaded output cuts the message, sysex goes through the non-threaded output.
-3. Is the timer fast enough? `zRun` runs on REAPER's timer. The Python tests sent 28 frames a second with no loss. Check the rate of `zRun` on the machine.
-4. What does the value 3F do to a button LED in sysex mode? Order and Sidechain have three states in the legacy mode. Only 00, 40 and 7F were tried on the LEDs. Show 3F with `tools/sniff-usb/flag_states.py` or a variant.
-5. What does a legacy button press send? The code toggles on any event, which suggests one event per press, but it has not been measured. Run `listen-macos.sh --free` without the handshake and press Mute, Solo and Order.
-6. Firmware. The handshake is the one of firmware 1.19. The layer must treat a missing answer as the end of the attempt and choose the legacy backend.
-
-## Tests
-
-- `protocol_test.zig`: the checksum model rebuilds a sample of the captured frames byte for byte. The full 778 frames are in `tools/sniff-usb/testdata/state_frames.hex`, and a sample of about 60 is enough in the Zig tests, so that the repository does not grow.
-- `led_state_test.zig`: a control sets its value byte and its flag bit, with the bits of a group in reverse order, and `clearAll` clears the flags and keeps the meters at their rest values.
-- `input_test.zig`: ticks and shift move a knob by 3 or 1 and clamp it; a press produces one event; the Order button cycles 00, 3F, 7F; feedback sets the position that the next tick starts from.
-- `unit_test.zig`, with a fake transport: the handshake in order, a timeout that ends in the legacy backend, a CC in sysex mode that restarts the handshake, and one frame per tick at most.
-- A property test with zlowcheck: any sequence of ticks and feedback leaves every position between 0 and 127, and the position after a feedback is the value that was fed.
-- `shift_test.zig`: with shift held in the fx_ctrl mode, each of Tr1 to Tr6 and Tr20 dispatches its action and does not select a track, Volume steps the track and the page follows, and without shift nothing changes.
-
-## Plan
-
-The order is chosen so that each step can be tried on the unit, and so that the extension works at the end of every phase.
-
-Phase 0, before anything:
-
-1. Fix `zig build test`: `src/tests/panel_trace_test.zig:216` calls `button.roundButton` with 8 arguments, and the function takes 10. Check the build with Zig 0.17.0 (`/Users/antoine/Documents/projects/zig/compilers/zig-aarch64-macos-0.17.0/zig`), because the alias `zig` is 0.14.1 and cannot build the project.
-2. Check the first two points of the risks section in REAPER, whether it delivers the sysex whole and whether the threaded output sends 111 bytes, and write the results at the end of this file. Everything else depends on them.
-3. Check the other four points, and check the meter condition in `zRun`.
-
-Phase 1, the layer, with the behavior of today and the legacy notice:
-
-4. Port `tools/sniff-usb/state_frame.py` to `src/unit/protocol.zig` and `src/unit/led_state.zig`, with `protocol_test.zig` and `led_state_test.zig`. Add each new test file to the test block of `src/console1_extension.zig`.
-5. Write `src/unit/ids.zig` from the table of `PROTOCOL.md`, with a test that every `c1.CCs` that has a physical control has an id, and that no two share one.
-6. Write `src/unit/input.zig` and `src/unit/unit.zig` (the handshake, `poll`, `tick`, `setLed`, the fallback), with `input_test.zig` and `unit_test.zig`.
-7. Add the helper for long events to `midi_wrapper.cpp` and `midi_wrapper.h`, and its declaration to `c_bindings.h`.
-8. Add `unit: Unit` to `Globals`, build it in `control_surface.zig:init`, and call `poll` and `tick` in `zRun`.
-9. Split `OnMidiEvent` into the byte decoder and `onControl`.
-10. Move `midi_out.zig` and `tracklist_actions.zig` to `unit.setLed`.
-11. Add `legacy_mode` and `shift_held` to `UiState` (and to `models/test_ui_state.zig` and `tests/gui_integration_test.zig`), fill them in `imgui_loop.zig`, and draw the notice in `fx_ctrl_panel.zig`.
-12. Run the build and the tests, then try it on the unit: every mode, an unplug and a replug, a run with the Softube app closed, and a forced handshake failure to see the notice.
-
-Phase 2, the shift functions in fx_ctrl (they need only `shift_held`, and not the relative step):
-
-13. `shiftFunction` and the `onControl` hook, the `step_track` action, and `shift_test.zig`.
-14. Take the plain Preset off the mapping panel, and give the screen another way to open it.
-
-Phase 3, the relative step, one consumer at a time and each with its tests:
-
-15. The `tick` event for the parameter knobs (`setPrmVal`), with the step of the section above and shift as the fine adjust, and the settings `sensitivity` and the fine multiplier in the preferences and the settings panel.
-16. Volume and pan, in REAPER's slider scale.
-17. The scroll and transport knobs, which lose their absolute positions and the feedback that keeps them in step.
-18. Tune the step by hand on the unit.
-
-Phase 4, the presets:
-
-19. Settle the open questions about presets, find the REAPER call that saves a preset, then build the mode in the order of the files above, with property tests as for `fx_sel`.
+19. The screen, its actions and its state (`src/presets_actions.zig`, `src/presets_panel.zig`, `PresetsState` in `src/statemachine.zig`), the preset file format (`src/preset_store.zig`) and the REAPER calls (`src/fx_presets.zig`).
 
 Later: the other step settings (a multiplier per control, a step per parameter, acceleration), the custom scale of a parameter (the `scale.` keys of the map structs and their reader and writer in `mappings.zig`, the curve and its inverse with their tests, the curve editor widget in the panel kit with its mocks, and the shape button in the mapping panel), and the second set of mappings on the knobs.
 
+## The presets screen
+
+Because REAPER has no call that saves a preset, `src/preset_store.zig` writes REAPER's own preset file (`<resource>/presets/<kind>-<plugin>.ini`, found with `TrackFX_GetUserPresetFilename`), in the way that EUGEN27771's script "Save VST Preset to preset file" does (Cockos forum, thread 178127): the state is the decoded base64 lines of the VST chunk of the track, or the slider line of a JS, followed by the name, in hex, with two hex digits of checksum at the end of every Data line, and Len as the number of bytes. The checksum and length rules and the JS layout were checked against 1092 of the 1100 presets of a REAPER preset folder. Loading is `TrackFX_SetPreset` by name. Only the user presets of the .ini files are listed, as in ReaLearn's pot browser, and not the factory presets of the plug-in. Only a VST (VST3 included) and a JS can be saved, because their state is known.
+
+The stages: the modules with their FX (a module without an FX cannot be picked), then the presets of that FX to load one, or a text box for the name to save under, and a question when the name is taken. On the unit, Preset opens the loading and shift with Preset opens the saving; Volume scrolls, Solo confirms and Mute cancels, and the name is typed on the keyboard. The window bar has two buttons for the same. In the legacy mode the unit's Preset still opens the mapping panel, and the two buttons of the window bar are the way to the presets.
+
 ## Open questions
 
-1. The presets, which are new. What a preset holds: the settings of one module's plugin, or of the whole strip. The same plugin has to be on the track when a preset is loaded. The REAPER calls: this repository's header has `TrackFX_GetPreset`, `TrackFX_GetPresetIndex`, `TrackFX_SetPreset`, `TrackFX_SetPresetByIndex`, `TrackFX_NavigatePresets` and `TrackFX_GetUserPresetFilename`, and no function named save, while the user says that REAPER stores plugin chunks itself, so the call to save has to be found. The extension already applies a plugin preset by name when it loads a module (`fx_sel_actions.zig:102` and `:301`), and it reads and writes REAPER's plugin preset files for the mapping files (`preset_installer.zig`).
+1. Whether the first preset that is saved really loads in REAPER, for each kind of plug-in, which only a run on the unit's computer can show. The unit tests check the file that is written.
 2. The mapping panel from the unit. The default is the screen only, and the automatic opening when a plugin has no mapping.
 3. When the custom scale is built, whether the ring shows the value of the parameter or the position of the knob.
 4. The value of the step, which is tuned on the unit. It starts at 1/127.
