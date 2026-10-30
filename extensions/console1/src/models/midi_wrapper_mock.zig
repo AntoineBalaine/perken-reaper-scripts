@@ -170,6 +170,14 @@ pub export fn MidiOut_SendMsg(midi_out: midi_Output_w, msg: ?*MIDI_event_t, fram
     // No implementation needed for tests
 }
 
+/// Mock implementation of MidiOut_SendSysex
+pub export fn MidiOut_SendSysex(midi_out: midi_Output_w, bytes: ?[*]const u8, len: c_int) void {
+    _ = midi_out;
+    _ = bytes;
+    _ = len;
+    // No implementation needed for tests
+}
+
 /// Mock implementation of MidiOut_BeginBlock
 pub export fn MidiOut_BeginBlock(midi_out: midi_Output_w) void {
     _ = midi_out;

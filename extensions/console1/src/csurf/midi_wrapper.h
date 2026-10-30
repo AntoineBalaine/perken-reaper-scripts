@@ -26,6 +26,11 @@ void MidiOut_EndBlock(midi_Output_w m_midiout, int length, double srate,
                       double curtempo);
 void MidiOut_SendMsg(midi_Output_w m_midiout, MIDI_event_t *msg,
                      int frame_offset);
+/* Sends a sysex of len bytes, F0 and F7 included. Because MIDI_event_t holds
+ * only 4 bytes and can be longer, the helper builds the event with the bytes
+ * behind its header. */
+void MidiOut_SendSysex(midi_Output_w m_midiout, const unsigned char *bytes,
+                       int len);
 void MidiOut_Send(midi_Output_w m_midiout, unsigned char status,
                   unsigned char d1, unsigned char d2, int frame_offset);
 

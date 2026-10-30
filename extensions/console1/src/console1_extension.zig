@@ -88,6 +88,11 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 
 test {
     _ = @import("tests/zlowcheck.zig");
+    _ = @import("unit/protocol.zig");
+    _ = @import("unit/ids.zig");
+    _ = @import("unit/led_state.zig");
+    _ = @import("unit/input.zig");
+    _ = @import("unit/unit.zig");
     _ = @import("models/models.zig");
     _ = @import("tests/mode_switch_tests.zig");
     _ = @import("tests/settings_pbt.zig");
