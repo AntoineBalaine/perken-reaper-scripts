@@ -1,0 +1,90 @@
+name: reavim-ext
+
+# This monorepo holds several packages, so this workflow only runs when
+# reavim-ext or something it builds against changes. GitHub does not evaluate
+# path filters on tag pushes, so a reavim-ext-v* tag always triggers a release.
+on:
+  push:
+    branches: [main, master]
+    tags: ["reavim-ext-v*"]
+    paths:
+      - "extensions/reavim-ext/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/reavim-ext.yml"
+  pull_request:
+    paths:
+      - "extensions/reavim-ext/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/reavim-ext.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    defaults:
+      run:
+        working-directory: extensions/reavim-ext
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like reavim-ext-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/reavim-ext-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#reavim-ext-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        run: zig build test
+
+      - name: Build all REAPER platforms
+        run: |
+          set -euo pipefail
+          targets=(
+            "linux-x86_64    x86_64-linux-gnu  so"
+            "linux-aarch64   aarch64-linux-gnu so"
+            "macos-x86_64    x86_64-macos      dylib"
+            "macos-aarch64   aarch64-macos     dylib"
+            "windows-x86_64  x86_64-windows    dll"
+            "windows-aarch64 aarch64-windows   dll"
+          )
+          mkdir -p dist
+          for row in "${targets[@]}"; do
+            read -r name tgt ext <<<"$row"
+            echo "::group::$name ($tgt)"
+            rm -rf zig-out
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}
+            pkg="dist/reavim-ext-$name"
+            mkdir -p "$pkg"
+            cp "zig-out/reaper_reavim.$ext" "$pkg/"
+            cp src/default_bindings.ini "$pkg/bindings.ini"
+            cp README.md "$pkg/README.md"
+            (cd dist && zip -qr "reavim-ext-$name.zip" "reavim-ext-$name")
+            echo "::endgroup::"
+          done
+          ls -la dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reavim-ext-builds
+          path: extensions/reavim-ext/dist/*.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/reavim-ext-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extensions/reavim-ext/dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

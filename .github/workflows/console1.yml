@@ -1,0 +1,171 @@
+name: console1
+
+# This monorepo holds several packages, so this workflow only runs when the
+# Console1 extension or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a console1-v* tag always triggers a
+# build and a release. The MIDI Fighter Twister extension lives in the same
+# folder but is built and released on its own (mft.yml, mft-v* tags).
+on:
+  push:
+    branches: [main]
+    tags: ["console1-v*"]
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/console1.yml"
+  pull_request:
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/console1.yml"
+  workflow_dispatch:
+
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
+# GitHub retired the macos-13 (Intel) runner, so the x86_64 Mac build runs on
+# macos-15 too, with -Dtarget=x86_64-macos (Apple clang builds both
+# architectures); its tests can only run on a native row.
+# Windows has no row yet (see the matrix); when it returns, it builds with
+# the msvc ABI (x86_64-windows-msvc): cl compiles the
+# C++ that REAPER calls, and its objects need MSVC's runtime libraries,
+# which MinGW (Zig's default Windows ABI) does not provide. Tests run on
+# every row except the cross-built x86_64 Mac one (cross: true).
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+            target: native
+            host_ext: so
+            ui_ext: so
+          - os: ubuntu-24.04-arm
+            name: linux-aarch64
+            target: native
+            host_ext: so
+            ui_ext: so
+          - os: macos-15
+            name: macos-x86_64
+            target: x86_64-macos
+            cross: true
+            host_ext: dylib
+            ui_ext: dylib
+          - os: macos-15
+            name: macos-aarch64
+            target: native
+            host_ext: dylib
+            ui_ext: dylib
+          # Windows is left out until Console1 is ported: its Zig code calls
+          # SWELL (macOS/Linux only) and creates its dialog through it.
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    defaults:
+      run:
+        working-directory: extensions/console1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      # The C++ is compiled with MSVC's cl, which is only on PATH inside a
+      # Visual Studio developer environment.
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like console1-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/console1-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#console1-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install PHP (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+
+      - name: Install PHP (macOS)
+        if: runner.os == 'macOS'
+        run: brew install php
+
+      - name: Run tests
+        if: ${{ !matrix.cross }}
+        run: zig build test -Dtest=true -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Build host extension
+        run: zig build -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Build UI library
+        run: zig build ui -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Rename binaries for release
+        shell: bash
+        run: |
+          mkdir -p release-binaries
+          cp zig-out/reaper_c1.${{ matrix.host_ext }} release-binaries/reaper_c1-${{ matrix.name }}.${{ matrix.host_ext }}
+          cp zig-out/reaper_c1_ui.${{ matrix.ui_ext }} release-binaries/reaper_c1_ui-${{ matrix.name }}.${{ matrix.ui_ext }}
+
+      - name: Bundle maps into artifact
+        shell: bash
+        run: |
+          cp -r Perken/Console1/maps zig-out/maps
+
+      - name: Upload platform binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.name }}
+          path: extensions/console1/release-binaries/
+
+      - name: Upload full artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reaper-c1-${{ matrix.name }}
+          path: extensions/console1/zig-out/
+
+  release:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/console1-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          # Collect individual binaries for ReaPack
+          cp artifacts/binaries-*/* release-assets/
+          # Create per-platform archives for manual install
+          for dir in artifacts/reaper-c1-*; do
+            name=$(basename "$dir")
+            tar -czf "release-assets/${name}.tar.gz" -C "$dir" .
+          done
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

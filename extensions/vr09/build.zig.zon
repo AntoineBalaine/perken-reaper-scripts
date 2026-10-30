@@ -1,0 +1,18 @@
+.{
+    .name = .vr09,
+    .fingerprint = 0xb8262299ad43d8b5,
+    .version = "0.0.0",
+    .dependencies = .{
+        // reaziglib lives in the same monorepo, so that a change to it and
+        // the plugin code using it can land in one commit.
+        .reaziglib = .{ .path = "../reaziglib" },
+        // The CLAP headers, which the plugin includes as C.
+        .clap = .{
+            .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.6.tar.gz",
+            .hash = "N-V-__8AABAqOwDxKlwerqbiBlg183KUY751DdoGwZ9N-ZuE",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}

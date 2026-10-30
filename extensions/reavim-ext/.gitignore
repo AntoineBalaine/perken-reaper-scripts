@@ -1,0 +1,6 @@
+zig-out/
+.zig-cache/
+reaper-license.rk
+dist/
+*.tar.gz
+zig-pkg/

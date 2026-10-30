@@ -1,0 +1,94 @@
+name: vr09
+
+# This monorepo holds several packages, so this workflow only runs when vr09 or
+# something it builds against changes. GitHub does not evaluate path filters on
+# tag pushes, so a vr09-v* tag always triggers a release.
+on:
+  push:
+    branches: [main, master]
+    tags: ["vr09-v*"]
+    paths:
+      - "extensions/vr09/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/vr09.yml"
+  pull_request:
+    paths:
+      - "extensions/vr09/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/vr09.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    defaults:
+      run:
+        working-directory: extensions/vr09
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like vr09-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/vr09-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#vr09-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        run: zig build test
+
+      - name: Build all platforms
+        run: |
+          set -euo pipefail
+          targets=(
+            "linux-x86_64    x86_64-linux-gnu"
+            "linux-aarch64   aarch64-linux-gnu"
+            "macos-x86_64    x86_64-macos"
+            "macos-aarch64   aarch64-macos"
+            "windows-x86_64  x86_64-windows"
+            "windows-aarch64 aarch64-windows"
+          )
+          mkdir -p dist
+          for row in "${targets[@]}"; do
+            read -r name tgt <<<"$row"
+            echo "::group::$name ($tgt)"
+            rm -rf zig-out
+            # The scripting API (VR09_Command) is a development tool, so the release is built without it.
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe -Ddebug_api=false -Dversion=${{ steps.version.outputs.version }}
+            pkg="dist/vr09-$name"
+            mkdir -p "$pkg"
+            # macOS gets a bundle (a folder), the others a single file.
+            cp -R zig-out/vr09.clap "$pkg/"
+            cp README.md "$pkg/README.md"
+            # The fonts are embedded in the plugin, and their licenses must travel with it.
+            mkdir -p "$pkg/licenses"
+            cp ../reaziglib/assets/fonts/*.txt "$pkg/licenses/"
+            (cd dist && zip -qr "vr09-$name.zip" "vr09-$name")
+            echo "::endgroup::"
+          done
+          ls -la dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vr09-builds
+          path: extensions/vr09/dist/*.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/vr09-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extensions/vr09/dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

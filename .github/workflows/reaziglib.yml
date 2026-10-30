@@ -1,0 +1,31 @@
+name: reaziglib
+
+# reaziglib is consumed as source by the extensions, so its own test blocks
+# never run in their test steps. This workflow runs them whenever the library
+# changes. The extensions' workflows also trigger on reaziglib changes, which
+# checks that the consumers still build against it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extensions/reaziglib/**"
+      - ".github/workflows/reaziglib.yml"
+  pull_request:
+    paths:
+      - "extensions/reaziglib/**"
+      - ".github/workflows/reaziglib.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extensions/reaziglib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+      - name: Test
+        run: zig build test --summary all

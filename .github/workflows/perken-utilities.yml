@@ -1,0 +1,126 @@
+name: perken-utilities
+
+# This monorepo holds several packages, so this workflow only runs when
+# perken-utilities or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a perken-utilities-v* tag always
+# triggers a release.
+on:
+  push:
+    branches: [main]
+    tags: ["perken-utilities-v*"]
+    paths:
+      - "extensions/perken-utilities/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/perken-utilities.yml"
+  pull_request:
+    paths:
+      - "extensions/perken-utilities/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/perken-utilities.yml"
+  workflow_dispatch:
+
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
+# Windows builds with the msvc ABI (x86_64-windows-msvc): cl compiles the
+# C++ that REAPER calls, and its objects need MSVC's runtime libraries,
+# which MinGW (Zig's default Windows ABI) does not provide. Tests run on
+# every row except the cross-built x86_64 Mac one (cross: true).
+jobs:
+  # The extension contains C++ that REAPER calls (the control surface shim),
+  # which must be compiled with REAPER's own toolchain on each OS (see
+  # extensions/README.md). Because of that, every platform builds natively.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    name: linux-x86_64,   target: native,       ext: so }
+          - { os: ubuntu-24.04-arm, name: linux-aarch64,  target: native,       ext: so }
+          # Apple clang builds both macOS architectures from one runner.
+          - { os: macos-15,     name: macos-aarch64,  target: native,       ext: dylib }
+          - { os: macos-15,     name: macos-x86_64,   target: x86_64-macos, ext: dylib, cross: true }
+          - { os: windows-latest,   name: windows-x86_64, target: x86_64-windows-msvc, ext: dll }
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: extensions/perken-utilities
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      # cl is only on PATH inside a Visual Studio developer environment.
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like perken-utilities-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/perken-utilities-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#perken-utilities-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The property-based tests link a pinned libhegel release, a static
+      # archive of tens of megabytes that the build downloads when it is
+      # missing. Caching that one directory keeps it off the wire on every
+      # run; the key follows build.zig, which is where the release tag is
+      # pinned, so bumping the tag misses the cache exactly once.
+      - name: Cache libhegel
+        if: ${{ !matrix.cross }}
+        uses: actions/cache@v4
+        with:
+          path: extensions/perken-utilities/.hegel-cache
+          key: hegel-${{ matrix.name }}-${{ hashFiles('extensions/perken-utilities/build.zig') }}
+
+      - name: Test
+        if: ${{ !matrix.cross }}
+        run: zig build test -Dhegel-lib-dir=.hegel-cache
+
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          pkg="dist/perken-utilities-${{ matrix.name }}"
+          mkdir -p "$pkg"
+          cp "zig-out/reaper_perken_utilities.${{ matrix.ext }}" "$pkg/"
+          cp README.md "$pkg/README.md"
+          # cmake is on every runner image, unlike zip/7z.
+          (cd dist && cmake -E tar cf "perken-utilities-${{ matrix.name }}.zip" --format=zip "perken-utilities-${{ matrix.name }}")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perken-utilities-${{ matrix.name }}
+          path: extensions/perken-utilities/dist/*.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/perken-utilities-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false
