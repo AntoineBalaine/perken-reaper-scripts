@@ -13,6 +13,7 @@ const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 const utils = @import("utils");
 const TrackState = @import("../track_state.zig");
 const Unit = @import("../unit/unit.zig");
+const step_size = @import("../unit/step.zig");
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
 
@@ -57,6 +58,80 @@ pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
         },
         .release => return false,
     }
+}
+
+/// A tick of a knob of the sysex unit in the fx_ctrl mode. The value is read from REAPER and moved by the step, so that a
+/// parameter that the automation or the mouse moved does not make the knob jump. It returns whether the tick was taken.
+pub fn onTick(globals: *Globals, tick: @FieldType(Unit.ControlEvent, "tick")) bool {
+    if (globals.state.current_mode != .fx_ctrl) return false;
+    const settings = globals.preferences.stepSettings();
+    const step = step_size.size(settings, tick.delta, tick.fine);
+    switch (tick.cc) {
+        .Out_Vol, .Out_Pan => tickTrackKnob(globals, tick.cc, step),
+        else => tickParameter(globals, tick.cc, step),
+    }
+    return true;
+}
+
+/// Volume and pan move in REAPER's slider scale, as the legacy position did, and not on the raw value.
+fn tickTrackKnob(globals: *Globals, cc: c1.CCs, step: f64) void {
+    const tr = getTrack(globals.state.current_tr_id) orelse return;
+    const fx_ctrl = &globals.state.fx_ctrl;
+    switch (cc) {
+        .Out_Vol => {
+            const current = utils.volToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_VOL"));
+            const next = step_size.apply(current, step);
+            setUIVal(.Out_Vol, next, fx_ctrl);
+            reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, utils.normalizedToVol(next), false), @ptrCast(csurf.my_csurf));
+            actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Vol, .value = normalizedToMidi(next) } } });
+        },
+        .Out_Pan => {
+            const current = utils.panToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_PAN"));
+            const next = step_size.apply(current, step);
+            setUIVal(.Out_Pan, next, fx_ctrl);
+            reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, next * 2.0 - 1.0, false), @ptrCast(csurf.my_csurf));
+            actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Pan, .value = normalizedToMidi(next) } } });
+        },
+        else => unreachable,
+    }
+}
+
+fn tickParameter(globals: *Globals, cc: c1.CCs, step: f64) void {
+    const fx_ctrl = &globals.state.fx_ctrl;
+    // The cut knobs drive the filters of the compressor while the filter is routed to it.
+    const target: c1.CCs = if (fx_ctrl.filter_to_comp) switch (cc) {
+        .Inpt_HiCut => .Comp_HiCut,
+        .Inpt_LoCut => .Comp_LoCut,
+        else => cc,
+    } else cc;
+    const tr = getTrack(globals.state.current_tr_id) orelse return;
+    const fxp = fx_ctrl.track_state.forward_map.get(target) orelse return;
+    if (fx_ctrl.display != null) pReaper.TrackFX_Show(.{ tr, fxp.fx_index, 1 });
+
+    const current = reaper.TrackFX_GetParamNormalized(tr, fxp.fx_index, fxp.param_index);
+    // REAPER reports a parameter that it cannot read as -1 or NaN.
+    if (std.math.isNan(current) or current < 0) return;
+
+    var step_size_out: f64 = undefined;
+    var small: f64 = undefined;
+    var large: f64 = undefined;
+    var is_toggle: bool = undefined;
+    const stepped = reaper.TrackFX_GetParameterStepSizes(tr, fxp.fx_index, fxp.param_index, &step_size_out, &small, &large, &is_toggle) and step_size_out >= 1.0;
+    var next: f64 = current;
+    if (stepped) {
+        // A stepped parameter takes the ticks until they add up to one of its steps.
+        _ = fx_ctrl.track_state.stepDiscreteParam(target, tr, fxp.fx_index, fxp.param_index, step);
+        next = reaper.TrackFX_GetParamNormalized(tr, fxp.fx_index, fxp.param_index);
+    } else {
+        next = step_size.apply(current, step);
+        _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, next });
+    }
+    setUIVal(target, next, fx_ctrl);
+    var fmt_buf: [256:0]u8 = undefined;
+    if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+        fx_ctrl.track_state.label_pool.setFmtValue(target, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+    }
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = normalizedToMidi(next) } } });
 }
 
 /// Sets one of the toggles of the selected track in the state that the panel draws.

@@ -41,6 +41,10 @@ pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
     if (globals.state.current_mode == .fx_ctrl and globals.unit.shiftHeld()) {
         if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
     }
+    switch (event) {
+        .tick => |tick| if (MidiEvtsFxCtrl.onTick(globals, tick)) return,
+        else => {},
+    }
     if (globals.unit.input.legacyValue(event)) |legacy| onControl(globals, legacy.cc, legacy.value);
 }
 
