@@ -7,13 +7,15 @@ something (the shift button, say) once the application has set it up, it shows h
 the unit is not visible from here: MIDI Monitor's spy mode shows that (see the README).
 
 Usage (through listen-macos.sh, which sets up the libraries):
-  listen_coremidi.py                 listen, take labels from the keyboard, and report when a blank line is entered
+  listen_coremidi.py                 listen, walk through the steps below one at a time, and report at the end
+  listen_coremidi.py --free          listen, take free labels from the keyboard, and report when a blank line is entered
   listen_coremidi.py --list          list the MIDI input ports
   listen_coremidi.py --port NAME     listen to the port whose name contains NAME (the default is "Console 1")
 
 It needs mido and python-rtmidi.
 """
 
+import functools
 import os
 import sys
 import time
@@ -23,6 +25,36 @@ import mido
 from decode_usb_midi import Message, report
 
 DEFAULT_PORT = "Console 1"
+
+# Because the labels must not be typed during the session, each step below is shown to the user one at a time, and the
+# script writes the marker itself when the user confirms that the step begins.
+STEPS = [
+    "the Softube application is started and has found the unit (do nothing else)",
+    "shift alone, first time",
+    "shift alone, second time",
+    "shift alone, third time",
+    "shift held with Phase Inv",
+    "Phase Inv alone",
+    "shift held with Preset",
+    "Preset alone",
+    "shift held with Solo",
+    "shift held with Mute",
+    "shift held with Volume",
+    "shift held with Drive",
+    "shift held with Character",
+    "shift held with Pan",
+    "shift held while turning the Gain knob",
+    "the Gain knob alone",
+]
+
+
+class Session:
+    """What the callback of the port needs to record a message, grouped here because the callback cannot be nested."""
+
+    def __init__(self, start, log):
+        self.start = start
+        self.log = log
+        self.messages = []
 
 
 def to_message(start, message):
@@ -46,6 +78,53 @@ def find_port(name):
     return ports[0] if ports else None
 
 
+def on_message(session, message):
+    """Because the port calls this for every message, we record it in the session, in the log and on the screen."""
+    m = to_message(session.start, message)
+    session.messages.append(m)
+    line = "%8.3f  IN   %s" % (m.time, m.text())
+    if m.payload and m.kind != "sysex":
+        line += "  raw " + m.payload.hex(" ")
+    session.log.write(line + "\n")
+    session.log.flush()
+    print(line, flush=True)
+
+
+def add_marker(session, markers, label):
+    markers.append((time.time() - session.start, label))
+    session.log.write("%8.3f  --   marker: %s\n" % (markers[-1][0], label))
+    session.log.flush()
+
+
+def run_steps(session, markers):
+    """Because the user must not type labels, every step is announced, and the markers are written by the script."""
+    print("Listening. For each step, read what to do, press Enter, do it, then press Enter again when it is done.")
+    print("Press Ctrl-C at any time to stop and get the report.\n")
+    for number, step in enumerate(STEPS, 1):
+        try:
+            input("[%d/%d] Next: %s.\n        Press Enter, then do it. " % (number, len(STEPS), step))
+            add_marker(session, markers, step)
+            input("        Press Enter when it is done. ")
+            add_marker(session, markers, "end: " + step)
+        except (EOFError, KeyboardInterrupt):
+            print("\nStopped early.")
+            break
+    else:
+        print("\nAll steps are done.")
+
+
+def run_free(session, markers):
+    print("Type a label and press Enter BEFORE each thing that you do, and a blank line to finish.\n")
+    while True:
+        try:
+            label = input("label> ")
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not label.strip():
+            break
+        add_marker(session, markers, label.strip())
+
+
 def main(argv):
     if "--list" in argv:
         for port in mido.get_input_names():
@@ -65,38 +144,22 @@ def main(argv):
     log_path = os.path.join(here, "captures", "console1-midi-%s.log" % stamp)
 
     start = time.time()
-    messages = []
     log = open(log_path, "w")
-
-    def on_message(message):
-        m = to_message(start, message)
-        messages.append(m)
-        line = "%8.3f  IN   %s" % (m.time, m.text())
-        if m.payload and m.kind != "sysex":
-            line += "  raw " + m.payload.hex(" ")
-        log.write(line + "\n")
-        log.flush()
-        print(line, flush=True)
-
+    session = Session(start, log)
     markers = []
-    print("Listening to %r. Type a label and press Enter BEFORE each thing that you do, and a blank line to finish.\n" % port_name)
+    free = "--free" in argv
+
     # sysex, timing and active sensing are all received: nothing is filtered out.
-    with mido.open_input(port_name, callback=on_message):
-        while True:
-            try:
-                label = input("label> ")
-            except (EOFError, KeyboardInterrupt):
-                break
-            if not label.strip():
-                break
-            markers.append((time.time() - start, label.strip()))
-            log.write("%8.3f  --   marker: %s\n" % (markers[-1][0], label.strip()))
-            log.flush()
+    with mido.open_input(port_name, callback=functools.partial(on_message, session)):
+        if free:
+            run_free(session, markers)
+        else:
+            run_steps(session, markers)
     log.close()
 
     print()
-    intro = "Listened to the port %r for %.0f seconds: %d messages from the unit to the computer." % (port_name, time.time() - start, len(messages))
-    report("coremidi", messages, [], False, markers, intro=intro, host_visible=False)
+    intro = "Listened to the port %r for %.0f seconds: %d messages from the unit to the computer." % (port_name, time.time() - start, len(session.messages))
+    report("coremidi", session.messages, [], False, markers, intro=intro, host_visible=False)
     print("\nThe log is in %s" % log_path)
     return 0
 

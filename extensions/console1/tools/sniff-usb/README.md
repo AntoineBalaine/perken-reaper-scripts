@@ -1,5 +1,11 @@
 # Looking for what the Console 1 does not say
 
+The question below has been answered. Because the unit stays in a legacy CC mode until a host sends a handshake, shift
+sent nothing in the first captures. After the handshake that the Softube application sends, the unit reports shift and
+every other control as sysex, and the host has to send the LEDs and the meters. PROTOCOL.md describes the handshake, the
+messages, the control ids and the state frame, and `handshake_replay.py` puts a unit in that mode without the
+application. The rest of this file is the original plan, which `listen-macos.sh` still follows.
+
 The Console 1 shows nothing on its MIDI port when the shift button is pressed, and its face prints functions that
 only exist with shift (Bypass, Save Preset, OK, Cancel, Select, Send 1 to 3). The Softube application gets them
 somehow, so it either hears a message that a plain MIDI monitor does not show, or it sends the unit something at
@@ -29,19 +35,20 @@ Do the steps below once, with both tools running at the same time.
    destinations, then select the destination of the Console 1 in its source list, and the Console 1 as a source
    too. Leave its window open, and clear it.
 2. In a terminal in this folder, run `./listen-macos.sh`. The first run sets up a python environment. It prints the
-   port it listens to (the name has "Console 1" in it) and asks for labels.
+   port it listens to (the name has "Console 1" in it), and then announces the steps one at a time.
 3. Unplug the Console 1 and plug it in again, so that its startup is seen by both. Then start the Softube
    application, and wait until it has found the unit.
-4. For each thing that you do next, type a short label in the terminal and press Enter before you do it, then do it,
-   then wait three seconds, so that the MIDI Monitor window can be read against the labels:
+4. Because the script announces each step, there is nothing to type. For each step, read what it asks for, press
+   Enter, do it, then press Enter again when it is done. The steps are:
    - shift alone, three times
    - shift held with Phase Inv, then Phase Inv alone
    - shift held with Preset, then Preset alone
    - shift held with Solo, Mute, Volume, Drive, Character and Pan, one after the other
    - shift held while turning the Gain knob, then the Gain knob alone
 
-   Look at what the application does at each step, and write down any that it reacts to.
-5. Press Enter on an empty line. The terminal prints a report and writes a log into `captures/`.
+   Look at what the application does at each step, and write down any that it reacts to. `--free` gives back the
+   old way, with labels typed by hand.
+5. After the last step, the terminal prints a report and writes a log into `captures/`.
 6. In MIDI Monitor, save the window (File, Save As), or select everything and copy it into a text file.
 7. Send back the log, the MIDI Monitor file, and the notes of what the application did.
 
