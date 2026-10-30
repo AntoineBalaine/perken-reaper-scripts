@@ -28,6 +28,7 @@ const surface = @import("surface.zig");
 const tempo_window = @import("beat/tempo_window.zig");
 const abc_export = @import("abc_export.zig");
 const rhythm_action = @import("rhythm_action.zig");
+const paste_rhythm = @import("paste_rhythm.zig");
 const terminal = @import("terminal.zig");
 
 pub const std_options = std.Options{
@@ -85,7 +86,8 @@ const reaper_api = [_][:0]const u8{
     "SetTakeStretchMarker",          "CountTempoTimeSigMarkers",         "GetMediaItemTake_Item",
     "SetCurrentBPM",                 "TimeMap2_GetDividedBpmAtTime",     "SetTempoTimeSigMarker",
     "UpdateTimeline",                "TimeMap_GetTimeSigAtTime",         "AddProjectMarker2",
-    "SetProjectMarker",              "GetMediaSourceFileName",
+    "SetProjectMarker",              "GetMediaSourceFileName",           "MIDI_DeleteNote",
+    "GetMediaItemNumTakes",          "GetMediaItemTake",                 "SetActiveTake",
 };
 
 /// Every action this extension provides.
@@ -93,7 +95,7 @@ pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.e
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
     auto_lane_watcher.entries ++ tempo_window.entries ++ action_search.entries ++
     action_palette.entries ++ abc_export.entries ++ terminal.entries ++
-    rhythm_action.entries;
+    rhythm_action.entries ++ paste_rhythm.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -206,6 +208,7 @@ test {
     _ = @import("abc_export.zig");
     _ = @import("terminal.zig");
     _ = @import("rational.zig");
+    _ = @import("paste_rhythm.zig");
     _ = @import("meter.zig");
     _ = @import("rhythm_simplify.zig");
     _ = @import("hegel.zig");
