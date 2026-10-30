@@ -1,0 +1,16 @@
+@description Perken MFT: MIDI Fighter Twister (extension)
+@author Perken
+@version 0.1.0
+@provides
+  [linux64] reaper_mft.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/mft-v$version/reaper_mft-linux-x86_64.so
+  [linux-aarch64] reaper_mft.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/mft-v$version/reaper_mft-linux-aarch64.so
+  [darwin64] reaper_mft.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/mft-v$version/reaper_mft-macos-x86_64.dylib
+  [darwin-arm64] reaper_mft.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/mft-v$version/reaper_mft-macos-aarch64.dylib
+@changelog
+  First release as a ReaPack package.
+@link
+  Source repository https://github.com/AntoineBalaine/perken-reaper-scripts
+@about
+  # Perken MFT
+
+  MIDI Fighter Twister integration. Linux and macOS only.
