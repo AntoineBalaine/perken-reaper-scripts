@@ -10,6 +10,7 @@ const fxParser = @import("fx_parser");
 const fs_helpers = @import("fs_helpers");
 const host_io = @import("host_io");
 const actions = @import("actions.zig");
+const Unit = @import("unit/unit.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui");
 const TranslationStore = @import("translations.zig").TranslationStore;
@@ -53,6 +54,9 @@ m_midi_in_dev: ?c_int = null,
 m_midi_out_dev: ?c_int = null,
 m_midi_in: ?*reaper.midi_Input = null,
 m_midi_out: ?reaper.midi_Output = null,
+
+// The Console 1: the backend in use (sysex or legacy CC), the LEDs and the handshake
+unit: Unit = .{},
 
 playState: bool = false,
 pauseState: bool = false,

@@ -36,8 +36,12 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     } else {
         log.err("couldn’t create midi in", .{});
     }
-    if (globals.m_midi_out) |_| {
+    // Because the unit keeps its state between two initializations of the surface, it starts again from nothing.
+    globals.unit = .{};
+    if (globals.m_midi_out) |midi_out| {
         log.debug("created midi out", .{});
+        // The unit is in the legacy mode until the handshake is answered, and falls back to it if it never is.
+        if (globals.m_midi_in != null) globals.unit.start(.reaper(midi_out), nowMs());
         actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
     } else {
         log.err("couldn’t create midi out", .{});
@@ -71,7 +75,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 pub fn deinit(csurf: c.C_ControlSurface) void {
     var globals = getGlobals();
     if (globals.m_midi_out) |_| {
-        actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
+        globals.unit.shutdown(); // lights off
     }
 
     if (globals.m_midi_out) |midi_out| {
@@ -109,6 +113,11 @@ export fn zCloseNoReset() callconv(.c) void {
     deinit(my_csurf);
 }
 
+/// The tick count of the host, in milliseconds. It is not available before REAPER has given its functions.
+fn nowMs() u64 {
+    return if (c.GetTickCount) |getTickCount| getTickCount() else 0;
+}
+
 export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
@@ -116,9 +125,18 @@ export fn zRun() callconv(.c) void {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
+        const now = nowMs();
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
-            midi_events.OnMidiEvent(evts, globals);
+            const size: usize = @intCast(c.MIDI_event_size(evts));
+            const message = c.MIDI_event_message(evts);
+            if (size > 3 and message[0] == 0xF0) {
+                globals.unit.onSysex(message[0..size], now);
+            } else if (globals.unit.onCc(now)) {
+                midi_events.OnMidiEvent(evts, globals);
+            }
         }
+        globals.unit.tick(now);
+        while (globals.unit.popEvent()) |event| midi_events.onUnitEvent(globals, event);
     }
 
     if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {

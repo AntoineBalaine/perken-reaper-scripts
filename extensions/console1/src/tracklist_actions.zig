@@ -44,9 +44,9 @@ pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
 
                 // If track is selected, blink its LED
                 if (globals.state.selectedTracks.contains(track_id)) {
-                    const cc = @backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
+                    const cc: c1.CCs = @fromBackingInt(@intCast(@backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(i))));
                     const value: u8 = if (led_state.blink_state) 0x7f else 0x0;
-                    c.MidiOut_Send(led_state.midi_out, 0xb0, cc, value, -1);
+                    globals.unit.setLed(cc, value);
                 }
             }
         },

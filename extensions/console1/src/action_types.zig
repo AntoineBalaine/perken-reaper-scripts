@@ -149,7 +149,6 @@ pub const TrackListAction = union(enum) {
     track_select: c_int,
     blink_leds: struct {
         blink_state: bool,
-        midi_out: reaper.midi_Output,
     },
     refresh,
 };
