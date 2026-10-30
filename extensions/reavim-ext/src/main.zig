@@ -17,6 +17,7 @@ const logger = @import("logger.zig");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
 const ui = @import("ui.zig");
+const meta = @import("meta.zig");
 const win_file = @import("win_file.zig");
 const runner = @import("runner.zig");
 const actions_mod = @import("actions.zig");
@@ -203,6 +204,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
 
     loadBindings();
     vim.restoreState();
+    meta.load();
     ui.register();
 
     ext_log.info("v{s} loaded — bind \"ReaVim: Toggle vim mode\" to a key, or run it from the action list", .{build_options.version});
