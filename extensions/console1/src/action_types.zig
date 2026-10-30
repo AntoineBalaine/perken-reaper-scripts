@@ -86,10 +86,14 @@ pub const MappingPanelAction = union(enum) {
 
 // Settings
 
+/// The settings of the step of a knob that the panel edits. They are not rows of the list that the unit scrolls.
+pub const StepField = enum { sensitivity, fine_multiplier };
+
 pub const SettingsValUpdate = union(enum) {
     bool_val: struct { field: SettingsFields, val: bool },
     string_val: struct { field: SettingsFields, val: [:0]const u8 },
     enum_val: struct { field: SettingsFields, val: ModulesOrder },
+    float_val: struct { field: StepField, val: f64 },
 };
 
 pub const SettingsActions = union(enum) {

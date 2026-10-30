@@ -207,6 +207,24 @@ pub fn draw(
             }
         }
 
+        // The step of a tick of a knob of the sysex unit
+        {
+            try imgui.PushItemWidth(.{ ctx, 300.0 });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+            inline for (.{
+                .{ "sensitivity", .settings_knob_sensitivity, 0.1, 10.0, "##sens" },
+                .{ "fine_multiplier", .settings_knob_fine, 0.01, 1.0, "##fine" },
+            }) |entry| {
+                var value: f64 = @field(self.temp_settings, entry[0]);
+                const label = safePrint(&buf, "{s}{s}", .{ tr(translations, entry[1]), entry[4] });
+                if (try imgui.SliderDouble(.{ ctx, label, &value, entry[2], entry[3], null, null })) {
+                    rv = .{ .val_update = .{ .float_val = .{ .field = @field(@import("action_types.zig").StepField, entry[0]), .val = value } } };
+                    @field(self.temp_settings, entry[0]) = value;
+                    self.dirty = true;
+                }
+            }
+        }
+
         if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_sv", .{tr(translations, .settings_save)}) })) {
             return .close_save;
         }

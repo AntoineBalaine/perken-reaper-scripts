@@ -115,6 +115,15 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                             else => unreachable,
                         }
                     },
+                    .float_val => |float_update| {
+                        // Because a step that is not a positive number would stop the knobs or reverse them, only
+                        // positive numbers get in.
+                        if (!(float_update.val > 0 and std.math.isFinite(float_update.val))) return;
+                        switch (float_update.field) {
+                            .sensitivity => panel.temp_settings.sensitivity = float_update.val,
+                            .fine_multiplier => panel.temp_settings.fine_multiplier = float_update.val,
+                        }
+                    },
                     .enum_val => |enum_update| {
                         // Handle enum settings
                         switch (enum_update.field) {
@@ -171,8 +180,9 @@ fn countFields(comptime T: type) comptime_int {
             break :blk count;
         },
         .@"enum" => type_info.@"enum".field_names.len,
-        // Scalar types count as 1
-        .bool, .int, .float, .pointer => 1,
+        // Scalar types count as 1. The floats are the step settings, which are not rows that the unit scrolls through.
+        .bool, .int, .pointer => 1,
+        .float => 0,
         .optional => 1,
         else => @compileError("Unsupported type: " ++ @typeName(T)),
     };

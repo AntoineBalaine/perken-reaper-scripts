@@ -14,6 +14,7 @@ pub const WidgetKind = enum {
     invisible_button,
     arrow_button,
     checkbox,
+    slider_double,
     selectable,
     begin_combo,
     end_combo,
@@ -146,6 +147,7 @@ const ImguiMocks = struct {
     InvisibleButton: @TypeOf(imgui.api.InvisibleButton),
     ArrowButton: @TypeOf(imgui.api.ArrowButton),
     Checkbox: @TypeOf(imgui.api.Checkbox),
+    SliderDouble: @TypeOf(imgui.api.SliderDouble),
     Selectable: @TypeOf(imgui.api.Selectable),
     BeginCombo: @TypeOf(imgui.api.BeginCombo),
     EndCombo: @TypeOf(imgui.api.EndCombo),
@@ -537,6 +539,7 @@ pub const MockImGui = struct {
 
     // Input widgets
     const Checkbox = &mockCheckbox;
+    const SliderDouble = &mockSliderDouble;
     const Selectable = &mockSelectable;
     const BeginCombo = &mockBeginCombo;
     const EndCombo = &mockEndCombo;
@@ -885,6 +888,11 @@ fn mockCheckbox(_: imgui.ContextPtr, label: [*:0]const u8, v: *bool) callconv(.c
         v.* = val;
         return true;
     }
+    return false;
+}
+
+fn mockSliderDouble(_: imgui.ContextPtr, label: [*:0]const u8, _: *f64, _: f64, _: f64, _: ?[*:0]const u8, _: ?*c_int) callconv(.c) bool {
+    trace(.slider_double, std.mem.span(label));
     return false;
 }
 
