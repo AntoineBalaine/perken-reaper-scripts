@@ -6,6 +6,7 @@ const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
 const c1 = @import("../c1.zig");
 const midi_events = @import("../csurf/midi_events.zig");
+const Unit = @import("../unit/unit.zig");
 
 const Harness = struct {
     arena: std.heap.ArenaAllocator,
@@ -96,4 +97,40 @@ test "a plain Preset of the sysex unit no longer opens the mapping panel, and th
     h.globals.unit.backend = .legacy_cc;
     h.press(.Inpt_preset);
     try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+}
+
+fn selectedTrackCount(globals: *Globals) usize {
+    return globals.state.selectedTracks.count();
+}
+
+test "shift with Volume steps to the next and the previous track, and the page follows" {
+    const h = try Harness.init(25);
+    defer h.deinit();
+    h.globals.state.current_tr_id = 19;
+    h.shift(true);
+    const next: Unit.ControlEvent = .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = true } };
+    const previous: Unit.ControlEvent = .{ .tick = .{ .cc = .Out_Vol, .delta = -1, .fine = true } };
+
+    midi_events.onUnitEvent(h.globals, next);
+    try testing.expectEqual(@as(u8, 1), h.globals.state.fx_ctrl.current_page);
+    try testing.expect(h.globals.state.selectedTracks.contains(20));
+    try testing.expectEqual(@as(usize, 1), selectedTrackCount(h.globals));
+
+    // In REAPER the selection comes back through the surface callbacks, which set the current track.
+    h.globals.state.current_tr_id = 20;
+    midi_events.onUnitEvent(h.globals, previous);
+    try testing.expect(h.globals.state.selectedTracks.contains(19));
+    try testing.expectEqual(@as(u8, 0), h.globals.state.fx_ctrl.current_page);
+}
+
+test "shift with Volume stops at the first and the last track" {
+    const h = try Harness.init(3);
+    defer h.deinit();
+    h.shift(true);
+    h.globals.state.current_tr_id = 0;
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Vol, .delta = -1, .fine = true } });
+    try testing.expectEqual(@as(?c_int, 0), h.globals.state.current_tr_id);
+    h.globals.state.current_tr_id = 3;
+    midi_events.onUnitEvent(h.globals, .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = true } });
+    try testing.expectEqual(@as(?c_int, 3), h.globals.state.current_tr_id);
 }

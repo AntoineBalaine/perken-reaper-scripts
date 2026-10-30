@@ -146,6 +146,8 @@ pub const TransportAction = union(enum) {
     tr_sel: u8,
     zoom_horizontal: u8,
     zoom_vertical: u8,
+    /// A tick of a knob of the sysex unit, with the same effect as the knob has in the absolute actions above.
+    knob_by: struct { cc: CCs, delta: i8, fine: bool },
 };
 
 // Track List

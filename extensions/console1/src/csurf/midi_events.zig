@@ -43,6 +43,10 @@ pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
     }
     switch (event) {
         .tick => |tick| {
+            if (globals.state.current_mode == .transport) {
+                actions.dispatch(globals, .{ .transport = .{ .knob_by = .{ .cc = tick.cc, .delta = if (tick.delta > 0) 1 else -1, .fine = tick.fine } } });
+                return;
+            }
             if (tick.cc == .Out_Vol and scrollList(globals, if (tick.delta > 0) 1 else -1)) return;
             if (MidiEvtsFxCtrl.onTick(globals, tick)) return;
         },

@@ -67,6 +67,10 @@ const Mocks = struct {
     CSurf_OnRewFwd: @TypeOf(reaper.CSurf_OnRewFwd),
     CSurf_OnZoom: @TypeOf(reaper.CSurf_OnZoom),
     SLIDER2DB: @TypeOf(reaper.SLIDER2DB),
+    CSurf_ScrubAmt: @TypeOf(reaper.CSurf_ScrubAmt),
+    GetTrackColor: @TypeOf(reaper.GetTrackColor),
+    CSurf_OnSelectedChange: @TypeOf(reaper.CSurf_OnSelectedChange),
+    CSurf_SetSurfaceSelected: @TypeOf(reaper.CSurf_SetSurfaceSelected),
     DB2SLIDER: @TypeOf(reaper.DB2SLIDER),
     CSurf_OnPlayRateChange: @TypeOf(reaper.CSurf_OnPlayRateChange),
     CSurf_OnRecArmChange: @TypeOf(reaper.CSurf_OnRecArmChange),
@@ -590,6 +594,9 @@ pub fn DB2SLIDER(x: f64) callconv(.c) f64 {
     return 1000.0 * t * t;
 }
 
+pub fn CSurf_ScrubAmt(amt: f64) callconv(.c) void {
+    _ = amt;
+}
 pub fn CSurf_OnPlayRateChange(playrate: f64) callconv(.c) void {
     _ = playrate;
 }
@@ -861,6 +868,24 @@ pub fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv
         return @floatFromInt(@backingInt(track.?.automation_mode));
     }
 
+    return 0;
+}
+
+/// Selects or deselects the track, and returns the selection that REAPER ends up with.
+pub fn CSurf_OnSelectedChange(trackid: MediaTrack, selected: c_int) callconv(.c) bool {
+    SetTrackSelected(trackid, selected != 0);
+    return selected != 0;
+}
+
+pub fn CSurf_SetSurfaceSelected(trackid: MediaTrack, selected: bool, ignoresurf: reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = selected;
+    _ = ignoresurf;
+}
+
+/// The mock tracks have no custom color: bit 0x1000000 of a native color is the "has a color" flag.
+pub fn GetTrackColor(track: MediaTrack) callconv(.c) c_int {
+    _ = track;
     return 0;
 }
 
