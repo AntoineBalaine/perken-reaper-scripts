@@ -17,4 +17,6 @@ test {
     _ = @import("mft_icons.zig");
     _ = @import("mft_colors.zig");
     _ = @import("mft_device.zig");
+    // How the surface finds its MIDI devices again, which the console surface shares.
+    _ = @import("midi_device_names");
 }
