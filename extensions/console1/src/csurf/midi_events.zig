@@ -38,6 +38,23 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
 /// An event of the unit in sysex mode. While nothing but the emulation of the legacy unit exists, a tick or a press ends in
 /// the same call as a CC did.
 pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
+    // When the Mode button is a modifier, the transport mode lasts as long as the button is held down: its press enters it
+    // from the FX control mode, and its release leaves it.
+    if (globals.preferences.mode_is_modifier) {
+        switch (event) {
+            .press => |cc| if (cc == .Inpt_disp_mode and globals.state.current_mode == .fx_ctrl) {
+                globals.mode_held = true;
+                actions.dispatch(globals, .{ .change_mode = .transport });
+                return;
+            },
+            .release => |cc| if (cc == .Inpt_disp_mode and globals.mode_held) {
+                globals.mode_held = false;
+                if (globals.state.current_mode == .transport) actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+                return;
+            },
+            else => {},
+        }
+    }
     if (globals.state.current_mode == .fx_ctrl and globals.unit.shiftHeld()) {
         if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
     }

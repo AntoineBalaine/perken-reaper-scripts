@@ -245,12 +245,6 @@ pub fn draw(
     const cancel_label = tr(translations, .settings_cancel);
     const install_label = tr(translations, .install_presets_button);
 
-    // Where the page starts, and where the first column ends, which is under the buttons of the page: the credits go under it.
-    var page_left: f64 = undefined;
-    var page_top: f64 = undefined;
-    try imgui.GetCursorScreenPos(.{ ctx, &page_left, &page_top });
-    var first_column_bottom: f64 = page_top;
-
     // The general settings: the language, and what shows and what is logged.
     {
         const labels = [_][:0]const u8{
@@ -259,6 +253,7 @@ pub fn draw(
             tr(translations, .settings_show_plugin_ui),
             tr(translations, .settings_log_to_file),
             tr(translations, .settings_start_suspended),
+            tr(translations, .settings_mode_is_modifier),
         };
         try imgui.BeginGroup(.{ctx});
         const plate = try beginPlate(ctx, "GENERAL", try widestToggle(ctx, &labels, combo_width), try estimateHeight(ctx, labels.len, 1) + 24);
@@ -298,6 +293,8 @@ pub fn draw(
         try boolSetting(self, ctx, labels[3], "lgfd", .log_to_file, false, &rv);
         try lineUp(ctx, plate);
         try boolSetting(self, ctx, labels[4], "strt_sspndchkbx", .start_suspended, false, &rv);
+        try lineUp(ctx, plate);
+        try boolSetting(self, ctx, labels[5], "modemod", .mode_is_modifier, false, &rv);
         try endPlate(ctx, 0, plate);
 
         // The buttons that close the page are under the plate, in a row.
@@ -307,9 +304,25 @@ pub fn draw(
         if (try widgets.roundButton(.{ ctx, cancel_label, safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), null, null, .right })) rv = .close_cancel;
         try imgui.SameLine(.{ctx});
         if (try widgets.roundButton(.{ ctx, install_label, safePrint(&id_buf, "{s}##stngs_ip", .{install_label}), null, null, .right })) rv = .install_presets;
+
+        // The credits stand on the same line, just after the buttons. Because they are drawn and are not an item, they do not
+        // widen the column, which would push the other plates to the right.
+        {
+            var min_x: f64 = undefined;
+            var min_y: f64 = undefined;
+            var max_x: f64 = undefined;
+            var max_y: f64 = undefined;
+            try imgui.GetItemRectMin(.{ ctx, &min_x, &min_y });
+            try imgui.GetItemRectMax(.{ ctx, &max_x, &max_y });
+            var credits_buf: [256:0]u8 = undefined;
+            const credits = safePrint(&credits_buf, "Console1 v{s} - by Perken", .{config.version});
+            var text_w: f64 = undefined;
+            var text_h: f64 = undefined;
+            try imgui.CalcTextSize(.{ ctx, credits, &text_w, &text_h });
+            const dl = try imgui.GetWindowDrawList(.{ctx});
+            try imgui.DrawList_AddText(.{ dl, max_x + 16, (min_y + max_y) / 2 - text_h / 2, panel_theme.text_dim, credits });
+        }
         try imgui.EndGroup(.{ctx});
-        var group_right: f64 = undefined;
-        try imgui.GetItemRectMax(.{ ctx, &group_right, &first_column_bottom });
     }
 
     // The settings of the tracks: how they are routed, validated and ordered.
@@ -422,15 +435,6 @@ pub fn draw(
             }
         }
         try endPlate(ctx, 3, plate);
-    }
-
-    // Because the plates were laid out side by side, the cursor is at the bottom of the last one, which is shorter than the
-    // first column with its buttons. The credits go under that column.
-    try imgui.SetCursorScreenPos(.{ ctx, page_left, first_column_bottom + 8 });
-    {
-        var buf: [256:0]u8 = undefined;
-        const version_label = safePrint(&buf, "Console1 v{s} - by Perken", .{config.version});
-        try imgui.Text(.{ ctx, version_label });
     }
 
     return rv;

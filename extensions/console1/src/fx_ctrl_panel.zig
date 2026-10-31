@@ -98,11 +98,18 @@ fn paramLabel(fx_state: *const FxCtrlState, cc: c1.CCs) [:0]const u8 {
 
 /// The distance that two columns must keep for the label of the bypass button of a module, which stands at the
 /// top left of the plate, not to reach the label of the first knob of the next column.
-fn bypassPitch(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, cc: c1.CCs) !f64 {
+fn bypassPitch(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, cc: c1.CCs, mode: Mode, translations: *TranslationStore) !f64 {
     const label = paramLabel(fx_state, cc);
     var w: f64 = 0;
     var h: f64 = undefined;
     if (label.len > 0) try imgui.CalcTextSize(.{ ctx, label, &w, &h });
+    // Because the button has another label in the transport mode, which can be wider than the one of the plugin, the
+    // columns keep the room for it too, or the label would reach the knobs of the next column.
+    if (mode == .transport and cc == .Comp_comp) {
+        var transport_w: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, tr(translations, .trsprt_Comp_comp), &transport_w, &h });
+        w = @max(w, transport_w);
+    }
     return button.default_radius * 2 + 4 + w + 8;
 }
 
@@ -652,7 +659,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         paramLabel(fx_state, .Shp_sustain),
         paramLabel(fx_state, .Shp_Punch),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
+    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
@@ -800,7 +807,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         tr(translations, .trsprt_Eq_LoMidGain),
         tr(translations, .trsprt_Eq_HiGain),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq) });
+    const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq, mode, translations) });
 
     if (try renderMappableButton(ctx, plate, eq_slots.Eq_eq, .Eq_eq, fx_state, mode, .right, translations)) |action| {
         rv = action;
@@ -1108,7 +1115,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
         paramLabel(fx_state, .Comp_Thresh),
         tr(translations, .trsprt_Eq_HiMidGain),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
+    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;

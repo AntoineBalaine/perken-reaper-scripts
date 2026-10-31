@@ -86,14 +86,14 @@ fn tickTrackKnob(globals: *Globals, cc: c1.CCs, step: f64) void {
             const current = utils.volToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_VOL"));
             const next = step_size.apply(current, step);
             setUIVal(.Out_Vol, next, fx_ctrl);
-            reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, utils.normalizedToVol(next), false), @ptrCast(csurf.my_csurf));
+            reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, utils.normalizedToVol(next), false), csurf.surface());
             actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Vol, .value = normalizedToMidi(next) } } });
         },
         .Out_Pan => {
             const current = utils.panToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_PAN"));
             const next = step_size.apply(current, step);
             setUIVal(.Out_Pan, next, fx_ctrl);
-            reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, next * 2.0 - 1.0, false), @ptrCast(csurf.my_csurf));
+            reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, next * 2.0 - 1.0, false), csurf.surface());
             actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Pan, .value = normalizedToMidi(next) } } });
         },
         else => unreachable,
@@ -296,23 +296,23 @@ pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) vo
             const norm_val = @as(f64, @floatFromInt(val)) / 127.0;
             setUIVal(cc, norm_val, &globals.state.fx_ctrl);
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
+                reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), csurf.surface());
             }
         },
         .Out_Vol => {
             setUIVal(cc, @as(f64, @floatFromInt(val)) / 127, &globals.state.fx_ctrl);
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
+                reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), csurf.surface());
             }
         },
         .Out_mute => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf));
+                reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), csurf.surface());
             }
         },
         .Out_solo => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf));
+                reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), csurf.surface());
             }
         },
         .Shp_Mtr => {}, // meters unhandled

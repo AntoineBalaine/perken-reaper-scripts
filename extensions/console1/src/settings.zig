@@ -28,6 +28,7 @@ pub const SettingsFields = enum {
     start_suspended,
     // show_track_list,
     focus_page_tracks,
+    mode_is_modifier,
     auto_insert_modules,
     auto_insert_bypassed,
     auto_reorder_modules,
@@ -55,6 +56,8 @@ log_to_file: bool,
 start_suspended: bool,
 show_track_list: bool,
 focus_page_tracks: bool,
+/// Whether the Mode button of the unit is a modifier: the transport mode shows only while it is held down.
+mode_is_modifier: bool,
 auto_insert_modules: bool,
 auto_insert_bypassed: bool,
 auto_reorder_modules: bool,
@@ -75,6 +78,7 @@ pub const empty: @This() = .{
     .start_suspended = false,
     .show_track_list = true,
     .focus_page_tracks = false,
+    .mode_is_modifier = false,
     .auto_insert_modules = true,
     .auto_insert_bypassed = false,
     .auto_reorder_modules = true,
@@ -309,6 +313,7 @@ pub fn toggleField(self: *@This(), field: SettingsFields) bool {
         .log_to_file => self.log_to_file = !self.log_to_file,
         .start_suspended => self.start_suspended = !self.start_suspended,
         .focus_page_tracks => self.focus_page_tracks = !self.focus_page_tracks,
+        .mode_is_modifier => self.mode_is_modifier = !self.mode_is_modifier,
         // Handle combo boxes differently
         else => {
             rv = false;

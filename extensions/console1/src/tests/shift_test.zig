@@ -162,3 +162,25 @@ test "with shift in the fx_ctrl mode, the last row of the track list opens the s
     h.press(.Tr_tr20);
     try testing.expectEqual(statemachine.Mode.settings, h.globals.state.current_mode);
 }
+
+test "when the Mode button is a modifier, the transport mode lasts while the button is held down" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.preferences.mode_is_modifier = true;
+    h.press(.Inpt_disp_mode);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    midi_events.onUnitEvent(h.globals, .{ .release = .Inpt_disp_mode });
+    try testing.expectEqual(statemachine.Mode.fx_ctrl, h.globals.state.current_mode);
+    try testing.expect(!h.globals.mode_held);
+}
+
+test "without the preference, the Mode button toggles the transport mode when it is pressed, and its release does nothing" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.press(.Inpt_disp_mode);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    midi_events.onUnitEvent(h.globals, .{ .release = .Inpt_disp_mode });
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    h.press(.Inpt_disp_mode);
+    try testing.expectEqual(statemachine.Mode.fx_ctrl, h.globals.state.current_mode);
+}

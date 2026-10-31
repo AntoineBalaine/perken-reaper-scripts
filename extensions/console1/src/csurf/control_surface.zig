@@ -20,6 +20,16 @@ pub var ignore_notifications = false;
 
 pub var my_csurf: c.C_ControlSurface = undefined;
 
+/// What stands for the surface when the extension has none, which is the case of the tests: the functions of REAPER that take
+/// a surface to leave out of their notifications get a valid pointer, and the mock of REAPER does not look at it.
+var stand_in_surface: u8 = 0;
+
+/// The control surface of the extension, as the functions of REAPER that take a surface to ignore want it.
+pub fn surface() reaper.IReaperControlSurface {
+    const pointer: *anyopaque = my_csurf orelse @ptrCast(&stand_in_surface);
+    return @ptrCast(pointer);
+}
+
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     var globals = getGlobals();
     globals.m_midi_in_dev = indev;

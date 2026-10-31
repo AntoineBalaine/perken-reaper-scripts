@@ -297,7 +297,7 @@ pub fn setReaperTrackSelection(globals: *Globals, csurf_id: c_int) ?reaper.Media
     while (it.next()) |entry| {
         const tr_id = entry.key_ptr.*;
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-        pReaper.CSurf_SetSurfaceSelected(.{ track, pReaper.CSurf_OnSelectedChange(.{ track, 0 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
+        pReaper.CSurf_SetSurfaceSelected(.{ track, pReaper.CSurf_OnSelectedChange(.{ track, 0 }), csurf.surface() });
     }
     globals.state.selectedTracks.clearRetainingCapacity();
 
@@ -305,6 +305,6 @@ pub fn setReaperTrackSelection(globals: *Globals, csurf_id: c_int) ?reaper.Media
 
     globals.state.selectedTracks.put(globals.arena_int.allocator(), csurf_id, {}) catch {};
 
-    pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
+    pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), csurf.surface() });
     return media_track;
 }

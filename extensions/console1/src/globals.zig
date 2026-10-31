@@ -58,6 +58,9 @@ m_midi_out: ?reaper.midi_Output = null,
 // The Console 1: the backend in use (sysex or legacy CC), the LEDs and the handshake
 unit: Unit = .{},
 
+/// Whether the transport mode was entered by the Mode button of the unit, which is held down: it is a modifier when the
+/// preference says so, and the mode ends when the button is released.
+mode_held: bool = false,
 playState: bool = false,
 pauseState: bool = false,
 
