@@ -4,7 +4,8 @@ extern "C" {
     const char* zGetTypeString();
     const char* zGetDescString();
     const char* zGetConfigString();
-void zCloseNoReset();
+void zCloseNoReset(void *self);
+void zSurfaceDestroyed(void *self);
 void zRun();
 void zSetTrackListChange();
 void zSetSurfaceVolume(MediaTrack *trackid, double volume);
@@ -25,12 +26,13 @@ int zExtended(int call, void *parm1, void *parm2, void *parm3);
 }
 
 ZigControlSurface::ZigControlSurface() {}
+ZigControlSurface::~ZigControlSurface() { zSurfaceDestroyed(this); }
 
 const char* ZigControlSurface::GetTypeString() { return zGetTypeString(); }
 const char* ZigControlSurface::GetDescString() { return zGetDescString(); }
 const char* ZigControlSurface::GetConfigString() { return zGetConfigString(); }
 
-void ZigControlSurface::CloseNoReset() { zCloseNoReset(); }
+void ZigControlSurface::CloseNoReset() { zCloseNoReset(this); }
 void ZigControlSurface::Run() { zRun(); }
 void ZigControlSurface::SetTrackListChange() { zSetTrackListChange(); }
 void ZigControlSurface::SetSurfaceVolume(MediaTrack *trackid, double volume) {

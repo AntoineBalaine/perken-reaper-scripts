@@ -19,9 +19,11 @@ pub const Icon = enum { play, stop, rec, cross, single, save };
 
 /// Draws a symbol of the transport at the center of a button of the given radius. The symbol is dark on the dome,
 /// and red for the record button.
-fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, disabled: bool, latched: bool) !void {
+fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, disabled: bool, latched: bool, icon_color: ?c_int) !void {
     const s = radius * 0.42;
     const dark: u32 = if (disabled) 0x55555577 else 0x2A2A2EFF;
+    // The symbols that can have a color of their own: the body of the floppy disk, and the strokes of the cross.
+    const own: c_int = if (disabled) @bitCast(dark) else icon_color orelse @as(c_int, @bitCast(dark));
     // Because the dome of a record key that is on is red, its dot is pale, so that it still shows.
     const red: u32 = if (disabled) 0x80303077 else if (latched) 0xFFE4E4FF else 0xD83A3AFF;
     switch (icon) {
@@ -32,7 +34,7 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
             // A floppy disk: a dark body, the shutter at its top with the slot that it has, and the label at its bottom, in the
             // white of the keys.
             const f = 0.92;
-            const body: c_int = @bitCast(dark);
+            const body: c_int = own;
             const pale: c_int = @bitCast(if (disabled) @as(u32, 0x88888877) else @as(u32, 0xE6E6E6FF));
             try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 1.05 * f, cy - s * 1.05 * f, cx + s * 1.05 * f, cy + s * 1.05 * f, body, 1.2 });
             try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.6 * f, cy - s * 1.05 * f, cx + s * 0.5 * f, cy - s * 0.3 * f, pale, 0 });
@@ -49,8 +51,8 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
         .cross => {
             // Two strokes that cross, in the dark of the other symbols.
             const reach = s * 0.85;
-            try imgui.DrawList_AddLine(.{ dl, cx - reach, cy - reach, cx + reach, cy + reach, @as(c_int, @bitCast(dark)), 1.8 });
-            try imgui.DrawList_AddLine(.{ dl, cx - reach, cy + reach, cx + reach, cy - reach, @as(c_int, @bitCast(dark)), 1.8 });
+            try imgui.DrawList_AddLine(.{ dl, cx - reach, cy - reach, cx + reach, cy + reach, own, 2.2 });
+            try imgui.DrawList_AddLine(.{ dl, cx - reach, cy + reach, cx + reach, cy - reach, own, 2.2 });
         },
     }
 }
@@ -79,6 +81,9 @@ pub fn roundButton(
     label_color: ?c_int,
     /// A second line under the label.
     alt_label: ?AltLabel,
+    /// The color of the symbol that is drawn on the button, for the symbols that can have one: the dark of the other symbols when it is
+    /// null. The symbol is drawn over the dome of the key and all of its layers.
+    icon_color: ?c_int,
 ) !bool {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else default_radius;
@@ -200,7 +205,7 @@ pub fn roundButton(
         try knob.drawRoundKey(draw_list, center_x, center_y, radius, color orelse -1, .{ .hovered = isHovered, .active = held or (latched orelse false), .disabled = is_disabled });
         if (icon) |symbol| {
             const sunk: f64 = if (held or (latched orelse false)) 0.8 else 0;
-            try drawIcon(draw_list, center_x, center_y + sunk, radius, symbol, is_disabled, latched orelse false);
+            try drawIcon(draw_list, center_x, center_y + sunk, radius, symbol, is_disabled, latched orelse false, icon_color);
         }
     }
 

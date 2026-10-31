@@ -48,7 +48,9 @@ const plate_count = 4;
 
 const button_radius = button.default_radius;
 /// The radius of the keys that have a symbol and no label, which is a little more than the keys that have one.
-const icon_key_radius = 13.0;
+const icon_key_radius = 16.0;
+/// The green of the symbol of the save key: a dark one, which reads on the white dome of the key.
+const save_green: c_int = @bitCast(@as(u32, 0x1B7A40FF));
 /// The width of the combos of the plates.
 const combo_width = 230.0;
 /// The modules in the order of the columns of the default plugins, and how many of them stand in a column.
@@ -280,9 +282,8 @@ pub fn draw(
 
         // The buttons that close the page are under the plate, in a row.
         var id_buf: [128:0]u8 = undefined;
-        // Save and cancel are keys with a symbol, a floppy disk and a cross, and what they do is in their tooltip. The three keys of
-        // the row have the same radius and start at the same height, which is the one of the row: each is put there, and not after the
-        // one before it, so that nothing can move one of them in its line.
+        // The three keys of the row have the same radius and start at the height of the row: each is put there, and not after the one
+        // before it, so that nothing can move one of them in its line.
         var row_x: f64 = undefined;
         var row_y: f64 = undefined;
         try imgui.GetCursorScreenPos(.{ ctx, &row_x, &row_y });
@@ -291,11 +292,13 @@ pub fn draw(
         try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &gap_x, &gap_y });
         var next_x = row_x;
         try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
-        if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_sv", .{save_label}), save_label, icon_key_radius, .right, false, null, null, .save })) rv = .close_save;
-        next_x = try rowEdge(ctx) + gap_x;
+        // The symbol is over the key and all of its layers: a floppy disk in green, and a cross in the orange of the panel. The label of
+        // each key is next to it.
+        if (try widgets.roundButton(.{ ctx, save_label, safePrint(&id_buf, "{s}##stngs_sv", .{save_label}), null, icon_key_radius, .right, false, null, null, .save, null, null, save_green })) rv = .close_save;
+        next_x = try rowEdge(ctx) + gap_x * 2;
         try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
-        if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), cancel_label, icon_key_radius, .right, false, null, null, .cross })) rv = .close_cancel;
-        next_x = try rowEdge(ctx) + gap_x;
+        if (try widgets.roundButton(.{ ctx, cancel_label, safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), null, icon_key_radius, .right, false, null, null, .cross, null, null, Knobs.led_orange })) rv = .close_cancel;
+        next_x = try rowEdge(ctx) + gap_x * 2;
         try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
         if (try widgets.roundButton(.{ ctx, install_label, safePrint(&id_buf, "{s}##stngs_ip", .{install_label}), null, icon_key_radius, .right })) rv = .install_presets;
 

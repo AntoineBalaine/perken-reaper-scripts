@@ -242,6 +242,12 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
     }
 }
 
+/// Turns the position of a knob of the panel by a tick, around its 128 steps, so that the knob of the panel turns with the one of the
+/// console, and a drag of the mouse starts from where the knob is.
+fn turn(position: *u8, delta: i8) void {
+    position.* = @intCast(@mod(@as(c_int, position.*) + delta, 128));
+}
+
 /// A tick of a knob of the sysex unit in the transport mode. Because the knob has no position of its own there, there
 /// is no ring to keep in step: the rings stay dark, and the jogs and zooms keep the amount that the legacy knob gave a
 /// tick (3, and 1 with shift).
@@ -258,10 +264,20 @@ fn transportKnob(globals: *Globals, cc: c1.CCs, delta: i8, fine: bool) void {
         .Eq_LoGain => {
             const SCRUB_STEP: f64 = 1.0 / 128.0;
             pReaper.CSurf_ScrubAmt(.{SCRUB_STEP * @as(f64, @floatFromInt(amount))});
+            turn(&globals.state.transport.scrub, delta);
         },
-        .Eq_LoMidGain => jogBy(amount),
-        .Comp_Attack => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_MARKER_NEXT) else @as(c_int, RprCmds.ID_MARKER_PREV), 0 }),
-        .Eq_HiGain => jogItemBy(delta),
+        .Eq_LoMidGain => {
+            jogBy(amount);
+            turn(&globals.state.transport.jog, delta);
+        },
+        .Comp_Attack => {
+            pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_MARKER_NEXT) else @as(c_int, RprCmds.ID_MARKER_PREV), 0 });
+            turn(&globals.state.transport.jog_marker, delta);
+        },
+        .Eq_HiGain => {
+            jogItemBy(delta);
+            turn(&globals.state.transport.jog_item, delta);
+        },
         .Out_Drive => pReaper.CSurf_OnZoom(.{ amount, 0 }),
         .Out_DriveChar => pReaper.CSurf_OnZoom(.{ 0, amount }),
         .Out_Pan => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_GRID_BY2) else @as(c_int, RprCmds.ID_GRID_BY1_5), 0 }),

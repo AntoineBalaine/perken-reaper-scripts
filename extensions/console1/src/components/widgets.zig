@@ -31,6 +31,7 @@ pub const roundButton = function(&roundButtonWidget, 3, &.{
     ?button.Icon,
     ?c_int,
     ?button.AltLabel,
+    ?c_int,
 });
 
 /// ```zig

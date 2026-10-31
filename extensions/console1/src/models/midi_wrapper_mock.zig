@@ -157,8 +157,14 @@ test CreateThreadedMIDIOutput {
 ///
 /// Return a dummy control surface
 pub export fn ControlSurface_Create() C_ControlSurface {
-    return @ptrCast(@alignCast(&dummy_control_surface));
+    // Because two surfaces that exist together are told apart by their address, each call gives another one.
+    const surface = &dummy_control_surfaces[next_dummy_surface % dummy_control_surfaces.len];
+    next_dummy_surface += 1;
+    return @ptrCast(@alignCast(surface));
 }
+
+var dummy_control_surfaces: [16]u8 = undefined;
+var next_dummy_surface: usize = 0;
 
 pub export fn ControlSurface_Destroy() void {}
 

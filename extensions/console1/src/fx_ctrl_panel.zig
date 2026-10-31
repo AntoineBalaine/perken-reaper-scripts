@@ -354,7 +354,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
     module_plate.startFrame();
-    const warning: ?[:0]const u8 = if (ui.midi_connected and ui.legacy_mode) tr(translations, .fx_ctrl_legacy_mode) else null;
+    // What is wrong with the unit is a warning triangle at the top right of the card of the input, with the message in its tooltip: that
+    // the console is not connected, or that it did not answer the handshake and runs in the legacy mode.
+    const warning: ?[:0]const u8 = if (!ui.midi_connected)
+        tr(translations, .fx_ctrl_disconnected)
+    else if (ui.legacy_mode)
+        tr(translations, .fx_ctrl_legacy_mode)
+    else
+        null;
 
     // Because a channel strip is one plugin for all the modules, its modules are one card, with a vertical delimiter between two
     // of them, as the mapping panel has it. The transport mode names the cards after what its controls do, and keeps five.
@@ -404,10 +411,6 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
         }
     }
 
-    if (!ui.midi_connected) {
-        try imgui.SameLine(.{ctx});
-        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_disconnected) });
-    }
     return rv;
 }
 

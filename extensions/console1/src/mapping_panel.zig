@@ -20,6 +20,7 @@ const c1_theme = @import("theme/c1_theme.zig");
 const mappingKnob = @import("components/mappingKnob.zig");
 const palette = @import("ui_palette");
 const vr_widgets = @import("panel_widgets");
+const icon_key = @import("components/icon_key.zig");
 const Knobs = @import("knob");
 const panel_theme = @import("panel_theme");
 const widgets = @import("components/widgets.zig");
@@ -655,48 +656,9 @@ fn saveKeyWidth(ctx: imgui.ContextPtr) !f64 {
     return w + 8;
 }
 
-/// A small raised key with a symbol of the icon font on it: a body of dark metal with a lit top edge and a shadow under it, which
-/// sinks when it is pressed. It glows orange while `lit`, as the toggles of the panel do, and its edge lights in amber under
-/// the mouse. It returns whether it was pressed. A key that is not enabled is dark and does nothing.
+/// A small raised key with a symbol of the icon font on it, which is the one that the settings have too.
 fn iconKey(ctx: imgui.ContextPtr, id: [:0]const u8, x: f64, y: f64, w: f64, h: f64, icon: [:0]const u8, enabled: bool, lit: bool, tooltip: ?[:0]const u8) !bool {
-    try imgui.SetCursorScreenPos(.{ ctx, x, y });
-    if (!enabled) try imgui.BeginDisabled(.{ctx});
-    const clicked = try imgui.InvisibleButton(.{ ctx, id, w, h });
-    // Because a key that is off still says what it is for, the mouse over it is read even when it is disabled.
-    const over = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_AllowWhenDisabled });
-    const hovered = enabled and over;
-    const pressed = enabled and try imgui.IsItemActive(.{ctx});
-    if (!enabled) try imgui.EndDisabled(.{ctx});
-
-    const dl = try imgui.GetWindowDrawList(.{ctx});
-    const sink: f64 = if (pressed) 1 else 0;
-    const top = y + sink;
-    const bottom = y + h + sink;
-    if (lit and enabled) try imgui.DrawList_AddRectFilled(.{ dl, x - 2, top - 2, x + w + 2, bottom + 2, palette.rgba(0xFF8A2430), 6 });
-    if (!pressed) try imgui.DrawList_AddRectFilled(.{ dl, x + 0.5, y + 1.8, x + w + 0.5, y + h + 1.8, palette.rgba(0x000000AA), 4 });
-    try imgui.DrawList_AddRectFilled(.{ dl, x, top, x + w, bottom, if (enabled) panel_theme.knob_edge else panel_theme.border, 4 });
-    const body_top = if (!enabled) panel_theme.knob_body else if (pressed) panel_theme.knob_body else panel_theme.knob_top;
-    const body_bottom = if (pressed) panel_theme.knob_top else panel_theme.knob_body;
-    try imgui.DrawList_AddRectFilledMultiColor(.{ dl, x + 1, top + 1, x + w - 1, bottom - 1, body_top, body_top, body_bottom, body_bottom });
-    if (enabled and !pressed) try imgui.DrawList_AddLine(.{ dl, x + 3, top + 1.5, x + w - 3, top + 1.5, panel_theme.card_bevel_light, 1 });
-    if (lit and enabled or hovered) try imgui.DrawList_AddRect(.{ dl, x, top, x + w, bottom, if (lit and enabled) Knobs.led_orange else panel_theme.amber, 4, null, 1.2 });
-    {
-        try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
-        defer imgui.PopFont(.{ctx}) catch {};
-        var glyph_w: f64 = undefined;
-        var glyph_h: f64 = undefined;
-        try imgui.CalcTextSize(.{ ctx, icon, &glyph_w, &glyph_h });
-        const color = if (!enabled) panel_theme.text_dim else if (lit) Knobs.led_orange else if (hovered) panel_theme.amber_bright else panel_theme.text;
-        const glyph_x = x + (w - glyph_w) / 2;
-        const glyph_y = top + (h - glyph_h) / 2;
-        // The symbol is engraved on the key: a dark copy of it a pixel lower.
-        try imgui.DrawList_AddText(.{ dl, glyph_x, glyph_y + 1, panel_theme.text_engraved_shadow, icon });
-        try imgui.DrawList_AddText(.{ dl, glyph_x, glyph_y, color, icon });
-    }
-    if (over) {
-        if (tooltip) |text| try imgui.SetTooltip(.{ ctx, text });
-    }
-    return enabled and clicked;
+    return icon_key.draw(ctx, id, x, y, w, h, icon, enabled, lit, tooltip, null);
 }
 
 /// The place of the keys at the right of the title of a plate: the first one is the save key, and the next ones follow it.

@@ -30,8 +30,49 @@ pub fn surface() reaper.IReaperControlSurface {
     return @ptrCast(pointer);
 }
 
+/// The surface that holds the MIDI devices that the globals have. Because REAPER makes the surface of new settings before it deletes the
+/// one of the old, the one that is deleted must not let go of the devices of the next.
+var midi_owner: ?*anyopaque = null;
+
+/// The surface that holds the MIDI devices, for the tests.
+pub fn testMidiOwner() ?*anyopaque {
+    return midi_owner;
+}
+
+/// Lets go of the MIDI devices, and of the unit that sent through them. Calling it with none is fine.
+fn closeMidi() void {
+    var globals = getGlobals();
+    if (globals.m_midi_out) |_| {
+        globals.unit.shutdown(); // lights off
+    }
+    if (globals.m_midi_out) |midi_out| {
+        c.MidiOut_Destroy(midi_out);
+        globals.m_midi_out = null;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_Destroy(midi_in);
+        globals.m_midi_in = null;
+    }
+    // Because the output is gone, the unit has nothing to send through until it is started again.
+    globals.unit.sender = null;
+}
+
+/// The name that REAPER gives a MIDI device, for the log, which says which device each surface opened.
+fn deviceName(buf: *[128:0]u8, input: bool, dev: c_int) []const u8 {
+    if (builtin.is_test) return "";
+    @memset(buf, 0);
+    const found = if (input) reaper.GetMIDIInputName(dev, @ptrCast(buf), buf.len) else reaper.GetMIDIOutputName(dev, @ptrCast(buf), buf.len);
+    return if (found) std.mem.sliceTo(buf, 0) else "?";
+}
+
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     var globals = getGlobals();
+    // Because the devices of the surface that this one replaces are still open when REAPER makes it, they are let go of first.
+    closeMidi();
+    midi_owner = null;
+    var name_buf: [128:0]u8 = undefined;
+    if (indev >= 0) log.info("midi in {d}: {s}", .{ indev, deviceName(&name_buf, true, indev) });
+    if (outdev >= 0) log.info("midi out {d}: {s}", .{ outdev, deviceName(&name_buf, false, outdev) });
     globals.m_midi_in_dev = indev;
     globals.m_midi_out_dev = outdev;
     globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
@@ -43,8 +84,10 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     if (globals.m_midi_in) |midi_in| {
         log.debug("created midi in", .{});
         c.MidiIn_start(midi_in);
-    } else {
+    } else if (indev >= 0) {
         log.err("couldn’t create midi in", .{});
+    } else {
+        log.debug("no midi in is configured", .{});
     }
     // Because the unit keeps its state between two initializations of the surface, it starts again from nothing.
     globals.unit = .{};
@@ -53,8 +96,10 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         // The unit is in the legacy mode until the handshake is answered, and falls back to it if it never is.
         if (globals.m_midi_in != null) globals.unit.start(.reaper(midi_out), nowMs());
         actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
-    } else {
+    } else if (outdev >= 0) {
         log.err("couldn’t create midi out", .{});
+    } else {
+        log.debug("no midi out is configured", .{});
     }
 
     // If MIDI devices are successfully created, switch to fx_ctrl mode.
@@ -72,31 +117,37 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
             actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
         }
     } else {
-        log.err("MIDI devices not available", .{});
+        // Because the surface that the extension makes for itself has no device, only a surface whose devices were asked for says it.
+        if (indev >= 0 or outdev >= 0) log.err("MIDI devices not available", .{}) else log.debug("no MIDI device is configured", .{});
         if (globals.state.current_mode != .suspended) {
             actions.dispatch(globals, .{ .change_mode = .suspended });
         }
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
+    midi_owner = myCsurf;
     return myCsurf;
 }
 
+/// Deletes a surface that this extension made for itself, whose destructor lets go of the devices that it holds. The surfaces that
+/// REAPER made are deleted by REAPER, which must not be done twice.
 pub fn deinit(csurf: c.C_ControlSurface) void {
-    var globals = getGlobals();
-    if (globals.m_midi_out) |_| {
-        globals.unit.shutdown(); // lights off
-    }
-
-    if (globals.m_midi_out) |midi_out| {
-        c.MidiOut_Destroy(midi_out);
-        globals.m_midi_out = null;
-    }
-    if (globals.m_midi_in) |midi_in| {
-        c.MidiIn_Destroy(midi_in);
-        globals.m_midi_in = null;
-    }
     c.ControlSurface_Destroy(csurf);
+}
+
+/// REAPER closes a surface without resetting it, which it does before it deletes it. The devices are let go of if this surface
+/// holds them; the surface itself is REAPER's, and is not deleted here.
+pub export fn zCloseNoReset(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) closeMidi();
+}
+
+/// The destructor of a surface, which REAPER calls when the settings change and when it closes.
+pub export fn zSurfaceDestroyed(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) {
+        closeMidi();
+        midi_owner = null;
+    }
+    if (self != null and self == my_csurf) my_csurf = null;
 }
 
 export fn zGetTypeString() callconv(.c) [*]const u8 {
@@ -117,10 +168,6 @@ export fn zGetConfigString() callconv(.c) [*]const u8 {
         return "0 0 0 0";
     };
     return &config_buf;
-}
-
-export fn zCloseNoReset() callconv(.c) void {
-    deinit(my_csurf);
 }
 
 /// The tick count of the host, in milliseconds. It is not available before REAPER has given its functions.
@@ -165,6 +212,12 @@ export fn zRun() callconv(.c) void {
             }
             const size: usize = @intCast(raw_size);
             const message = c.MIDI_event_message(evts);
+            // Because a surface that never gets an event is not told apart from one that never opened its device, the first ones are
+            // logged: what arrives, and how big it is.
+            if (globals.midi_events_logged < 12) {
+                globals.midi_events_logged += 1;
+                log.info("midi in event of {d} bytes, status {x}", .{ size, message[0] });
+            }
             if (size > 3 and message[0] == 0xF0) {
                 globals.unit.onSysex(message[0..size], now);
             } else if (globals.unit.onCc(now)) {

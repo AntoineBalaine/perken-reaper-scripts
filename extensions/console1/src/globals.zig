@@ -63,6 +63,8 @@ unit: Unit = .{},
 /// Whether the transport mode was entered by the Mode button of the unit, which is held down: it is a modifier when the
 /// preference says so, and the mode ends when the button is released.
 mode_held: bool = false,
+/// How many events of the MIDI input were logged, which is only the first ones.
+midi_events_logged: u8 = 0,
 /// Whether the Alt key of the computer's keyboard was held on the last poll, and whether the transport mode was entered by it, which its
 /// release then leaves.
 alt_held: bool = false,

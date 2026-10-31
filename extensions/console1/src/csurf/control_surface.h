@@ -7,7 +7,8 @@
 extern "C" const char *zGetTypeString();
 extern "C" const char *zGetDescString();
 extern "C" const char *zGetConfigString();
-extern "C" void zCloseNoReset();
+extern "C" void zCloseNoReset(void *self);
+extern "C" void zSurfaceDestroyed(void *self);
 extern "C" void zRun();
 extern "C" void zSetTrackListChange();
 extern "C" void zSetSurfaceVolume(MediaTrack *trackid, double volume);
@@ -29,6 +30,8 @@ extern "C" int zExtended(int call, void *parm1, void *parm2, void *parm3);
 class ZigControlSurface : public IReaperControlSurface {
 public:
   ZigControlSurface();
+  // REAPER deletes the surface when its settings change, and the MIDI devices that it holds have to be let go of by then.
+  ~ZigControlSurface() override;
   const char *GetTypeString() override;
   const char *GetDescString() override;
   const char *GetConfigString() override;

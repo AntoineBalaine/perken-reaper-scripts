@@ -64,3 +64,32 @@ test "every knob of the transport mode takes a tick without moving the emulated 
     }
     try testing.expectEqual(@import("../statemachine.zig").Mode.transport, h.globals.state.current_mode);
 }
+
+test "the ticks of the jog knobs of the console turn the knobs of the panel, around their 128 steps" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_tr_id = 1;
+    const transport = &h.globals.state.transport;
+
+    transport.jog = 10;
+    h.tick(.Eq_LoMidGain, 1);
+    h.tick(.Eq_LoMidGain, 1);
+    try testing.expectEqual(@as(u8, 12), transport.jog);
+    h.tick(.Eq_LoMidGain, -1);
+    try testing.expectEqual(@as(u8, 11), transport.jog);
+
+    // The knobs wrap, as the console's do, and each one has its own position.
+    transport.jog_item = 127;
+    h.tick(.Eq_HiGain, 1);
+    try testing.expectEqual(@as(u8, 0), transport.jog_item);
+    h.tick(.Eq_HiGain, -1);
+    try testing.expectEqual(@as(u8, 127), transport.jog_item);
+    try testing.expectEqual(@as(u8, 11), transport.jog);
+
+    transport.scrub = 5;
+    transport.jog_marker = 6;
+    h.tick(.Eq_LoGain, 1);
+    h.tick(.Comp_Attack, -1);
+    try testing.expectEqual(@as(u8, 6), transport.scrub);
+    try testing.expectEqual(@as(u8, 5), transport.jog_marker);
+}

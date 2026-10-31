@@ -17,8 +17,30 @@ const CSURF_EXT_SETLASTTOUCHEDTRACK: c_int = 0x0001000C;
 pub var ignore_notifications = false;
 pub var my_csurf: c.C_ControlSurface = undefined;
 
+/// The surface that holds the MIDI devices that the globals have. Because REAPER makes the surface of new settings before it deletes the
+/// one of the old, the one that is deleted must not let go of the devices of the next.
+var midi_owner: ?*anyopaque = null;
+
+/// Lets go of the MIDI devices. Calling it with none is fine.
+fn closeMidi() void {
+    var globals = MftGlobals.get();
+    globals.online = false;
+    if (globals.m_midi_out) |mo| {
+        midi_out.clearAll(mo);
+        c.MidiOut_Destroy(mo);
+        globals.m_midi_out = null;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_Destroy(midi_in);
+        globals.m_midi_in = null;
+    }
+}
+
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     var globals = MftGlobals.get();
+    // Because the devices of the surface that this one replaces are still open when REAPER makes it, they are let go of first.
+    closeMidi();
+    midi_owner = null;
     globals.m_midi_in_dev = indev;
     globals.m_midi_out_dev = outdev;
     globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
@@ -43,21 +65,13 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
+    midi_owner = myCsurf;
     return myCsurf;
 }
 
+/// Deletes a surface that this extension made for itself, whose destructor lets go of the devices that it holds. The surfaces that
+/// REAPER made are deleted by REAPER, which must not be done twice.
 pub fn deinit(csurf: c.C_ControlSurface) void {
-    var globals = MftGlobals.get();
-    globals.online = false;
-    if (globals.m_midi_out) |mo| {
-        midi_out.clearAll(mo);
-        c.MidiOut_Destroy(mo);
-        globals.m_midi_out = null;
-    }
-    if (globals.m_midi_in) |midi_in| {
-        c.MidiIn_Destroy(midi_in);
-        globals.m_midi_in = null;
-    }
     c.ControlSurface_Destroy(csurf);
 }
 
@@ -78,8 +92,19 @@ export fn zGetConfigString() callconv(.c) [*]const u8 {
     return &config_buf;
 }
 
-export fn zCloseNoReset() callconv(.c) void {
-    deinit(my_csurf);
+/// REAPER closes a surface without resetting it, before it deletes it: the devices are let go of if this surface holds them, and the
+/// surface itself is REAPER's.
+export fn zCloseNoReset(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) closeMidi();
+}
+
+/// The destructor of a surface, which REAPER calls when the settings change and when it closes.
+export fn zSurfaceDestroyed(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) {
+        closeMidi();
+        midi_owner = null;
+    }
+    if (self != null and self == my_csurf) my_csurf = null;
 }
 
 var led_test_running = false;

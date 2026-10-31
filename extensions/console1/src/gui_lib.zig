@@ -39,6 +39,23 @@ fn shiftAction(cc: c1.CCs) ?actions.ModeAction {
     };
 }
 
+/// How much of a tick the drag of a jog knob has made, for each knob.
+var jog_progress: [128]f64 = @splat(0);
+
+/// How far a jog knob is dragged, in the 127 steps of its position, for one tick.
+const jog_tick_steps = 2.0;
+
+/// The tick that the drag of a jog knob of the panel makes in this frame, if it makes one. `value` is where the drag put the knob, and
+/// `position` is where the knob was: their difference is what the mouse moved it by in this frame, which is added to what the knob
+/// has moved since its last tick. A tick is one step of the console's knob, a finer one while shift is held.
+pub fn jogTick(shift_held: bool, cc: c1.CCs, value: f64, position: u8) ?actions.ModeAction {
+    const progress = &jog_progress[@backingInt(cc)];
+    progress.* += value * 127.0 - @as(f64, @floatFromInt(position));
+    const direction: i8 = if (progress.* >= jog_tick_steps) 1 else if (progress.* <= -jog_tick_steps) -1 else return null;
+    progress.* -= @as(f64, @floatFromInt(direction)) * jog_tick_steps;
+    return .{ .transport = .{ .knob_by = .{ .cc = cc, .delta = direction, .fine = shift_held } } };
+}
+
 /// The mapping panel, in its own child region with independent scrolling. Because its widgets use PushClipRect and custom draw
 /// list operations that crash when scrolled off-screen in the main window, it is not drawn in the window itself.
 fn drawMappingContent(ctx: imgui.ContextPtr, ui: *UiState, rv: *?actions.ModeAction) !void {
@@ -247,10 +264,20 @@ pub fn main(
                         .Eq_lp_shape => rv = .{ .transport = .loop_toggle },
                         // The button starts the loop, and ends it while shift is held on the controller.
                         .Eq_hp_shape => rv = .{ .transport = if (ui.shift_held) .loop_end else .loop_start },
-                        .Eq_LoGain => rv = .{ .transport = .{ .scrub = val } },
-                        .Eq_LoMidGain => rv = .{ .transport = .{ .jog = val } },
-                        .Comp_Attack => rv = .{ .transport = .{ .jog_marker = val } },
-                        .Eq_HiGain => rv = .{ .transport = .{ .jog_item = val } },
+                        // Because the knobs of the jogs turn the way the knobs of the console do, they send ticks, as the console does, and
+                        // not the position of the knob: the drag of the mouse is cut into ticks.
+                        .Eq_LoGain => if (jogTick(ui.shift_held, .Eq_LoGain, ctrl_input.value, ui.state.transport.scrub)) |tick| {
+                            rv = tick;
+                        },
+                        .Eq_LoMidGain => if (jogTick(ui.shift_held, .Eq_LoMidGain, ctrl_input.value, ui.state.transport.jog)) |tick| {
+                            rv = tick;
+                        },
+                        .Comp_Attack => if (jogTick(ui.shift_held, .Comp_Attack, ctrl_input.value, ui.state.transport.jog_marker)) |tick| {
+                            rv = tick;
+                        },
+                        .Eq_HiGain => if (jogTick(ui.shift_held, .Eq_HiGain, ctrl_input.value, ui.state.transport.jog_item)) |tick| {
+                            rv = tick;
+                        },
                         .Comp_comp => rv = .{ .transport = .marker_set },
                         .Inpt_HiCut => rv = .{ .transport = .{ .rate = val } },
                         .Out_solo => rv = .{ .transport = .snap_tgl },
@@ -293,4 +320,25 @@ pub fn main(
         return error.WindowClosed;
 
     return rv;
+}
+
+test "the drag of a jog knob is cut into ticks, each in the direction of the drag, and a finer one with shift" {
+    jog_progress = @splat(0);
+    // A drag that is shorter than a tick makes none, and the rest is kept for the next frame.
+    try std.testing.expect(jogTick(false, .Eq_LoMidGain, 61.0 / 127.0, 60) == null);
+    const up = jogTick(false, .Eq_LoMidGain, 62.0 / 127.0, 60).?;
+    try std.testing.expectEqual(@as(i8, 1), up.transport.knob_by.delta);
+    try std.testing.expectEqual(c1.CCs.Eq_LoMidGain, up.transport.knob_by.cc);
+    try std.testing.expect(!up.transport.knob_by.fine);
+
+    // The other way, with shift.
+    jog_progress = @splat(0);
+    const down = jogTick(true, .Eq_HiGain, 56.0 / 127.0, 60).?;
+    try std.testing.expectEqual(@as(i8, -1), down.transport.knob_by.delta);
+    try std.testing.expect(down.transport.knob_by.fine);
+
+    // A knob that does not move makes no tick, and each knob keeps its own progress.
+    jog_progress = @splat(0);
+    _ = jogTick(false, .Eq_LoGain, 61.0 / 127.0, 60);
+    try std.testing.expect(jogTick(false, .Eq_HiGain, 60.0 / 127.0, 60) == null);
 }

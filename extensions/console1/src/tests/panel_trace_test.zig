@@ -95,8 +95,27 @@ test "fx_ctrl panel shows disconnected text when midi not connected" {
 
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
 
-    // When midi is not connected, the fx_ctrl panel renders a disconnected message
-    try testing.expect(mock.containsText("Console disconnected") or mock.containsWidget(.text_colored, "Console disconnected"));
+    // When midi is not connected, the warning triangle is at the top right of the input card, as it is for the legacy mode, and the text
+    // that was after the cards is gone: the message is in its tooltip.
+    try testing.expect(mock.containsWidget(.invisible_button, "##legacy_warning"));
+    try testing.expect(!mock.containsText("Console disconnected"));
+    try testing.expect(!mock.containsWidget(.text_colored, "Console disconnected"));
+}
+
+test "a connected console has no warning triangle" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(!mock.containsWidget(.invisible_button, "##legacy_warning"));
 }
 
 test "mapping panel in strip assign mode renders the store key and param list" {
@@ -510,7 +529,7 @@ test "roundButton component renders with mock imgui" {
     setupGlobals();
 
     const button = @import("../components/button.zig");
-    const clicked = try button.roundButton(null, "test", "##test", null, null, null, null, null, null, null, null, null);
+    const clicked = try button.roundButton(null, "test", "##test", null, null, null, null, null, null, null, null, null, null);
 
     try testing.expect(!clicked);
     // roundButton should record draw operations in the trace
