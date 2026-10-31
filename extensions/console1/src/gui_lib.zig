@@ -1,4 +1,5 @@
-const ModulesList = @import("statemachine.zig").ModulesList;
+const statemachine = @import("statemachine.zig");
+const ModulesList = statemachine.ModulesList;
 const imgui = @import("reaper_imgui");
 const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
@@ -257,6 +258,10 @@ pub fn main(
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
+                            // The first six rows map the module that they stand for.
+                            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6 => if (statemachine.moduleOfTrackRow(tr_cc)) |module| {
+                                rv = .{ .mapping_panel = .{ .map_module = module } };
+                            },
                             .Tr_tr11 => rv = .{ .transport = .{ .automation_mode = .trim } },
                             .Tr_tr12 => rv = .{ .transport = .{ .automation_mode = .read } },
                             .Tr_tr13 => rv = .{ .transport = .{ .automation_mode = .latch } },

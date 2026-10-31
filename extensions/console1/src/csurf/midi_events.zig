@@ -7,7 +7,8 @@ const Globals = @import("../globals.zig").Globals;
 const actions = @import("../actions.zig");
 const Unit = @import("../unit/unit.zig");
 const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
-const ModulesList = @import("../statemachine.zig").ModulesList;
+const statemachine = @import("../statemachine.zig");
+const ModulesList = statemachine.ModulesList;
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     // The console only sends cc messages, so we know that the status is always going to be 0xb0,
@@ -179,12 +180,10 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
                 .Inpt_filt_to_comp => actions.dispatch(globals, .{ .transport = .play }),
                 .Inpt_phase_inv => actions.dispatch(globals, .{ .transport = .stop }),
                 .Inpt_preset => actions.dispatch(globals, .{ .transport = .rec }),
-                // The track buttons keep the browsers that they had.
-                .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
-                .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
-                .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
-                .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
-                .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                // The first six track buttons open the mapping of the module that they stand for, as the rows of the track list do.
+                .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6 => if (statemachine.moduleOfTrackRow(cc)) |module| {
+                    actions.dispatch(globals, .{ .mapping_panel = .{ .map_module = module } });
+                },
                 .Tr_tr11 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
                 .Tr_tr12 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
                 .Tr_tr13 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),

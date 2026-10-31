@@ -72,6 +72,13 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             globals.state.mapping_panel.mode = .{ .browse = browse_state };
         },
 
+        .map_module => |module| {
+            // Because a module without an FX has nothing to map, the key of such a module does nothing.
+            if (globals.state.fx_ctrl.track_state.fxIndexOf(module) == null) return;
+            dispatch(globals, .{ .change_mode = .mapping_panel });
+            if (globals.state.current_mode == .mapping_panel) mappingPanelActions(globals, .{ .enter_assign = module });
+        },
+
         .enter_assign => |module| {
             // Because we need to deinitialize the previous sub-state before entering assign,
             globals.state.mapping_panel.deinitCurrentSubMode();

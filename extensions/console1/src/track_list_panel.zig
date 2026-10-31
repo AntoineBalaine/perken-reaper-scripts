@@ -10,6 +10,7 @@ const styles_components = @import("styles_components.zig");
 const State = @import("statemachine.zig").State;
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const safePrint = @import("utils").safePrint;
+const substituteFirst = @import("translations.zig").substituteFirst;
 const ui_helpers = @import("ui_helpers.zig");
 const panel_theme = @import("panel_theme");
 const c1 = @import("c1.zig");
@@ -241,6 +242,15 @@ fn altText(mode: statemachine.Mode, cc: c1.CCs, shift_held: bool, translations: 
     };
 }
 
+/// The label of a row of the transport mode that maps a module, which is "Map" and the name of the module. Only a module that
+/// has an FX on the track is mapped, so the other rows have none.
+fn mapRowLabel(buf: [:0]u8, state: *const State, cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
+    const module = statemachine.moduleOfTrackRow(cc) orelse return null;
+    if (state.fx_ctrl.track_state.fxIndexOf(module) == null) return null;
+    const name = shiftLabel(cc, translations) orelse return null;
+    return substituteFirst(buf, tr(translations, .trsprt_map_module), name);
+}
+
 pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
@@ -348,7 +358,8 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                         .transport => null,
                         else => null,
                     };
-                    const cc_label = if (cc_key) |key| tr(translations, key) else null;
+                    var map_buf: [96:0]u8 = undefined;
+                    const cc_label = if (cc_key) |key| tr(translations, key) else mapRowLabel(&map_buf, state, cc, translations);
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 

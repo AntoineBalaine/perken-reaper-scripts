@@ -261,6 +261,22 @@ pub fn bandTypeName(band_type: c_int) [:0]const u8 {
     };
 }
 
+/// The index of the FX that a module has on the track, or null when it has none. The strip is the FX of a channel strip, and
+/// the other modules are the FX of the modules of a chain.
+pub fn fxIndexOf(self: *const TrackState, module: ModulesList) ?c_int {
+    return switch (self.mode) {
+        .channel_strip => |strip| if (module == .STRIP) strip.fx_index else null,
+        .multi_fx => |locations| switch (module) {
+            .STRIP => null,
+            .INPUT => if (locations.get(.INPUT)) |location| location.fx_index else null,
+            .GATE => if (locations.get(.GATE)) |location| location.fx_index else null,
+            .EQ => if (locations.get(.EQ)) |location| location.fx_index else null,
+            .COMP => if (locations.get(.COMP)) |location| location.fx_index else null,
+            .OUTPT => if (locations.get(.OUTPT)) |location| location.fx_index else null,
+        },
+    };
+}
+
 pub fn getModuleLocations(self: *TrackState) ?*ModuleLocations {
     return switch (self.mode) {
         .multi_fx => |*locs| locs,

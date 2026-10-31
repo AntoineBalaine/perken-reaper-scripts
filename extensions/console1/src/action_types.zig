@@ -71,6 +71,8 @@ pub const FxSelActions = union(enum) {
 
 pub const MappingPanelAction = union(enum) {
     enter_browse: void,
+    /// Opens the mapping panel on the assignment of a module that has an FX on the track, without the list of modules.
+    map_module: ModulesList,
     enter_assign: ModulesList,
     exit_to_fx_ctrl: void,
     browse_scroll: u8,

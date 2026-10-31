@@ -79,10 +79,28 @@ test "shift only has these functions in the fx_ctrl mode" {
     defer h.deinit();
     h.globals.state.current_mode = .transport;
     h.shift(true);
-    // In the transport mode Tr1 loads the input, as it does without shift.
+    // In the transport mode shift does not make Tr1 open a browser: it maps the strip, as it does without shift, and a track
+    // with no strip has nothing to map.
     h.press(.Tr_tr1);
-    try testing.expectEqual(statemachine.Mode.fx_sel, h.globals.state.current_mode);
-    try testing.expectEqual(statemachine.ModulesList.INPUT, h.globals.state.fx_sel.current_category);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+}
+
+test "in the transport mode the first six buttons open the mapping of their module, when it has an FX" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_mode = .transport;
+    h.globals.state.current_tr_id = 1;
+
+    // Because the track has no FX for the gate, its button does nothing.
+    h.press(.Tr_tr2);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+
+    var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
+    locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
+    h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
+    h.press(.Tr_tr2);
+    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
 }
 
 test "a plain Preset of the sysex unit no longer opens the mapping panel, and the legacy one still does" {

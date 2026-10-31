@@ -77,6 +77,21 @@ pub const Mode = enum {
 };
 
 // Helper for valid transitions
+/// The module that a button of the track list stands for in the modes where the first six rows are the keys of the modules:
+/// the strip, the gate, the EQ, the compressor, the input and the output, in the order of the shifted rows of the FX control
+/// mode. It is null for the other buttons.
+pub fn moduleOfTrackRow(cc: c1.CCs) ?ModulesList {
+    return switch (cc) {
+        .Tr_tr1 => .STRIP,
+        .Tr_tr2 => .GATE,
+        .Tr_tr3 => .EQ,
+        .Tr_tr4 => .COMP,
+        .Tr_tr5 => .INPUT,
+        .Tr_tr6 => .OUTPT,
+        else => null,
+    };
+}
+
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport, .presets },
     .presets = &.{ .fx_ctrl, .suspended },
@@ -85,7 +100,7 @@ pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
     .settings = &.{ .fx_ctrl, .transport, .suspended, .default_fx_sel },
     .suspended = &.{.fx_ctrl},
-    .transport = &.{ .fx_ctrl, .settings, .fx_sel, .suspended },
+    .transport = &.{ .fx_ctrl, .settings, .fx_sel, .mapping_panel, .suspended },
 });
 
 pub const State = struct {
