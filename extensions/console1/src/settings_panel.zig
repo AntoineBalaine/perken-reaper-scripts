@@ -48,7 +48,7 @@ const plate_count = 4;
 
 const button_radius = button.default_radius;
 /// The radius of the keys that have a symbol and no label, which is a little more than the keys that have one.
-const icon_key_radius = 11.0;
+const icon_key_radius = 13.0;
 /// The width of the combos of the plates.
 const combo_width = 230.0;
 /// The modules in the order of the columns of the default plugins, and how many of them stand in a column.
@@ -120,6 +120,17 @@ fn labelAbove(ctx: imgui.ContextPtr, x: f64, label: [:0]const u8) !void {
     try imgui.SetCursorScreenPos(.{ ctx, x, y });
     try imgui.Text(.{ ctx, label });
     try imgui.SetCursorScreenPos(.{ ctx, x, y + try imgui.GetTextLineHeight(.{ctx}) + 2 });
+}
+
+/// The right edge of the item that was just drawn.
+fn rowEdge(ctx: imgui.ContextPtr) !f64 {
+    var min_x: f64 = undefined;
+    var min_y: f64 = undefined;
+    var max_x: f64 = undefined;
+    var max_y: f64 = undefined;
+    try imgui.GetItemRectMin(.{ ctx, &min_x, &min_y });
+    try imgui.GetItemRectMax(.{ ctx, &max_x, &max_y });
+    return max_x;
 }
 
 /// Ends a plate, and remembers how tall its content was, for the next frame.
@@ -269,12 +280,24 @@ pub fn draw(
 
         // The buttons that close the page are under the plate, in a row.
         var id_buf: [128:0]u8 = undefined;
-        // Save and cancel are keys with a symbol, a floppy disk and a cross, and what they do is in their tooltip.
+        // Save and cancel are keys with a symbol, a floppy disk and a cross, and what they do is in their tooltip. The three keys of
+        // the row have the same radius and start at the same height, which is the one of the row: each is put there, and not after the
+        // one before it, so that nothing can move one of them in its line.
+        var row_x: f64 = undefined;
+        var row_y: f64 = undefined;
+        try imgui.GetCursorScreenPos(.{ ctx, &row_x, &row_y });
+        var gap_x: f64 = undefined;
+        var gap_y: f64 = undefined;
+        try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &gap_x, &gap_y });
+        var next_x = row_x;
+        try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
         if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_sv", .{save_label}), save_label, icon_key_radius, .right, false, null, null, .save })) rv = .close_save;
-        try imgui.SameLine(.{ctx});
+        next_x = try rowEdge(ctx) + gap_x;
+        try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
         if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), cancel_label, icon_key_radius, .right, false, null, null, .cross })) rv = .close_cancel;
-        try imgui.SameLine(.{ctx});
-        if (try widgets.roundButton(.{ ctx, install_label, safePrint(&id_buf, "{s}##stngs_ip", .{install_label}), null, null, .right })) rv = .install_presets;
+        next_x = try rowEdge(ctx) + gap_x;
+        try imgui.SetCursorScreenPos(.{ ctx, next_x, row_y });
+        if (try widgets.roundButton(.{ ctx, install_label, safePrint(&id_buf, "{s}##stngs_ip", .{install_label}), null, icon_key_radius, .right })) rv = .install_presets;
 
         // The credits stand on the same line, just after the buttons. Because they are drawn and are not an item, they do not
         // widen the column, which would push the other plates to the right.

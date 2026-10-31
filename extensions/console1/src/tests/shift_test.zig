@@ -309,3 +309,36 @@ test "without the preference, the Mode button toggles the transport mode when it
     h.press(.Inpt_disp_mode);
     try testing.expectEqual(statemachine.Mode.fx_ctrl, h.globals.state.current_mode);
 }
+
+test "holding Alt shows the transport mode from the FX controls, and releasing it brings them back, whatever the Mode button is" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    // The Mode button is not a modifier here, which does not matter to Alt.
+    h.globals.preferences.mode_is_modifier = false;
+
+    midi_events.applyAltModifier(h.globals, true);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    // Holding it on keeps the mode, and polls of the same state do nothing.
+    midi_events.applyAltModifier(h.globals, true);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+    midi_events.applyAltModifier(h.globals, false);
+    try testing.expectEqual(statemachine.Mode.fx_ctrl, h.globals.state.current_mode);
+}
+
+test "Alt does nothing outside of the FX controls, and its release only leaves the transport mode that it entered" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+
+    // Held in another mode, it does not enter the transport mode, and its release does not leave that mode.
+    h.globals.state.current_mode = .settings;
+    midi_events.applyAltModifier(h.globals, true);
+    try testing.expectEqual(statemachine.Mode.settings, h.globals.state.current_mode);
+    midi_events.applyAltModifier(h.globals, false);
+    try testing.expectEqual(statemachine.Mode.settings, h.globals.state.current_mode);
+
+    // The transport mode that the Mode button chose is not left by the release of Alt.
+    h.globals.state.current_mode = .transport;
+    midi_events.applyAltModifier(h.globals, true);
+    midi_events.applyAltModifier(h.globals, false);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
+}

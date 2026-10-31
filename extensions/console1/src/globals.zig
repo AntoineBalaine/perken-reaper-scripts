@@ -63,6 +63,10 @@ unit: Unit = .{},
 /// Whether the transport mode was entered by the Mode button of the unit, which is held down: it is a modifier when the
 /// preference says so, and the mode ends when the button is released.
 mode_held: bool = false,
+/// Whether the Alt key of the computer's keyboard was held on the last poll, and whether the transport mode was entered by it, which its
+/// release then leaves.
+alt_held: bool = false,
+alt_mode_held: bool = false,
 playState: bool = false,
 pauseState: bool = false,
 

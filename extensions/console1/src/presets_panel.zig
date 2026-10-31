@@ -15,7 +15,7 @@ const widgets = @import("components/widgets.zig");
 const panel_theme = @import("panel_theme");
 
 /// The radius of the keys that have a symbol and no label.
-const icon_key_radius = 11.0;
+const icon_key_radius = 13.0;
 
 /// The height under the card that the line of the message and the key that cancels keep.
 const footer_height = 44.0;

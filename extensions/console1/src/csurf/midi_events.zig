@@ -36,6 +36,23 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     if (cc_enum) |cc| onControl(globals, cc, val);
 }
 
+/// The Alt key of the computer's keyboard is a modifier of the FX controls, whether or not the Mode button is one: while it is held,
+/// the transport mode is shown, and its release brings the FX controls back. It only acts from the FX controls, and a release only
+/// leaves the transport mode that its own press entered.
+pub fn applyAltModifier(globals: *Globals, held: bool) void {
+    if (held == globals.alt_held) return;
+    globals.alt_held = held;
+    if (held) {
+        if (globals.state.current_mode == .fx_ctrl) {
+            globals.alt_mode_held = true;
+            actions.dispatch(globals, .{ .change_mode = .transport });
+        }
+    } else if (globals.alt_mode_held) {
+        globals.alt_mode_held = false;
+        if (globals.state.current_mode == .transport) actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+    }
+}
+
 /// An event of the unit in sysex mode. While nothing but the emulation of the legacy unit exists, a tick or a press ends in
 /// the same call as a CC did.
 pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {

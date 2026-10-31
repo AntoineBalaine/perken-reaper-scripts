@@ -29,11 +29,15 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
         .stop => try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.85, cy - s * 0.85, cx + s * 0.85, cy + s * 0.85, @as(c_int, @bitCast(dark)), 1 }),
         .rec => try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, s * 0.95, @as(c_int, @bitCast(red)), 0 }),
         .save => {
-            // A floppy disk: a dark body, the shutter at its top and the label at its bottom, in the white of the keys.
-            const pale: u32 = if (disabled) 0x88888877 else 0xE6E6E6FF;
-            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 1.05, cy - s * 1.05, cx + s * 1.05, cy + s * 1.05, @as(c_int, @bitCast(dark)), 1.5 });
-            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.55, cy - s * 1.05, cx + s * 0.45, cy - s * 0.3, @as(c_int, @bitCast(pale)), 0 });
-            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.7, cy + s * 0.1, cx + s * 0.7, cy + s * 1.05, @as(c_int, @bitCast(pale)), 0 });
+            // A floppy disk: a dark body, the shutter at its top with the slot that it has, and the label at its bottom, in the
+            // white of the keys.
+            const f = 0.92;
+            const body: c_int = @bitCast(dark);
+            const pale: c_int = @bitCast(if (disabled) @as(u32, 0x88888877) else @as(u32, 0xE6E6E6FF));
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 1.05 * f, cy - s * 1.05 * f, cx + s * 1.05 * f, cy + s * 1.05 * f, body, 1.2 });
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.6 * f, cy - s * 1.05 * f, cx + s * 0.5 * f, cy - s * 0.3 * f, pale, 0 });
+            try imgui.DrawList_AddRectFilled(.{ dl, cx + s * 0.1 * f, cy - s * 0.95 * f, cx + s * 0.34 * f, cy - s * 0.45 * f, body, 0 });
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.72 * f, cy + s * 0.12 * f, cx + s * 0.72 * f, cy + s * 1.05 * f, pale, 0 });
         },
         .single => {
             // One tall box, which is one plugin for all the modules.

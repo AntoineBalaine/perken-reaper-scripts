@@ -138,9 +138,18 @@ pub fn keyboardShiftHeld() bool {
     return (getAsyncKeyState(vk_shift) & key_down_bit) != 0;
 }
 
+/// Whether the Alt key of the computer's keyboard is held right now, whichever window has the focus. It is polled as the Shift key is.
+pub fn keyboardAltHeld() bool {
+    const vk_menu = 0x12;
+    const key_down_bit = 0x8000;
+    const getAsyncKeyState = c.GetAsyncKeyState orelse return false;
+    return (getAsyncKeyState(vk_menu) & key_down_bit) != 0;
+}
+
 export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
+    midi_events.applyAltModifier(globals, keyboardAltHeld());
     if (globals.m_midi_in) |midi_in| {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);

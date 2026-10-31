@@ -264,7 +264,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "mapping_open_fx", "Open the plugin window" },
     .{ "mapping_single_fx", "Single plugin mode: one plugin for all the modules" },
     .{ "mapping_multi_fx", "Back to one plugin for each module" },
-    .{ "mapping_comp_filters", "Compressor filters: the high cut and the low cut that the filters to compressor key sends to the compressor" },
+    .{ "mapping_comp_filters", "Compressor filters: the high cut and the low cut active when «filters to compressor» is enabled." },
     .{ "module_sel_title", "Select Module to Edit" },
     .{ "module_sel_cancel", "Cancel" },
     .{ "preset_manager_title", "Preset Manager" },
