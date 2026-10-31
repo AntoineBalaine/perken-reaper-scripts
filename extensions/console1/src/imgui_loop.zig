@@ -7,6 +7,7 @@ const reaper = Reaper.reaper;
 const styles = @import("styles.zig");
 const extension = @import("console1_extension.zig");
 const csurf = @import("csurf/control_surface.zig");
+const midi_events_fxctrl = @import("csurf/midi_events_fxctrl.zig");
 const actions = @import("actions.zig");
 const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
@@ -140,6 +141,12 @@ fn onTimer() callconv(.c) void {
         .MainStyle = &styles.MainStyle,
         .ConfigStyle = &styles.ConfigStyle,
     };
+
+    // The meters of the gate and of the compressor are read here, because the UI library cannot call REAPER.
+    switch (globals.state.current_mode) {
+        .fx_ctrl, .fx_sel, .mapping_panel => midi_events_fxctrl.readReductionMeters(globals),
+        else => {},
+    }
 
     // Because the UI library has no clock of its own, the panel gets the time of the frame from the state.
     globals.state.fx_ctrl.now_ms = csurf.nowMs();

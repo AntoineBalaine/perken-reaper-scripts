@@ -14,7 +14,7 @@ const MappingsModuleMap = @import("mappings_list.zig").ModuleMap;
 const fx_browser = @import("fx_browser.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 const panel_theme = @import("panel_theme");
-const module_plate = @import("components/module_plate.zig");
+const card_kit = @import("components/panel_card.zig");
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 
@@ -52,23 +52,6 @@ fn rootMenuName(menu: fx_browser.RootMenu, translations: *TranslationStore) [:0]
     };
 }
 
-/// Draws a text as the names of the modules are engraved in the panel: in the font and the orange of their labels, over a
-/// dark copy of itself that is a pixel lower.
-fn drawEngraved(ctx: imgui.ContextPtr, text: [:0]const u8) !void {
-    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
-    defer imgui.PopFont(.{ctx}) catch {};
-    var x: f64 = undefined;
-    var y: f64 = undefined;
-    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
-    var w: f64 = undefined;
-    var h: f64 = undefined;
-    try imgui.CalcTextSize(.{ ctx, text, &w, &h });
-    const dl = try imgui.GetWindowDrawList(.{ctx});
-    try imgui.DrawList_AddText(.{ dl, x + 1, y + 1, panel_theme.text_engraved_shadow, text });
-    try imgui.DrawList_AddText(.{ dl, x, y, panel_theme.tab_text, text });
-    try imgui.Dummy(.{ ctx, w, h });
-}
-
 /// A screw of the face of the panel.
 fn drawScrew(dl: imgui.DrawListPtr, x: f64, y: f64) !void {
     try imgui.DrawList_AddCircleFilled(.{ dl, x + 0.6, y + 0.9, 3.8, @as(c_int, @bitCast(@as(u32, 0x00000099))), 0 });
@@ -92,51 +75,6 @@ fn drawScrews(ctx: imgui.ContextPtr) !void {
         try drawScrew(dl, screw_x, top);
         try drawScrew(dl, screw_x, y + h - inset);
     }
-}
-
-/// Marks the row that was just drawn as the one that the cursor of the controller is on: the amber wash that the mouse gives
-/// the row under it, a little stronger.
-fn drawCursor(ctx: imgui.ContextPtr) !void {
-    var x1: f64 = undefined;
-    var y1: f64 = undefined;
-    var x2: f64 = undefined;
-    var y2: f64 = undefined;
-    try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
-    try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
-    const dl = try imgui.GetWindowDrawList(.{ctx});
-    try imgui.DrawList_AddRectFilled(.{ dl, x1, y1, x2, y2, panel_theme.amber_soft, 3 });
-}
-
-/// A small arrow at the right edge of the row that was just drawn, which says that the row opens a menu.
-fn drawArrow(ctx: imgui.ContextPtr) !void {
-    var x1: f64 = undefined;
-    var y1: f64 = undefined;
-    var x2: f64 = undefined;
-    var y2: f64 = undefined;
-    try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
-    try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
-    const dl = try imgui.GetWindowDrawList(.{ctx});
-    const cx = x2 - 12;
-    const cy = (y1 + y2) / 2;
-    try imgui.DrawList_AddTriangleFilled(.{ dl, cx - 2.5, cy - 4, cx - 2.5, cy + 4, cx + 3, cy, panel_theme.text_dim });
-}
-
-/// One row of a list, in the font and the color of the window: a menu has an arrow at its right edge. The row is lit when
-/// the mouse is on it, as the entries of a combo are, and when the cursor of the controller is on it. It returns whether the
-/// row was clicked.
-fn row(ctx: imgui.ContextPtr, label: [:0]const u8, is_menu: bool, is_cursor: bool, scroll_changed: ?*bool) !bool {
-    const clicked = try imgui.Selectable(.{ ctx, label });
-    if (is_menu) try drawArrow(ctx);
-    if (is_cursor) {
-        try drawCursor(ctx);
-        if (scroll_changed) |changed| {
-            if (changed.*) {
-                try imgui.SetScrollHereY(.{ ctx, 0.5 });
-                changed.* = false;
-            }
-        }
-    }
-    return clicked;
 }
 
 /// What a click on an entry of a level does, which is the same as what confirming it does.
@@ -191,7 +129,7 @@ fn drawMappedRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
     while (iterator.next()) |entry| : (i += 1) {
         const fx_offset = entry.key_ptr.*;
         const fx_name = list.strings.get(fx_offset);
-        if (try row(ctx, @as([:0]const u8, @ptrCast(fx_name)), false, list.cursor == i, list.scroll_changed)) {
+        if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(fx_name)), false, list.cursor == i, list.scroll_changed)) {
             const mapping_offsets = entry.value_ptr.*;
             if (mapping_offsets.items.len == 1) {
                 const mapping_name = list.strings.get(mapping_offsets.items[0].name_offset);
@@ -208,7 +146,7 @@ fn drawMenuRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
     for (std.enums.values(fx_browser.RootMenu)) |menu| {
         const index = list.source.mapped_count + @backingInt(menu);
         const is_menu = fx_browser.isMenu(list.source, list.level, index);
-        if (try row(ctx, rootMenuName(menu, list.translations), is_menu, list.cursor == index, list.scroll_changed)) {
+        if (try card_kit.row(ctx, rootMenuName(menu, list.translations), is_menu, list.cursor == index, list.scroll_changed)) {
             list.rv = clickAction(list.source, list.level, index, list.translations);
         }
     }
@@ -223,7 +161,7 @@ fn drawLevelRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
             var index: usize = 0;
             for (plugins.keys()) |plugin_name| {
                 if (!fx_browser.isListed(plugin_name)) continue;
-                if (try row(ctx, @as([:0]const u8, @ptrCast(plugin_name)), false, list.cursor == index, list.scroll_changed)) {
+                if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(plugin_name)), false, list.cursor == index, list.scroll_changed)) {
                     list.rv = clickAction(list.source, list.level, index, list.translations);
                 }
                 index += 1;
@@ -235,7 +173,7 @@ fn drawLevelRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
             var index: usize = 0;
             while (index < count) : (index += 1) {
                 const label = fx_browser.entryName(list.source, list.level, index) orelse continue;
-                if (try row(ctx, label, index < menus_end, list.cursor == index, list.scroll_changed)) {
+                if (try card_kit.row(ctx, label, index < menus_end, list.cursor == index, list.scroll_changed)) {
                     list.rv = clickAction(list.source, list.level, index, list.translations);
                 }
             }
@@ -248,54 +186,10 @@ fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(Fx
     const mapping_entries = list.mappings.get(sel.fx_string_pool_offset) orelse return;
     for (mapping_entries.items, 0..) |map_entry, i| {
         const mapping_name = list.strings.get(map_entry.name_offset);
-        if (try row(ctx, @as([:0]const u8, @ptrCast(mapping_name)), false, list.cursor == i, list.scroll_changed)) {
+        if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(mapping_name)), false, list.cursor == i, list.scroll_changed)) {
             list.rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } };
         }
     }
-}
-
-/// The pixels that a card takes around its rows: the room for its label, and its edges.
-fn cardOverhead(ctx: imgui.ContextPtr) !f64 {
-    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
-    defer imgui.PopFont(.{ctx}) catch {};
-    var w: f64 = undefined;
-    var h: f64 = undefined;
-    try imgui.CalcTextSize(.{ ctx, "Ag", &w, &h });
-    var spacing_x: f64 = undefined;
-    var spacing_y: f64 = undefined;
-    try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y });
-    // The label's line, the padding of the face on its two sides, and the space before the next item.
-    return h + 4 + 12 + spacing_y;
-}
-
-/// Starts a card, with its label engraved at its top and its rows in a region of their own that scrolls. It returns the card,
-/// and whether the region is visible. `endCard` must follow.
-fn beginCard(ctx: imgui.ContextPtr, id: [:0]const u8, title: [:0]const u8, rows_height: f64) !struct { plate: module_plate.Plate, visible: bool } {
-    var available_w: f64 = undefined;
-    var available_h: f64 = undefined;
-    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
-    // The label of a card is in capitals, as those of the modules are.
-    var title_buf: [128:0]u8 = undefined;
-    const length = @min(title.len, title_buf.len - 1);
-    for (title[0..length], 0..) |letter, i| title_buf[i] = std.ascii.toUpper(letter);
-    title_buf[length] = 0;
-    const plate = try module_plate.Plate.begin(ctx, .{
-        .slots = &.{},
-        .columns = 1,
-        .widest_label = "Ag",
-        .title = title_buf[0..length :0],
-        .title_font = c1_theme.fonts.TAB,
-        .min_width = @max(available_w - 12, 120),
-        .min_content_h = rows_height,
-    });
-    try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y });
-    const visible = try imgui.BeginChild(.{ ctx, id, plate.width, rows_height, null, imgui.WindowFlags_None });
-    return .{ .plate = plate, .visible = visible };
-}
-
-fn endCard(ctx: imgui.ContextPtr, plate: module_plate.Plate) !void {
-    try imgui.EndChild(.{ctx});
-    try plate.end(ctx);
 }
 
 pub fn ModulePopup(
@@ -318,10 +212,6 @@ pub fn ModulePopup(
     panel_theme.push(ctx);
     defer panel_theme.pop(ctx);
 
-    // The cards of this window are as tall as their rows, and not as tall as the modules of the main panel.
-    module_plate.startFrame();
-    module_plate.startFrame();
-
     try imgui.SetNextWindowSize(.{ ctx, 460, 480, imgui.Cond_FirstUseEver });
 
     var open = true;
@@ -342,7 +232,7 @@ pub fn ModulePopup(
             if (try imgui.ArrowButton(.{ ctx, "##fx_back", imgui.Dir_Left })) rv = .back;
             try imgui.SameLine(.{ctx});
         }
-        try drawEngraved(ctx, @tagName(module));
+        try card_kit.drawEngraved(ctx, @tagName(module));
         var crumb_buf: [512:0]u8 = undefined;
         const subtitle: [:0]const u8 = switch (sub_mode) {
             .browse_fx => breadcrumb(&crumb_buf, source, path, translations),
@@ -368,7 +258,7 @@ pub fn ModulePopup(
         var available_h: f64 = undefined;
         try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
         const footer_height = 24.0;
-        const overhead = try cardOverhead(ctx);
+        const overhead = try card_kit.cardOverhead(ctx);
         const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
         const room = @max(available_h - footer_height, 120);
 
@@ -384,25 +274,25 @@ pub fn ModulePopup(
                         const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.root_menu_count)) + 4;
                         const mapped_height = @max(room - menus_height - overhead * 2, row_height * 3);
 
-                        const mapped_card = try beginCard(ctx, "##fx_card_mapped", "Mapped plugins", mapped_height);
+                        const mapped_card = try card_kit.beginCard(ctx, "##fx_card_mapped", "Mapped plugins", mapped_height);
                         if (mapped_card.visible) try drawMappedRows(ctx, &list);
-                        try endCard(ctx, mapped_card.plate);
+                        try card_kit.endCard(ctx, mapped_card.plate);
 
-                        const menus_card = try beginCard(ctx, "##fx_card_menus", "Browse", menus_height);
+                        const menus_card = try card_kit.beginCard(ctx, "##fx_card_menus", "Browse", menus_height);
                         if (menus_card.visible) try drawMenuRows(ctx, &list);
-                        try endCard(ctx, menus_card.plate);
+                        try card_kit.endCard(ctx, menus_card.plate);
                     } else {
-                        const card = try beginCard(ctx, "##fx_card_mapped", "Mapped plugins", @max(room - overhead, row_height * 3));
+                        const card = try card_kit.beginCard(ctx, "##fx_card_mapped", "Mapped plugins", @max(room - overhead, row_height * 3));
                         if (card.visible) try drawMappedRows(ctx, &list);
-                        try endCard(ctx, card.plate);
+                        try card_kit.endCard(ctx, card.plate);
                     },
                     else => {
                         // A menu that is open has a card of its own, labelled with its name.
                         var title_buf: [128:0]u8 = undefined;
                         const title: [:0]const u8 = if (path.len > 0) lastName(&title_buf, source, path, translations) else "Plugins";
-                        const card = try beginCard(ctx, "##fx_card_level", title, @max(room - overhead, row_height * 3));
+                        const card = try card_kit.beginCard(ctx, "##fx_card_level", title, @max(room - overhead, row_height * 3));
                         if (card.visible) try drawLevelRows(ctx, &list);
-                        try endCard(ctx, card.plate);
+                        try card_kit.endCard(ctx, card.plate);
                     },
                 }
             },
@@ -410,9 +300,9 @@ pub fn ModulePopup(
                 if (mappings.get(sel.fx_string_pool_offset)) |mapping_entries| entry_count = mapping_entries.items.len;
                 cursor_index = sel.scroll_position_rel;
                 list.cursor = if (highlight) |hl| hl.current_index else null;
-                const card = try beginCard(ctx, "##fx_card_mappings", "Mappings", @max(room - overhead, row_height * 3));
+                const card = try card_kit.beginCard(ctx, "##fx_card_mappings", "Mappings", @max(room - overhead, row_height * 3));
                 if (card.visible) try drawMappingRows(ctx, &list, sel);
-                try endCard(ctx, card.plate);
+                try card_kit.endCard(ctx, card.plate);
             },
         }
         if (list.rv) |chosen| rv = chosen;

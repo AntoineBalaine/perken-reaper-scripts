@@ -56,7 +56,12 @@ pub fn main(
         switch (ui.state.current_mode) {
             .fx_ctrl => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
-                    rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
+                    // While shift is held, the Preset button saves a preset, which is the alternative that it shows.
+                    if (ctrl_input.cc == .Inpt_preset and ui.shift_held) {
+                        rv = .{ .presets = .{ .enter = .save } };
+                    } else {
+                        rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
+                    }
                 }
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});

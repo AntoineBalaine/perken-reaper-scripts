@@ -138,6 +138,33 @@ fn tickParameter(globals: *Globals, cc: c1.CCs, step: f64) void {
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = normalizedToMidi(next) } } });
 }
 
+/// How far a plugin pulls the signal down, in dB, as it says it with the name "GainReduction_dB", or null when it says
+/// nothing, which is the case of the plugins that do not report their reduction to the host. The reduction is a positive
+/// amount whichever sign the plugin writes it with.
+fn reductionDb(track: MediaTrack, fx_index: c_int) ?f64 {
+    var buf: [64:0]u8 = undefined;
+    if (!reaper.TrackFX_GetNamedConfigParm(track, fx_index, "GainReduction_dB", buf[0..], buf.len)) return null;
+    const value = std.fmt.parseFloat(f64, std.mem.sliceTo(&buf, 0)) catch return null;
+    return @abs(value);
+}
+
+/// Reads how far the gate and the compressor of the selected track pull the signal down, for the meters of the panel. A
+/// module whose plugin does not report it has no meter. The channel strip has one plugin for all of them, which is read
+/// for the compressor only, as the unit's meter does.
+pub fn readReductionMeters(globals: *Globals) void {
+    const fx_ctrl = &globals.state.fx_ctrl;
+    fx_ctrl.gate_reduction_db = null;
+    fx_ctrl.comp_reduction_db = null;
+    const tr = getTrack(globals.state.current_tr_id) orelse return;
+    switch (fx_ctrl.track_state.mode) {
+        .multi_fx => |locations| {
+            if (locations.get(.GATE)) |gate| fx_ctrl.gate_reduction_db = reductionDb(tr, gate.fx_index);
+            if (locations.get(.COMP)) |comp| fx_ctrl.comp_reduction_db = reductionDb(tr, comp.fx_index);
+        },
+        .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index),
+    }
+}
+
 /// Sets one of the toggles of the selected track in the state that the panel draws.
 pub fn setTrackToggle(globals: *Globals, cc: c1.CCs, on: bool) void {
     const value = globals.state.fx_ctrl.values.getPtr(cc) orelse return;

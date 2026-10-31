@@ -59,6 +59,12 @@ pub const Spec = struct {
     title: [:0]const u8 = "",
     /// The font of the title, or null for the current one.
     title_font: imgui.FontPtr = null,
+    /// The plate belongs to a window of its own: it is as tall as its own controls, and it neither takes the height of the
+    /// tallest plate of the panel nor gives it its own.
+    independent: bool = false,
+    /// Room that the module keeps free under its top row, for something that the module draws in that row itself. The
+    /// controls that are not at the top are lower by that much, and the plate is as much taller.
+    reserve_top: f64 = 0,
     /// The other titles that the module can have: the plate is as wide as the widest of them and of the title,
     /// so that its width does not change when its title does.
     title_alternatives: []const [:0]const u8 = &.{},
@@ -183,6 +189,8 @@ pub const Plate = struct {
     align_cx: f64 = 0,
     /// The pixels that a pixel of the photograph's height takes: the closer the rows, the smaller.
     k: f64 = 0,
+    /// The room kept free above the controls.
+    reserve_top: f64 = 0,
     width: f64,
     /// The height of the plate: its title's room and its controls'.
     height: f64,
@@ -216,10 +224,10 @@ pub const Plate = struct {
         // of this one are moved apart, up to the spacing of the hardware, to fill it.
         const base_k = scale * row_squeeze;
         var ext = try measure(ctx, spec, &plate, base_k);
-        const natural = @max(ext.bottom - ext.top, spec.min_content_h);
+        const natural = @max(ext.bottom - ext.top + spec.reserve_top, spec.min_content_h);
         plate.k = base_k;
         const span = ext.y_bottom - ext.y_top;
-        if (spec.slots.len > 0 and tallest > natural and span > 0) {
+        if (spec.slots.len > 0 and !spec.independent and tallest > natural and span > 0) {
             const wanted = base_k + (tallest - natural) / span;
             plate.k = std.math.clamp(wanted, base_k, scale * max_stretch);
             ext = try measure(ctx, spec, &plate, plate.k);
@@ -228,6 +236,7 @@ pub const Plate = struct {
         const right = ext.right;
         const top = ext.top;
         const bottom = ext.bottom;
+        plate.reserve_top = spec.reserve_top;
         plate.x_shift = -left;
         plate.y_shift = if (spec.slots.len == 0) 0 else -top;
         var title_w: f64 = 0;
@@ -251,9 +260,9 @@ pub const Plate = struct {
         }
 
         // The plates are all as tall as the tallest, which is measured with the rows as close as they come.
-        frame_tallest = @max(frame_tallest, natural);
-        const content = if (spec.slots.len == 0) spec.min_content_h else @max(bottom - top, spec.min_content_h);
-        const controls_h = @max(content, tallest);
+        if (!spec.independent) frame_tallest = @max(frame_tallest, natural);
+        const content = if (spec.slots.len == 0) spec.min_content_h else @max(bottom - top + spec.reserve_top, spec.min_content_h);
+        const controls_h = if (spec.independent) content else @max(content, tallest);
         const header = title_h + 4;
         plate.height = header + controls_h;
 
@@ -270,7 +279,7 @@ pub const Plate = struct {
     }
 
     /// The center of a control on the screen.
-    fn center(self: Plate, slot: Slot) Point {
+    pub fn center(self: Plate, slot: Slot) Point {
         return .{
             // The edge of the content is the origin, as the shift brings the leftmost control to it.
             .x = if (slot.follows != null)
@@ -281,10 +290,11 @@ pub const Plate = struct {
                 self.origin.x + button_r
             else
                 self.origin.x + self.x_shift + self.knob_w / 2 + @as(f64, @floatFromInt(slot.col)) * self.pitch + slot.dx * scale,
+            // Only the controls that are not at the top are lower, as the top row is where the room is kept for.
             .y = if (slot.at_top)
                 self.origin.y + @max(button_r, self.line_h / 2)
             else
-                self.origin.y + self.y_shift + slot.y * self.k,
+                self.reserve_top + self.origin.y + self.y_shift + slot.y * self.k,
         };
     }
 

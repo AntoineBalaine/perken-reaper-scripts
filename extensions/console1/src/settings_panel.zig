@@ -94,6 +94,7 @@ fn beginPlate(ctx: imgui.ContextPtr, title: [:0]const u8, width: f64, estimate: 
         .min_width = width,
         // Because the four plates are as tall as the tallest, each one is given the tallest content of the last frame.
         .min_content_h = @max(std.mem.max(f64, &measured_height), estimate),
+        .independent = true,
     });
     try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y });
     return plate;
@@ -238,10 +239,6 @@ pub fn draw(
     var rv: ?SettingsRV = null;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
-
-    // The plates of this page have a height of their own: they are not all as tall as the modules of the main panel.
-    module_plate.startFrame();
-    module_plate.startFrame();
 
     const language_label = tr(translations, .settings_language);
     const save_label = tr(translations, .settings_save);

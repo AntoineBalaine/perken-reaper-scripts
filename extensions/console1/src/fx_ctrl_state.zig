@@ -83,6 +83,11 @@ knob_touched_ms: [256]u64 = @splat(0),
 /// The milliseconds of the host at the frame that is being drawn. Because the UI library has no clock of its own, the
 /// host sets it before each frame, and the panel compares it with `knob_touched_ms`.
 now_ms: u64 = 0,
+/// How far the gate and the compressor of the selected track pull the signal down, in dB, as the plugins say it. The host
+/// reads them before each frame, and the panel shows them as meters. A plugin that does not report it has none, which is
+/// null, and its module has no meter.
+gate_reduction_db: ?f64 = null,
+comp_reduction_db: ?f64 = null,
 /// Whether shift is held on the controller, which the host sets before each frame, as it does `now_ms`.
 shift_held: bool = false,
 

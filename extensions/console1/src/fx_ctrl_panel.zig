@@ -24,6 +24,7 @@ const button = @import("components/button.zig");
 const ui_helpers = @import("ui_helpers.zig");
 const param_text = @import("param_text.zig");
 const mft_icons = @import("mft/mft_icons.zig");
+const led_meter = @import("components/led_meter.zig");
 const module_plate = @import("components/module_plate.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 
@@ -60,6 +61,36 @@ fn widestOf(ctx: imgui.ContextPtr, candidates: []const [:0]const u8) ![:0]const 
 
 /// The label that the plugin of the track gives to a parameter. Because the widths of the cards are made of
 /// these labels, they are read whatever the mode: the widths must not change when the mode does.
+/// Whether the controls of the plugins are shown, which is when the meters of the plugins are.
+fn showsPlugins(mode: Mode) bool {
+    return mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel;
+}
+
+/// The room that the gate and the compressor keep under their top row for a meter of reduction, when the plugin of either
+/// one reports it. Both keep it, so that the controls of the two cards stay level whichever plugin reports.
+fn meterReserve(fx_state: *const FxCtrlState, mode: Mode) f64 {
+    if (!showsPlugins(mode)) return 0;
+    if (fx_state.gate_reduction_db == null and fx_state.comp_reduction_db == null) return 0;
+    return led_meter.reserved_height;
+}
+
+/// The width that a card needs for a meter, when its plugin reports one: the half of it that is the meter's must not reach
+/// the label of the bypass button, which is in the other half.
+fn meterPlateWidth(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, mode: Mode, cc: c1.CCs, reduction_db: ?f64) !f64 {
+    if (!showsPlugins(mode) or reduction_db == null) return 0;
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, paramLabel(fx_state, cc), &w, &h });
+    return 2 * (button.default_radius * 2 + 4 + w + 8);
+}
+
+/// Draws a meter of reduction in the right half of the card, level with the bypass button, with its gauge above it.
+fn drawReductionMeter(ctx: imgui.ContextPtr, plate: Plate, slot: Slot, mode: Mode, reduction_db: ?f64) !void {
+    if (!showsPlugins(mode)) return;
+    const reduction = reduction_db orelse return;
+    try led_meter.draw(ctx, plate.origin.x + plate.width, plate.center(slot).y, plate.width / 2, reduction);
+}
+
 fn paramLabel(fx_state: *const FxCtrlState, cc: c1.CCs) [:0]const u8 {
     return fx_state.track_state.label_pool.getPrmLabel(cc);
 }
@@ -619,11 +650,12 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         paramLabel(fx_state, .Shp_sustain),
         paramLabel(fx_state, .Shp_Punch),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape) });
+    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
+    try drawReductionMeter(ctx, plate, shape_slots.Shp_shape, mode, fx_state.gate_reduction_db);
 
     // First column
     {
@@ -1074,11 +1106,12 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
         paramLabel(fx_state, .Comp_Thresh),
         tr(translations, .trsprt_Eq_HiMidGain),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp) });
+    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
+    try drawReductionMeter(ctx, plate, comp_slots.Comp_comp, mode, fx_state.comp_reduction_db);
 
     // First column
     {
