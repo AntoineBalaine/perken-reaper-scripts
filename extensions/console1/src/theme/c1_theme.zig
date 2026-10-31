@@ -1,27 +1,33 @@
 const std = @import("std");
 const ini = @import("ini");
 const imgui = @import("reaper_imgui");
+const panel_fonts = @import("panel_fonts");
 const fontello = @embedFile("../assets/fontello1.ttf");
 const systemfont = "sans-serif";
 
-pub const FONT_SMALL_SIZE: c_int = 14;
+pub const FONT_SMALL_SIZE: c_int = panel_fonts.text_size + 2;
 pub const ICON_FONT_SMALL_SIZE: c_int = 13;
 
 const Fonts = struct {
     MAIN: imgui.FontPtr = undefined,
     ICON_FONT_SMALL: imgui.FontPtr = undefined,
+    /// The font of the names of the modules: the one that the tab labels of the VR-09 panel have.
+    TAB: imgui.FontPtr = undefined,
 };
 
 pub var fonts = Fonts{};
 
 pub fn initFonts(ctx: imgui.ContextPtr) !void {
-    fonts.MAIN = try imgui.CreateFont(.{ systemfont, FONT_SMALL_SIZE, null });
+    fonts.MAIN = panel_fonts.load(panel_fonts.saira_regular, FONT_SMALL_SIZE);
     fonts.ICON_FONT_SMALL = try imgui.CreateFontFromMem(.{ fontello, fontello.len, ICON_FONT_SMALL_SIZE, null });
+    fonts.TAB = panel_fonts.load(panel_fonts.librestile, panel_fonts.tab_size);
     if (ctx) |context| {
         const mainFontResource: imgui.ResourcePtr = @ptrCast(fonts.MAIN);
         try imgui.Attach(.{ context, mainFontResource });
         const fontelloResource: imgui.ResourcePtr = @ptrCast(fonts.ICON_FONT_SMALL);
         try imgui.Attach(.{ context, fontelloResource });
+        const tabResource: imgui.ResourcePtr = @ptrCast(fonts.TAB);
+        try imgui.Attach(.{ context, tabResource });
     }
 }
 

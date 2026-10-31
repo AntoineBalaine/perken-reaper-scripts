@@ -108,8 +108,11 @@ const GuiTestHarness = struct {
             .settings_panel = if (g.settings_panel) |*panel| panel else null,
             .preferences = &g.preferences,
             .midi_connected = g.m_midi_in != null,
+            .legacy_mode = false,
+            .shift_held = false,
             .main_font = Theme.fonts.MAIN,
             .icon_font = Theme.fonts.ICON_FONT_SMALL,
+            .tab_font = null,
             .fx_plugins_by_type = &self.fx_plugins_by_type,
             .fx_chains = &self.fx_chains,
             .track_templates = &self.track_templates,
@@ -162,8 +165,8 @@ test "integration: clicking settings button transitions to settings mode" {
     var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
-    // The settings button in ButtonsBar has the "wrench" icon label "k"
-    harness.mock_imgui.click("k");
+    // Because the bar of buttons is gone, the settings are opened by the action that the shifted row of the track list gives.
+    actions_mod.dispatch(harness.globals, .{ .settings = .open });
     try harness.step();
 
     // The dispatch should have opened settings: settingsActions(.open) creates
@@ -178,7 +181,7 @@ test "integration: settings save returns to fx_ctrl" {
     defer harness.deinit();
 
     // Enter settings mode
-    harness.mock_imgui.click("k");
+    actions_mod.dispatch(harness.globals, .{ .settings = .open });
     try harness.step();
     try testing.expectEqual(Mode.settings, harness.currentMode());
 
@@ -197,7 +200,7 @@ test "integration: settings cancel returns to fx_ctrl" {
     defer harness.deinit();
 
     // Enter settings mode
-    harness.mock_imgui.click("k");
+    actions_mod.dispatch(harness.globals, .{ .settings = .open });
     try harness.step();
     try testing.expectEqual(Mode.settings, harness.currentMode());
 
@@ -214,8 +217,7 @@ test "integration: clicking mapping panel button from fx_ctrl" {
     var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
-    // The mapping panel button in ButtonsBar has the "plus" icon label "B"
-    harness.mock_imgui.click("B");
+    actions_mod.dispatch(harness.globals, .{ .change_mode = .mapping_panel });
     try harness.step();
 
     try testing.expectEqual(Mode.mapping_panel, harness.currentMode());
@@ -227,7 +229,7 @@ test "integration: mode transition validity across multiple frames" {
     defer harness.deinit();
 
     // Frame 1: fx_ctrl -> settings (via button click)
-    harness.mock_imgui.click("k");
+    actions_mod.dispatch(harness.globals, .{ .settings = .open });
     try harness.step();
     try testing.expectEqual(Mode.settings, harness.currentMode());
 
@@ -237,7 +239,7 @@ test "integration: mode transition validity across multiple frames" {
     try testing.expectEqual(Mode.fx_ctrl, harness.currentMode());
 
     // Frame 3: fx_ctrl -> mapping_panel
-    harness.mock_imgui.click("B");
+    actions_mod.dispatch(harness.globals, .{ .change_mode = .mapping_panel });
     try harness.step();
     try testing.expectEqual(Mode.mapping_panel, harness.currentMode());
 }
@@ -305,10 +307,10 @@ const NoopCmd = struct {
     }
 };
 
-// Command: click the settings button (icon "k") in ButtonsBar.
+// Command: open the settings, as the shifted row of the track list does.
 // Because the settingsActions(.open) handler creates a SettingsPanel and
-// transitions to .settings, this only applies from modes where the
-// ButtonsBar is rendered and the transition to settings is valid.
+// transitions to .settings, this only applies from modes where that
+// transition is valid.
 const ClickSettingsCmd = struct {
     pub const name = "click_settings";
 
@@ -324,7 +326,7 @@ const ClickSettingsCmd = struct {
     }
 
     pub fn onPair(self: *@This(), model: *GuiModel, sut: *GuiSystem) !bool {
-        sut.harness.mock_imgui.click("k");
+        actions_mod.dispatch(sut.harness.globals, .{ .settings = .open });
         sut.harness.step() catch return false;
         self.onModelOnly(model);
         return model.expected_mode == sut.harness.currentMode();
@@ -371,7 +373,7 @@ const ClickSettingsCancelCmd = struct {
     }
 };
 
-// Command: click the mapping panel button (icon "B") in ButtonsBar.
+// Command: enter the mapping panel.
 const ClickMappingPanelCmd = struct {
     pub const name = "click_mapping_panel";
 
@@ -384,7 +386,7 @@ const ClickMappingPanelCmd = struct {
     }
 
     pub fn onPair(self: *@This(), model: *GuiModel, sut: *GuiSystem) !bool {
-        sut.harness.mock_imgui.click("B");
+        actions_mod.dispatch(sut.harness.globals, .{ .change_mode = .mapping_panel });
         sut.harness.step() catch return false;
         self.onModelOnly(model);
         return model.expected_mode == sut.harness.currentMode();

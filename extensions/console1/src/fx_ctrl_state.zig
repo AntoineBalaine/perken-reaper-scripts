@@ -18,7 +18,8 @@ pub const TrackList = struct {
     pub const PageSize = 20;
 
     // Fixed size buffer for track names
-    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8 },
+    /// `color` is the color of the track in the TCP, as an ImGui color made readable on a dark face, or 0 for none.
+    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8, color: c_int = 0 },
     name_count: usize = 0,
     blink_counter: u8 = 0, // For LED blinking
 
@@ -77,6 +78,26 @@ values: std.AutoArrayHashMapUnmanaged(c1.CCs, ControlValue),
 values_allocator: std.mem.Allocator,
 scRouting: SCRouting = .off,
 filter_to_comp: bool = false,
+/// The milliseconds of the host at which each knob was last turned on the controller, and 0 for a knob that was not.
+knob_touched_ms: [256]u64 = @splat(0),
+/// The milliseconds of the host at the frame that is being drawn. Because the UI library has no clock of its own, the
+/// host sets it before each frame, and the panel compares it with `knob_touched_ms`.
+now_ms: u64 = 0,
+/// How far the gate and the compressor of the selected track pull the signal down, in dB, as the plugins say it. The host
+/// reads them before each frame, and the panel shows them as meters. A plugin that does not report it has none, which is
+/// null, and its module has no meter.
+gate_reduction_db: ?f64 = null,
+comp_reduction_db: ?f64 = null,
+/// The level of the output of the selected track in dB, for the left and the right channel, as the meter of the panel shows
+/// it. The host reads it while the DAW plays, and it falls to the floor when the DAW does not.
+out_level_db: [2]f64 = .{ out_level_floor_db, out_level_floor_db },
+/// Whether the DAW was playing when the meters were last read. The meters show their value under the mouse only then.
+meters_playing: bool = false,
+/// Which track and which plugins the meters of reduction were last asked about, so that they are asked again, once, when
+/// that changes while the DAW is stopped.
+reduction_key: u64 = 0,
+/// Whether shift is held on the controller, which the host sets before each frame, as it does `now_ms`.
+shift_held: bool = false,
 
 /// Display settings
 display: ?u8 = null,
@@ -105,6 +126,7 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
             // Hardcoded track control buttons (not FX-mappable)
             .Out_mute,
             .Out_solo,
+            .Inpt_phase_inv,
             => .{ .button = false },
             // Mappable button CCs stored as params to support discrete FX values
             .Comp_comp,
@@ -148,6 +170,22 @@ pub fn getSubContainerIdx(self: *@This(), subidx: u8, container_idx: c_int, medi
 /// if container_idx is provided, then load the chain into it.
 /// validate track
 /// NOTE: track validation is meant to fail silently.
+/// The level that the output meter has when there is no signal.
+pub const out_level_floor_db: f64 = -120;
+
+/// How long the value of a knob stays on the panel after the controller turned it, in milliseconds.
+pub const value_popup_ms = 500;
+
+pub fn touchKnob(self: *@This(), cc: c1.CCs, now_ms: u64) void {
+    self.knob_touched_ms[@backingInt(cc)] = now_ms;
+}
+
+/// Whether the controller turned the knob a moment ago, so that the panel shows its value as the mouse would.
+pub fn knobPopupVisible(self: *const @This(), cc: c1.CCs) bool {
+    const touched = self.knob_touched_ms[@backingInt(cc)];
+    return touched != 0 and self.now_ms -| touched <= value_popup_ms;
+}
+
 pub fn validateTrack(
     self: *@This(),
     newOrder: ?ModulesOrder,
@@ -171,6 +209,14 @@ pub fn validateTrack(
     if (newOrder) |order| {
         self.track_state.setModulesOrder(order, mediaTrack, coverage);
     }
+}
+
+/// Routes the side chain of the track to the gate or to the compressor, or turns it off. Because `validateTrack` puts
+/// the modules back in the preferred order, calling it for the Sidechain button undid the order that the Order button
+/// had set, and the routing is the only thing that this button changes.
+pub fn routeSideChain(self: *@This(), mediaTrack: reaper.MediaTrack, routing: SCRouting, manual_routing: bool) void {
+    if (manual_routing) return;
+    self.scRouting = self.getSetSideChainRouting(mediaTrack, routing);
 }
 
 fn getSetSideChainRouting(
@@ -293,4 +339,18 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
         }
     }
     return connected;
+}
+
+test "a knob that the controller turned shows its value for a moment, and one that it did not does not" {
+    var state = FxControlState.init(std.testing.allocator);
+    defer state.deinit();
+    state.now_ms = 5000;
+    try std.testing.expect(!state.knobPopupVisible(.Eq_HiGain));
+    state.touchKnob(.Eq_HiGain, 5000);
+    try std.testing.expect(state.knobPopupVisible(.Eq_HiGain));
+    try std.testing.expect(!state.knobPopupVisible(.Eq_LoGain));
+    state.now_ms = 5000 + value_popup_ms;
+    try std.testing.expect(state.knobPopupVisible(.Eq_HiGain));
+    state.now_ms = 5000 + value_popup_ms + 1;
+    try std.testing.expect(!state.knobPopupVisible(.Eq_HiGain));
 }

@@ -34,7 +34,7 @@ const TWENTY_OVER_LN10 = 8.6858896380650365530225783783321;
 const LN10_OVER_TWENTY = 0.11512925464970228420089957273422;
 pub inline fn VAL2DB(x: f64) f64 {
     if (x < 0.0000000298023223876953125) return -150.0;
-    const v: f64 = std.math.log(@TypeOf(x), 10, x) * TWENTY_OVER_LN10;
+    const v: f64 = @log(x) * TWENTY_OVER_LN10;
     return if (v < -150.0) -150.0 else v;
 }
 
@@ -386,4 +386,13 @@ test "safePrint" {
         _ = safePrint(&buf, "test", .{});
         try expect(buf[4] == 0);
     }
+}
+
+test "VAL2DB and DB2VAL are inverse of each other" {
+    for ([_]f64{ 0.001, 0.1, 0.5, 1.0, 2.0, 4.0 }) |value| {
+        try std.testing.expectApproxEqRel(value, DB2VAL(VAL2DB(value)), 1e-9);
+    }
+    try std.testing.expectApproxEqAbs(@as(f64, 0.0), VAL2DB(1.0), 1e-9);
+    try std.testing.expectApproxEqAbs(@as(f64, -6.0206), VAL2DB(0.5), 1e-3);
+    try std.testing.expectEqual(@as(f64, -150.0), VAL2DB(0.0));
 }

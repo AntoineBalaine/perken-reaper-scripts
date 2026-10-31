@@ -5,13 +5,112 @@ const pReaper = @import("pReaper.zig");
 const log = std.log.scoped(.transport);
 const utils = @import("utils");
 const actions = @import("actions.zig");
+const constants = @import("constants.zig");
+const MidiEvtsFxCtrl = @import("csurf/midi_events_fxctrl.zig");
 const track_list_actions = @import("tracklist_actions.zig");
 const RprCmds = @import("reaper_cmds.zig");
 const Globals = @import("globals.zig").Globals;
+const step_size = @import("unit/step.zig");
 
 pub const AutomationMode = @import("action_types.zig").AutomationMode;
 pub const TransportAction = @import("action_types.zig").TransportAction;
 pub const TransportState = @import("action_types.zig").TransportState;
+
+/// Moves the cursor by `delta` steps of the jog: plain seeking, or grid lines while the grid and the snap are on.
+fn jogBy(delta: c_int) void {
+    const use_grid = reaper.GetToggleCommandState(RprCmds.OPT_TGL_GRID) == 1 and reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1;
+    if (!use_grid) {
+        // Regular jogging behavior
+        pReaper.CSurf_OnRewFwd(.{ 127, delta });
+    } else {
+        // adapted from amalgama
+        reaper.PreventUIRefresh(1);
+        defer reaper.PreventUIRefresh(-1);
+        const cursor_pos = reaper.GetCursorPosition();
+        var grid_pos: f64 = undefined;
+
+        // Move to next/previous grid line based on delta
+        // Save snap state
+        pReaper.Main_OnCommand(.{ RprCmds.OPT_SAVE_SNAP, 0 });
+        pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, 0 });
+        var dropFrameOut: bool = false;
+        const grid_duration = if (reaper.GetToggleCommandState(41885) == 1)
+            0.4 / reaper.TimeMap_curFrameRate(null, &dropFrameOut)
+        else blk: {
+            var division: f64 = undefined;
+            _ = reaper.GetSetProjectGrid(null, false, &division, null, null);
+            const tmsgn_cnt = reaper.CountTempoTimeSigMarkers(null);
+            var tempo: f64 = undefined;
+            if (tmsgn_cnt == 0) {
+                tempo = reaper.Master_GetTempo();
+            } else {
+                const ptidx = reaper.FindTempoTimeSigMarker(null, cursor_pos);
+                var timeposOut: f64 = undefined;
+                var measureposOut: c_int = undefined;
+                var beatposOut: f64 = undefined;
+                var timesig_numOut: c_int = undefined;
+                var timesig_denomOut: c_int = undefined;
+                var lineartempoOut: bool = undefined;
+                _ = reaper.GetTempoTimeSigMarker(
+                    null,
+                    ptidx,
+                    &timeposOut,
+                    &measureposOut,
+                    &beatposOut,
+                    &tempo,
+                    &timesig_numOut,
+                    &timesig_denomOut,
+                    &lineartempoOut,
+                );
+            }
+            break :blk 60.0 / tempo * division;
+        };
+
+        const snapped = reaper.SnapToGrid(null, cursor_pos);
+        if (delta > 0) {
+            grid_pos = if (snapped > cursor_pos)
+                snapped
+            else blk: {
+                var next_pos = cursor_pos;
+                while (reaper.SnapToGrid(null, next_pos) <= cursor_pos) {
+                    next_pos += grid_duration;
+                }
+                break :blk reaper.SnapToGrid(null, next_pos);
+            };
+        } else if (cursor_pos > 0) {
+            grid_pos = if (snapped < cursor_pos)
+                snapped
+            else blk: {
+                var pos = cursor_pos;
+                while (pos >= cursor_pos) {
+                    pos -= grid_duration;
+                    if (pos >= grid_duration) {
+                        const grid = reaper.SnapToGrid(null, pos);
+                        if (grid < cursor_pos) break :blk grid;
+                    } else {
+                        break :blk 0;
+                    }
+                }
+                break :blk 0;
+            };
+        }
+        // Set cursor position
+        reaper.SetEditCurPos(grid_pos, true, true);
+        pReaper.Main_OnCommand(.{ RprCmds.OPT_RSTR_SNAP, 0 });
+    }
+}
+
+/// Moves to the next or the previous transient of the items of the selected track, by the sign of `delta`.
+fn jogItemBy(delta: c_int) void {
+    pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_SAVEALLSELITEMS1), 0 });
+    defer pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_RESTALLSELITEMS1), 0 });
+    pReaper.Main_OnCommand(.{ RprCmds.SEL_TR_ITMS, 0 });
+    if (delta > 0) {
+        pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_NEXT, 0 });
+    } else if (delta < 0) {
+        pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_PREV, 0 });
+    }
+}
 
 pub fn transportAction(globals: *Globals, action: TransportAction) void {
     switch (action) {
@@ -40,86 +139,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
             if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.jog, &pos_rel, new_pos, 127, null)) |delta| {
                 globals.state.transport.jog = pos_rel;
 
-                const use_grid = reaper.GetToggleCommandState(RprCmds.OPT_TGL_GRID) == 1 and reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1;
-                if (!use_grid) {
-                    // Regular jogging behavior
-                    pReaper.CSurf_OnRewFwd(.{ 127, delta });
-                } else {
-                    // adapted from amalgama
-                    reaper.PreventUIRefresh(1);
-                    defer reaper.PreventUIRefresh(-1);
-                    const cursor_pos = reaper.GetCursorPosition();
-                    var grid_pos: f64 = undefined;
-
-                    // Move to next/previous grid line based on delta
-                    // Save snap state
-                    pReaper.Main_OnCommand(.{ RprCmds.OPT_SAVE_SNAP, 0 });
-                    pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, 0 });
-                    var dropFrameOut: bool = false;
-                    const grid_duration = if (reaper.GetToggleCommandState(41885) == 1)
-                        0.4 / reaper.TimeMap_curFrameRate(null, &dropFrameOut)
-                    else blk: {
-                        var division: f64 = undefined;
-                        _ = reaper.GetSetProjectGrid(null, false, &division, null, null);
-                        const tmsgn_cnt = reaper.CountTempoTimeSigMarkers(null);
-                        var tempo: f64 = undefined;
-                        if (tmsgn_cnt == 0) {
-                            tempo = reaper.Master_GetTempo();
-                        } else {
-                            const ptidx = reaper.FindTempoTimeSigMarker(null, cursor_pos);
-                            var timeposOut: f64 = undefined;
-                            var measureposOut: c_int = undefined;
-                            var beatposOut: f64 = undefined;
-                            var timesig_numOut: c_int = undefined;
-                            var timesig_denomOut: c_int = undefined;
-                            var lineartempoOut: bool = undefined;
-                            _ = reaper.GetTempoTimeSigMarker(
-                                null,
-                                ptidx,
-                                &timeposOut,
-                                &measureposOut,
-                                &beatposOut,
-                                &tempo,
-                                &timesig_numOut,
-                                &timesig_denomOut,
-                                &lineartempoOut,
-                            );
-                        }
-                        break :blk 60.0 / tempo * division;
-                    };
-
-                    const snapped = reaper.SnapToGrid(null, cursor_pos);
-                    if (delta > 0) {
-                        grid_pos = if (snapped > cursor_pos)
-                            snapped
-                        else blk: {
-                            var next_pos = cursor_pos;
-                            while (reaper.SnapToGrid(null, next_pos) <= cursor_pos) {
-                                next_pos += grid_duration;
-                            }
-                            break :blk reaper.SnapToGrid(null, next_pos);
-                        };
-                    } else if (cursor_pos > 0) {
-                        grid_pos = if (snapped < cursor_pos)
-                            snapped
-                        else blk: {
-                            var pos = cursor_pos;
-                            while (pos >= cursor_pos) {
-                                pos -= grid_duration;
-                                if (pos >= grid_duration) {
-                                    const grid = reaper.SnapToGrid(null, pos);
-                                    if (grid < cursor_pos) break :blk grid;
-                                } else {
-                                    break :blk 0;
-                                }
-                            }
-                            break :blk 0;
-                        };
-                    }
-                    // Set cursor position
-                    reaper.SetEditCurPos(grid_pos, true, true);
-                    pReaper.Main_OnCommand(.{ RprCmds.OPT_RSTR_SNAP, 0 });
-                }
+                jogBy(delta);
                 if (new_pos != globals.state.transport.jog) {
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoMidGain, .value = globals.state.transport.jog } } });
                 }
@@ -136,7 +156,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_PREV, 0 });
                 }
                 if (new_pos != globals.state.transport.jog_marker) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiMidGain, .value = globals.state.transport.jog_marker } } });
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Attack, .value = globals.state.transport.jog_marker } } });
                 }
             }
         },
@@ -145,14 +165,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
             var pos_rel: u8 = globals.state.transport.jog_item;
             if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.jog_item, &pos_rel, new_pos, 127, null)) |delta| {
                 globals.state.transport.jog_item = pos_rel;
-                pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_SAVEALLSELITEMS1), 0 });
-                defer pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_RESTALLSELITEMS1), 0 });
-                pReaper.Main_OnCommand(.{ RprCmds.SEL_TR_ITMS, 0 });
-                if (delta > 0) {
-                    pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_NEXT, 0 });
-                } else if (delta < 0) {
-                    pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_PREV, 0 });
-                }
+                jogItemBy(delta);
                 if (new_pos != globals.state.transport.jog_item) {
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiGain, .value = globals.state.transport.jog_item } } });
                 }
@@ -207,12 +220,14 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
 
                 _ = track_list_actions.setReaperTrackSelection(globals, new_tr_id);
                 globals.state.current_tr_id = new_tr_id;
+                MidiEvtsFxCtrl.readTrackToggles(globals, reaper.CSurf_TrackFromID(new_tr_id, constants.g_csurf_mcpmode));
 
                 if (new_pos != globals.state.transport.tr_sel) {
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = globals.state.transport.tr_sel } } });
                 }
             }
         },
+        .knob_by => |tick| transportKnob(globals, tick.cc, tick.delta, tick.fine),
         .scrub => |new_pos| {
             var pos_rel: u8 = globals.state.transport.scrub;
             if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.scrub, &pos_rel, new_pos, 127, null)) |delta| {
@@ -225,4 +240,43 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
             }
         },
     }
+}
+
+/// A tick of a knob of the sysex unit in the transport mode. Because the knob has no position of its own there, there
+/// is no ring to keep in step: the rings stay dark, and the jogs and zooms keep the amount that the legacy knob gave a
+/// tick (3, and 1 with shift).
+fn transportKnob(globals: *Globals, cc: c1.CCs, delta: i8, fine: bool) void {
+    std.debug.assert(delta == 1 or delta == -1);
+    const amount: c_int = @as(c_int, delta) * (if (fine) @as(c_int, 1) else 3);
+    switch (cc) {
+        .Inpt_HiCut => {
+            const step = step_size.size(globals.preferences.stepSettings(), delta, fine);
+            const current = reaper.Master_NormalizePlayRate(reaper.Master_GetPlayRate(null), false);
+            const new_rate = reaper.Master_NormalizePlayRate(step_size.apply(current, step), true);
+            pReaper.CSurf_OnPlayRateChange(.{new_rate});
+        },
+        .Eq_LoGain => {
+            const SCRUB_STEP: f64 = 1.0 / 128.0;
+            pReaper.CSurf_ScrubAmt(.{SCRUB_STEP * @as(f64, @floatFromInt(amount))});
+        },
+        .Eq_LoMidGain => jogBy(amount),
+        .Comp_Attack => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_MARKER_NEXT) else @as(c_int, RprCmds.ID_MARKER_PREV), 0 }),
+        .Eq_HiGain => jogItemBy(delta),
+        .Out_Drive => pReaper.CSurf_OnZoom(.{ amount, 0 }),
+        .Out_DriveChar => pReaper.CSurf_OnZoom(.{ 0, amount }),
+        .Out_Pan => pReaper.Main_OnCommand(.{ if (delta > 0) @as(c_int, RprCmds.ID_GRID_BY2) else @as(c_int, RprCmds.ID_GRID_BY1_5), 0 }),
+        .Out_Vol => {
+            const num_tracks = reaper.GetNumTracks() + 1;
+            const current = globals.state.current_tr_id orelse 0;
+            const new_tr_id = @mod(current + delta, num_tracks);
+            _ = track_list_actions.setReaperTrackSelection(globals, new_tr_id);
+            globals.state.current_tr_id = new_tr_id;
+            readToggles(globals, new_tr_id);
+        },
+        else => {},
+    }
+}
+
+fn readToggles(globals: *Globals, tr_id: c_int) void {
+    MidiEvtsFxCtrl.readTrackToggles(globals, reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode));
 }

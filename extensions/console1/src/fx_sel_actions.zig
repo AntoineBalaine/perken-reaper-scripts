@@ -7,14 +7,38 @@ const ModulesList = statemachine.ModulesList;
 const PhysicalModule = statemachine.PhysicalModule;
 const constants = @import("constants.zig");
 const dispatch = @import("actions.zig").dispatch;
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
 const utils = @import("utils");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("mappings.zig");
+const fx_browser = @import("fx_browser.zig");
+const translate = @import("translations.zig").tr;
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
+
+/// The data of the levels of the browser: the plugins that have a mapping for the module, and what the plugin parser found.
+fn browserSource(globals: *Globals) fx_browser.Source {
+    const fxp = @import("fx_parser");
+    const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
+    return .{
+        .mapped_count = mappings.count(),
+        .fx_chains = &fxp.fx_chains,
+        .track_templates = &fxp.track_templates,
+        .plugins_by_type = &fxp.pluginsByType,
+        .tags = &fxp.fx_tags,
+    };
+}
+
+/// The level of the browser that is open, which is the first one when the path no longer leads anywhere.
+fn openLevel(globals: *Globals, source: fx_browser.Source) fx_browser.Level {
+    return fx_browser.levelAt(source, globals.state.fx_sel.path()) orelse blk: {
+        globals.state.fx_sel.menu_depth = 0;
+        break :blk .root;
+    };
+}
 
 pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
     const io = Globals.hostIo();
@@ -162,8 +186,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
             } else {
-                globals.state.fx_sel.scroll_position_abs = 0;
-                globals.state.fx_sel.scroll_position_rel = 0;
+                globals.state.fx_sel.resetMenus();
                 globals.state.fx_sel.sub_mode = .browse_fx;
                 globals.state.fx_sel.current_category = module;
                 dispatch(globals, .{ .change_mode = .fx_sel });
@@ -175,19 +198,40 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 
             switch (globals.state.fx_sel.sub_mode) {
                 .browse_fx => {
-                    if (mappings.count() == 0) return;
-                    const fx_offset = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
-                    const mapping_offsets = mappings.get(fx_offset) orelse return;
-                    const fx_name = globals.mappings_list.strings.get(fx_offset);
+                    const source = browserSource(globals);
+                    const level = openLevel(globals, source);
+                    const index = globals.state.fx_sel.cursorPtr().*;
+                    var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+                    switch (fx_browser.activate(source, level, index, &path_buf)) {
+                        .enter => globals.state.fx_sel.enterMenu(index),
+                        .mapped => |mapped_index| {
+                            const fx_offset = mappings.keys()[mapped_index];
+                            const mapping_offsets = mappings.get(fx_offset) orelse return;
+                            const fx_name = globals.mappings_list.strings.get(fx_offset);
 
-                    if (mapping_offsets.items.len == 1) {
-                        const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
-                        fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
-                    } else {
-                        globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
-                            .fx_name = fx_name,
-                            .fx_string_pool_offset = fx_offset,
-                        } };
+                            if (mapping_offsets.items.len == 1) {
+                                const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
+                                fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
+                            } else {
+                                globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
+                                    .fx_name = fx_name,
+                                    .fx_string_pool_offset = fx_offset,
+                                } };
+                            }
+                        },
+                        .plugin => |name| fxSelActions(globals, .{ .plugin = .{ .name = name, .mapping_name = null } }),
+                        .fx_chain => |path| fxSelActions(globals, .{ .fx_chain = .{ .path = path } }),
+                        .track_template => |path| fxSelActions(globals, .{ .track_template = .{ .path = path } }),
+                        .root_leaf => |leaf| {
+                            // The three plugins that have no list are inserted by their name.
+                            const name = switch (leaf) {
+                                .container => translate(&globals.translations, .fx_sel_container),
+                                .video_processor => translate(&globals.translations, .fx_sel_video_processor),
+                                else => translate(&globals.translations, .fx_sel_recent),
+                            };
+                            fxSelActions(globals, .{ .plugin = .{ .name = name, .mapping_name = null } });
+                        },
+                        .none => {},
                     }
                 },
                 .select_mapping => |sel| {
@@ -198,20 +242,33 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 },
             }
         },
+        .enter_menu => |index| {
+            const source = browserSource(globals);
+            const level = openLevel(globals, source);
+            if (fx_browser.isMenu(source, level, index) and globals.state.fx_sel.menu_depth < fx_browser.max_depth) {
+                globals.state.fx_sel.enterMenu(index);
+            }
+        },
         .back => {
-            globals.state.fx_sel.sub_mode = .browse_fx;
+            // Leaving goes one step up: from the mappings of a plugin to the list, and from a menu to the level that opened it.
+            switch (globals.state.fx_sel.sub_mode) {
+                .select_mapping => globals.state.fx_sel.sub_mode = .browse_fx,
+                .browse_fx => if (globals.state.fx_sel.menu_depth > 0) globals.state.fx_sel.leaveMenu(),
+            }
         },
         .scroll => |new_pos| {
             globals.state.fx_sel.scroll_changed = true;
             const scroll_mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
             switch (globals.state.fx_sel.sub_mode) {
                 .browse_fx => {
+                    const source = browserSource(globals);
+                    const count = fx_browser.entryCount(source, openLevel(globals, source));
                     _ = utils.calculateNewScrollPosition(
                         i32,
                         &globals.state.fx_sel.scroll_position_abs,
-                        &globals.state.fx_sel.scroll_position_rel,
+                        globals.state.fx_sel.cursorPtr(),
                         new_pos,
-                        @intCast(scroll_mappings.count()),
+                        @intCast(count),
                         1,
                     );
                 },
@@ -225,6 +282,20 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                         @intCast(mapping_offsets.items.len),
                         1,
                     );
+                },
+            }
+        },
+        .scroll_by => |delta| {
+            globals.state.fx_sel.scroll_changed = true;
+            const scroll_mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
+            switch (globals.state.fx_sel.sub_mode) {
+                .browse_fx => {
+                    const source = browserSource(globals);
+                    step.wrap(globals.state.fx_sel.cursorPtr(), delta, fx_browser.entryCount(source, openLevel(globals, source)));
+                },
+                .select_mapping => |*sel| {
+                    const mapping_offsets = scroll_mappings.get(sel.fx_string_pool_offset) orelse return;
+                    step.wrap(&sel.scroll_position_rel, delta, mapping_offsets.items.len);
                 },
             }
         },

@@ -554,9 +554,10 @@ test "auto_insert_modules disabled prevents module insertion" {
     try testing.expect(coverage.OUTPT == null);
 }
 
-test "auto_insert_bypassed causes new modules to be bypassed" {
+test "auto_insert_bypassed bypasses the new gate, EQ and compressor, and not the input and the output" {
     const io = std.testing.io;
-    // Because auto_insert_bypassed is enabled, newly inserted modules should have bypass state set
+    // Because auto_insert_bypassed is enabled, the newly inserted gate, EQ and compressor are bypassed, while the input and the
+    // output, which do not change the sound, are inserted active.
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
@@ -597,11 +598,11 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     const eq_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.EQ.?.index });
     const outpt_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.OUTPT.?.index });
 
-    try testing.expect(input_enabled == false);
+    try testing.expect(input_enabled == true);
     try testing.expect(gate_enabled == false);
     try testing.expect(comp_enabled == false);
     try testing.expect(eq_enabled == false);
-    try testing.expect(outpt_enabled == false);
+    try testing.expect(outpt_enabled == true);
 }
 
 test "auto_reorder_modules disabled preserves existing module positions" {

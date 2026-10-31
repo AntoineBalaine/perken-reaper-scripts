@@ -10,6 +10,7 @@ const fxParser = @import("fx_parser");
 const fs_helpers = @import("fs_helpers");
 const host_io = @import("host_io");
 const actions = @import("actions.zig");
+const Unit = @import("unit/unit.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui");
 const TranslationStore = @import("translations.zig").TranslationStore;
@@ -54,11 +55,19 @@ m_midi_out_dev: ?c_int = null,
 m_midi_in: ?*reaper.midi_Input = null,
 m_midi_out: ?reaper.midi_Output = null,
 
+// The Console 1: the backend in use (sysex or legacy CC), the LEDs and the handshake
+unit: Unit = .{},
+
+/// Whether the transport mode was entered by the Mode button of the unit, which is held down: it is a modifier when the
+/// preference says so, and the mode ends when the button is released.
+mode_held: bool = false,
 playState: bool = false,
 pauseState: bool = false,
 
 pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     var globals = Globals{};
+    // Because deinit always checks this allocator for leaks, it must be a valid empty one when the caller owns the memory.
+    globals.gpa_int = .{};
 
     globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
     const alloc = globals.arena_int.allocator();

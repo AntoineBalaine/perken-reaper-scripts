@@ -13,11 +13,22 @@ const getGlobals = @import("../console1_extension.zig").getGlobals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
+const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
 const log = std.log.scoped(.csurf);
 
 pub var ignore_notifications = false;
 
 pub var my_csurf: c.C_ControlSurface = undefined;
+
+/// What stands for the surface when the extension has none, which is the case of the tests: the functions of REAPER that take
+/// a surface to leave out of their notifications get a valid pointer, and the mock of REAPER does not look at it.
+var stand_in_surface: u8 = 0;
+
+/// The control surface of the extension, as the functions of REAPER that take a surface to ignore want it.
+pub fn surface() reaper.IReaperControlSurface {
+    const pointer: *anyopaque = my_csurf orelse @ptrCast(&stand_in_surface);
+    return @ptrCast(pointer);
+}
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     var globals = getGlobals();
@@ -35,8 +46,12 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     } else {
         log.err("couldn’t create midi in", .{});
     }
-    if (globals.m_midi_out) |_| {
+    // Because the unit keeps its state between two initializations of the surface, it starts again from nothing.
+    globals.unit = .{};
+    if (globals.m_midi_out) |midi_out| {
         log.debug("created midi out", .{});
+        // The unit is in the legacy mode until the handshake is answered, and falls back to it if it never is.
+        if (globals.m_midi_in != null) globals.unit.start(.reaper(midi_out), nowMs());
         actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
     } else {
         log.err("couldn’t create midi out", .{});
@@ -70,7 +85,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 pub fn deinit(csurf: c.C_ControlSurface) void {
     var globals = getGlobals();
     if (globals.m_midi_out) |_| {
-        actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
+        globals.unit.shutdown(); // lights off
     }
 
     if (globals.m_midi_out) |midi_out| {
@@ -108,6 +123,21 @@ export fn zCloseNoReset() callconv(.c) void {
     deinit(my_csurf);
 }
 
+/// The tick count of the host, in milliseconds. It is not available before REAPER has given its functions.
+pub fn nowMs() u64 {
+    return if (c.GetTickCount) |getTickCount| getTickCount() else 0;
+}
+
+/// Whether the Shift key of the computer's keyboard is held right now, whichever window has the focus. Because a modifier
+/// that is pressed on its own sends no key message, it is polled through SWELL, as the whichkey window of ReaVim does. It
+/// is false before REAPER has given its functions.
+pub fn keyboardShiftHeld() bool {
+    const vk_shift = 0x10;
+    const key_down_bit = 0x8000;
+    const getAsyncKeyState = c.GetAsyncKeyState orelse return false;
+    return (getAsyncKeyState(vk_shift) & key_down_bit) != 0;
+}
+
 export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
@@ -115,14 +145,33 @@ export fn zRun() callconv(.c) void {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
-        while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
-            midi_events.OnMidiEvent(evts, globals);
+        const now = nowMs();
+        while (c.MDEvtLs_EnumItems(list, &l)) |evts| {
+            // Because the host once reported a negative size, which crashed REAPER on the cast, an event that is
+            // not at least one byte long is skipped and logged.
+            const raw_size = c.MIDI_event_size(evts);
+            if (raw_size < 1) {
+                log.err("MIDI event skipped, its size is {d}", .{raw_size});
+                continue;
+            }
+            const size: usize = @intCast(raw_size);
+            const message = c.MIDI_event_message(evts);
+            if (size > 3 and message[0] == 0xF0) {
+                globals.unit.onSysex(message[0..size], now);
+            } else if (globals.unit.onCc(now)) {
+                midi_events.OnMidiEvent(evts, globals);
+            }
         }
+        globals.unit.tick(now);
+        while (globals.unit.popEvent()) |event| midi_events.onUnitEvent(globals, event);
     }
 
-    if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {
-        actions.dispatch(globals, .{ .midi_out = .blink });
-        if (globals.playState and !globals.pauseState) {
+    if (globals.state.current_mode == .fx_ctrl) {
+        const several_selected = globals.state.selectedTracks.count() > 1;
+        if (several_selected) actions.dispatch(globals, .{ .midi_out = .blink });
+        // Because the legacy mode only ever read the meters here while several tracks were selected, which looks like
+        // an indentation slip, the meters of the sysex mode are read whenever the transport plays.
+        if ((several_selected or globals.unit.isReady()) and globals.playState and !globals.pauseState) {
             actions.dispatch(globals, .{ .midi_out = .queryMeters });
         }
     }
@@ -162,6 +211,7 @@ export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
     var globals = getGlobals();
     _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_mute, mute);
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.c) void {
@@ -176,6 +226,7 @@ export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.c) void {
     var globals = getGlobals();
     _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_solo, solo);
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 

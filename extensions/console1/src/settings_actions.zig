@@ -4,6 +4,7 @@ const SettingsPanel = @import("settings_panel.zig");
 const Preferences = @import("settings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const hooks = @import("hooks.zig");
+const step = @import("unit/step.zig");
 const log = std.log.scoped(.settings);
 
 pub const SettingsActions = @import("action_types.zig").SettingsActions;
@@ -60,6 +61,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         .start_suspended,
                         // .show_track_list,
                         .focus_page_tracks,
+                        .mode_is_modifier,
                         .auto_insert_modules,
                         .auto_insert_bypassed,
                         .auto_reorder_modules,
@@ -102,6 +104,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                             .start_suspended => panel.temp_settings.start_suspended = bool_update.val,
                             // .show_track_list => panel.temp_settings.show_track_list = bool_update.val,
                             .focus_page_tracks => panel.temp_settings.focus_page_tracks = bool_update.val,
+                            .mode_is_modifier => panel.temp_settings.mode_is_modifier = bool_update.val,
                             .auto_insert_modules => panel.temp_settings.auto_insert_modules = bool_update.val,
                             .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed = bool_update.val,
                             .auto_reorder_modules => panel.temp_settings.auto_reorder_modules = bool_update.val,
@@ -113,6 +116,15 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         switch (string_update.field) {
                             .language => panel.temp_settings.language = string_update.val,
                             else => unreachable,
+                        }
+                    },
+                    .float_val => |float_update| {
+                        // Because a step that is not a positive number would stop the knobs or reverse them, only
+                        // positive numbers get in.
+                        if (!(float_update.val > 0 and std.math.isFinite(float_update.val))) return;
+                        switch (float_update.field) {
+                            .sensitivity => panel.temp_settings.sensitivity = float_update.val,
+                            .fine_multiplier => panel.temp_settings.fine_multiplier = float_update.val,
                         }
                     },
                     .enum_val => |enum_update| {
@@ -129,6 +141,11 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
         },
         .install_presets => {
             hooks.runInstallPresets(globals);
+        },
+        .scroll_by => |delta| {
+            if (globals.settings_panel) |*settings_panel| {
+                step.wrap(&settings_panel.scroll_position_rel, delta, comptime countFields(@TypeOf(globals.preferences)));
+            }
         },
         .scroll => |new_pos| {
             if (globals.settings_panel) |*settings_panel| {
@@ -171,8 +188,9 @@ fn countFields(comptime T: type) comptime_int {
             break :blk count;
         },
         .@"enum" => type_info.@"enum".field_names.len,
-        // Scalar types count as 1
-        .bool, .int, .float, .pointer => 1,
+        // Scalar types count as 1. The floats are the step settings, which are not rows that the unit scrolls through.
+        .bool, .int, .pointer => 1,
+        .float => 0,
         .optional => 1,
         else => @compileError("Unsupported type: " ++ @typeName(T)),
     };

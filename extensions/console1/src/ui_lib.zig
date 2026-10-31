@@ -4,6 +4,9 @@ const UiState = @import("ui_state.zig").UiState;
 const styles = @import("styles.zig");
 const action_types = @import("action_types.zig");
 const c1_theme = @import("theme/c1_theme.zig");
+const std = @import("std");
+
+const log = std.log.scoped(.ui_lib);
 
 // Because we return a ModeAction pointer across the C ABI boundary, we
 // need a static location to store the value between frames.
@@ -30,6 +33,7 @@ export fn ui_render(
     // font pointers each frame.
     c1_theme.fonts.MAIN = ui_state.main_font;
     c1_theme.fonts.ICON_FONT_SMALL = ui_state.icon_font;
+    c1_theme.fonts.TAB = ui_state.tab_font;
 
     if (gui_lib.main(ctx, ui_state, win_flags, style_manager)) |maybe_action| {
         if (maybe_action) |action| {
@@ -37,8 +41,12 @@ export fn ui_render(
             return 2;
         }
         return 1;
-    } else |_| {
-        return 0;
+    } else |err| {
+        // Because the host takes every 0 for a closed window, a failing frame answers with -1,
+        // or it would look like a window that the user closed.
+        if (err == error.WindowClosed) return 0;
+        log.err("ui_render failed: {s}; imgui: {?s}", .{ @errorName(err), imgui.last_error });
+        return -1;
     }
 }
 

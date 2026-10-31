@@ -6,6 +6,8 @@ const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 const styles = @import("styles.zig");
 const extension = @import("console1_extension.zig");
+const csurf = @import("csurf/control_surface.zig");
+const midi_events_fxctrl = @import("csurf/midi_events_fxctrl.zig");
 const actions = @import("actions.zig");
 const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
@@ -82,6 +84,9 @@ pub fn reset() void {
 
         const fontelloResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.ICON_FONT_SMALL);
         imgui.Detach(.{ context, fontelloResource }) catch {};
+
+        const tabResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.TAB);
+        imgui.Detach(.{ context, tabResource }) catch {};
     }
 
     if (hot_reloader) |*reloader| {
@@ -95,6 +100,11 @@ pub fn reset() void {
 
 fn handleGuiError(err: anyerror) void {
     reset();
+
+    // Because the render loop is stopped, whether the user closed the window or a frame failed, the state needs to say
+    // that the window is hidden. Otherwise, the next press of the toggle action would take the window for a visible
+    // one and hide it, which does nothing.
+    extension.getGlobals().state.fx_ctrl_gui_visible = false;
 
     if (err == error.WindowClosed) {
         return;
@@ -132,6 +142,18 @@ fn onTimer() callconv(.c) void {
         .ConfigStyle = &styles.ConfigStyle,
     };
 
+    // The meters are read here, because the UI library cannot call REAPER.
+    switch (globals.state.current_mode) {
+        .fx_ctrl, .fx_sel, .mapping_panel, .transport => midi_events_fxctrl.readMeters(globals),
+        else => {},
+    }
+
+    // Because the UI library has no clock of its own, the panel gets the time of the frame from the state.
+    globals.state.fx_ctrl.now_ms = csurf.nowMs();
+    // Shift on the controller and Shift on the computer's keyboard both show and do the alternative uses of the interface.
+    const shift_held = globals.unit.shiftHeld() or csurf.keyboardShiftHeld();
+    globals.state.fx_ctrl.shift_held = shift_held;
+
     var ui_state = UiState{
         .state = &globals.state,
         .translations = &globals.translations,
@@ -140,8 +162,11 @@ fn onTimer() callconv(.c) void {
         .settings_panel = if (globals.settings_panel) |*panel| panel else null,
         .preferences = &globals.preferences,
         .midi_connected = globals.m_midi_in != null,
+        .legacy_mode = globals.unit.isLegacyMode(),
+        .shift_held = shift_held,
         .main_font = c1_theme.fonts.MAIN,
         .icon_font = c1_theme.fonts.ICON_FONT_SMALL,
+        .tab_font = c1_theme.fonts.TAB,
         .fx_plugins_by_type = &fx_parser.pluginsByType,
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,
@@ -154,7 +179,8 @@ fn onTimer() callconv(.c) void {
         const result = reloader.render(io, ctx, win_flags, &ui_state, &style_manager);
         switch (result) {
             .action => |action| actions.dispatch(globals, action),
-            .render_error => handleGuiError(error.WindowClosed),
+            .window_closed => handleGuiError(error.WindowClosed),
+            .render_error => handleGuiError(error.RenderFailed),
             .no_action => {},
         }
     }

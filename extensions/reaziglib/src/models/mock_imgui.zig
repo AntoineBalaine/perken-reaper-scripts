@@ -14,6 +14,7 @@ pub const WidgetKind = enum {
     invisible_button,
     arrow_button,
     checkbox,
+    slider_double,
     selectable,
     begin_combo,
     end_combo,
@@ -146,6 +147,7 @@ const ImguiMocks = struct {
     InvisibleButton: @TypeOf(imgui.api.InvisibleButton),
     ArrowButton: @TypeOf(imgui.api.ArrowButton),
     Checkbox: @TypeOf(imgui.api.Checkbox),
+    SliderDouble: @TypeOf(imgui.api.SliderDouble),
     Selectable: @TypeOf(imgui.api.Selectable),
     BeginCombo: @TypeOf(imgui.api.BeginCombo),
     EndCombo: @TypeOf(imgui.api.EndCombo),
@@ -204,8 +206,10 @@ const ImguiMocks = struct {
     SetNextWindowDockID: @TypeOf(imgui.api.SetNextWindowDockID),
     SetNextItemAllowOverlap: @TypeOf(imgui.api.SetNextItemAllowOverlap),
     IsItemActive: @TypeOf(imgui.api.IsItemActive),
+    IsItemDeactivated: @TypeOf(imgui.api.IsItemDeactivated),
     IsItemHovered: @TypeOf(imgui.api.IsItemHovered),
     IsMouseDoubleClicked: @TypeOf(imgui.api.IsMouseDoubleClicked),
+    IsMouseClicked: @TypeOf(imgui.api.IsMouseClicked),
     IsMouseHoveringRect: @TypeOf(imgui.api.IsMouseHoveringRect),
     IsWindowHovered: @TypeOf(imgui.api.IsWindowHovered),
     IsKeyDown: @TypeOf(imgui.api.IsKeyDown),
@@ -215,6 +219,7 @@ const ImguiMocks = struct {
     GetStyleColor: @TypeOf(imgui.api.GetStyleColor),
     GetStyleVar: @TypeOf(imgui.api.GetStyleVar),
     GetTextLineHeightWithSpacing: @TypeOf(imgui.api.GetTextLineHeightWithSpacing),
+    GetFrameHeight: @TypeOf(imgui.api.GetFrameHeight),
     PushClipRect: @TypeOf(imgui.api.PushClipRect),
     PopClipRect: @TypeOf(imgui.api.PopClipRect),
     SetConfigVar: @TypeOf(imgui.api.SetConfigVar),
@@ -266,6 +271,7 @@ const ImguiMocks = struct {
     GetMousePos: @TypeOf(imgui.api.GetMousePos),
     GetMouseWheel: @TypeOf(imgui.api.GetMouseWheel),
     GetTextLineHeight: @TypeOf(imgui.api.GetTextLineHeight),
+    GetFontSize: @TypeOf(imgui.api.GetFontSize),
     IsItemActivated: @TypeOf(imgui.api.IsItemActivated),
     IsItemClicked: @TypeOf(imgui.api.IsItemClicked),
     PopTextWrapPos: @TypeOf(imgui.api.PopTextWrapPos),
@@ -312,6 +318,7 @@ pub const MockImGui = struct {
     selectable_targets: std.StringHashMapUnmanaged(void),
     combo_open_targets: std.StringHashMapUnmanaged(void),
     double_click_targets: std.StringHashMapUnmanaged(void),
+    right_click_targets: std.StringHashMapUnmanaged(void),
     drag_targets: std.StringHashMapUnmanaged(f64),
     key_press_targets: std.AutoArrayHashMapUnmanaged(c_int, void),
     input_text_enter: std.StringHashMapUnmanaged(void),
@@ -333,6 +340,7 @@ pub const MockImGui = struct {
             .selectable_targets = .empty,
             .combo_open_targets = .empty,
             .double_click_targets = .empty,
+            .right_click_targets = .empty,
             .drag_targets = .empty,
             .key_press_targets = .empty,
             .input_text_enter = .empty,
@@ -350,6 +358,7 @@ pub const MockImGui = struct {
         self.selectable_targets.deinit(self.allocator);
         self.combo_open_targets.deinit(self.allocator);
         self.double_click_targets.deinit(self.allocator);
+        self.right_click_targets.deinit(self.allocator);
         self.drag_targets.deinit(self.allocator);
         self.key_press_targets.deinit(self.allocator);
         self.input_text_enter.deinit(self.allocator);
@@ -416,6 +425,11 @@ pub const MockImGui = struct {
         self.double_click_targets.put(self.allocator, label, {}) catch @panic("double_click_targets put OOM");
     }
 
+    /// Makes the item with this label report a click of the right mouse button, while the mouse is on it.
+    pub fn rightClick(self: *MockImGui, label: []const u8) void {
+        self.right_click_targets.put(self.allocator, label, {}) catch @panic("right_click_targets put OOM");
+    }
+
     pub fn pressKey(self: *MockImGui, key: c_int) void {
         self.key_press_targets.put(self.allocator, key, {}) catch @panic("key_press_targets put OOM");
     }
@@ -463,6 +477,7 @@ pub const MockImGui = struct {
         self.selectable_targets.clearRetainingCapacity();
         self.combo_open_targets.clearRetainingCapacity();
         self.double_click_targets.clearRetainingCapacity();
+        self.right_click_targets.clearRetainingCapacity();
         self.drag_targets.clearRetainingCapacity();
         self.key_press_targets.clearRetainingCapacity();
         self.input_text_enter.clearRetainingCapacity();
@@ -526,6 +541,7 @@ pub const MockImGui = struct {
 
     // Input widgets
     const Checkbox = &mockCheckbox;
+    const SliderDouble = &mockSliderDouble;
     const Selectable = &mockSelectable;
     const BeginCombo = &mockBeginCombo;
     const EndCombo = &mockEndCombo;
@@ -598,8 +614,10 @@ pub const MockImGui = struct {
     const SetNextWindowDockID = &mockSetNextWindowDockID;
     const SetNextItemAllowOverlap = &mockVoidCtx;
     const IsItemActive = &mockIsItemActive;
+    const IsItemDeactivated = &mockIsItemDeactivated;
     const IsItemHovered = &mockIsItemHovered;
     const IsMouseDoubleClicked = &mockIsMouseDoubleClicked;
+    const IsMouseClicked = &mockIsMouseClicked;
     const IsMouseHoveringRect = &mockIsMouseHoveringRect;
     const IsWindowHovered = &mockIsWindowHovered;
     const IsKeyDown = &mockIsKeyDown;
@@ -609,6 +627,7 @@ pub const MockImGui = struct {
     const GetStyleColor = &mockGetStyleColor;
     const GetStyleVar = &mockGetStyleVar;
     const GetTextLineHeightWithSpacing = &mockGetTextLineHeightWithSpacing;
+    const GetFrameHeight = &mockGetFrameHeight;
     const PushClipRect = &mockPushClipRect;
     const PopClipRect = &mockPopClipRect;
     const SetConfigVar = &mockSetConfigVar;
@@ -656,6 +675,7 @@ pub const MockImGui = struct {
     const GetMousePos = &mockGetMousePos;
     const GetMouseWheel = &mockGetMouseWheel;
     const GetTextLineHeight = &mockGetTextLineHeight;
+    const GetFontSize = &mockGetFontSize;
     const IsItemActivated = &mockIsItemActivated;
     const IsItemClicked = &mockIsItemClicked;
     const PopTextWrapPos = &mockPopTextWrapPos;
@@ -732,6 +752,10 @@ fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
 fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
+}
+
+fn mockGetFontSize(_: imgui.ContextPtr) callconv(.c) f64 {
+    return 13.0;
 }
 
 fn mockGetTextLineHeight(_: imgui.ContextPtr) callconv(.c) f64 {
@@ -872,6 +896,11 @@ fn mockCheckbox(_: imgui.ContextPtr, label: [*:0]const u8, v: *bool) callconv(.c
         v.* = val;
         return true;
     }
+    return false;
+}
+
+fn mockSliderDouble(_: imgui.ContextPtr, label: [*:0]const u8, _: *f64, _: f64, _: f64, _: ?[*:0]const u8, _: ?*c_int) callconv(.c) bool {
+    trace(.slider_double, std.mem.span(label));
     return false;
 }
 
@@ -1161,12 +1190,21 @@ fn mockSetNextWindowDockID(_: imgui.ContextPtr, _: c_int, _: ?*c_int) callconv(.
 
 fn mockIsItemHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
-    return m.double_click_targets.contains(m.last_invisible_button_label);
+    return m.double_click_targets.contains(m.last_invisible_button_label) or m.right_click_targets.contains(m.last_invisible_button_label);
+}
+
+fn mockIsMouseClicked(_: imgui.ContextPtr, _: c_int, _: ?*bool) callconv(.c) bool {
+    const m = g_mock orelse return false;
+    return m.right_click_targets.contains(m.last_invisible_button_label);
 }
 
 fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.double_click_targets.contains(m.last_invisible_button_label);
+}
+
+fn mockIsItemDeactivated(_: imgui.ContextPtr) callconv(.c) bool {
+    return false;
 }
 
 fn mockIsItemActive(_: imgui.ContextPtr) callconv(.c) bool {
@@ -1219,6 +1257,10 @@ fn mockGetStyleColor(_: imgui.ContextPtr, _: c_int) callconv(.c) c_int {
 fn mockGetStyleVar(_: imgui.ContextPtr, _: c_int, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
+}
+
+fn mockGetFrameHeight(_: imgui.ContextPtr) callconv(.c) f64 {
+    return 20.0;
 }
 
 fn mockGetTextLineHeightWithSpacing(_: imgui.ContextPtr) callconv(.c) f64 {

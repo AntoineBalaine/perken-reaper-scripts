@@ -213,7 +213,7 @@ test "roundButton component renders with mock imgui" {
     setupGlobals();
 
     const button = @import("../components/button.zig");
-    const clicked = try button.roundButton(null, "test", "##test", null, null, null, null, null);
+    const clicked = try button.roundButton(null, "test", "##test", null, null, null, null, null, null, null, null, null);
 
     try testing.expect(!clicked);
     // roundButton should record draw operations in the trace

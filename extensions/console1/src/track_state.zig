@@ -261,6 +261,22 @@ pub fn bandTypeName(band_type: c_int) [:0]const u8 {
     };
 }
 
+/// The index of the FX that a module has on the track, or null when it has none. The strip is the FX of a channel strip, and
+/// the other modules are the FX of the modules of a chain.
+pub fn fxIndexOf(self: *const TrackState, module: ModulesList) ?c_int {
+    return switch (self.mode) {
+        .channel_strip => |strip| if (module == .STRIP) strip.fx_index else null,
+        .multi_fx => |locations| switch (module) {
+            .STRIP => null,
+            .INPUT => if (locations.get(.INPUT)) |location| location.fx_index else null,
+            .GATE => if (locations.get(.GATE)) |location| location.fx_index else null,
+            .EQ => if (locations.get(.EQ)) |location| location.fx_index else null,
+            .COMP => if (locations.get(.COMP)) |location| location.fx_index else null,
+            .OUTPT => if (locations.get(.OUTPT)) |location| location.fx_index else null,
+        },
+    };
+}
+
 pub fn getModuleLocations(self: *TrackState) ?*ModuleLocations {
     return switch (self.mode) {
         .multi_fx => |*locs| locs,
@@ -1398,6 +1414,15 @@ pub fn updateTrackState(
     track_state.mode = .{ .multi_fx = locs };
 }
 
+/// Whether a module that is inserted is bypassed when it is. Only the gate, the EQ and the compressor are, as they change the
+/// sound; the input and the output are always inserted active.
+fn insertsBypassed(module: ModulesList, preferences: Preferences) bool {
+    return preferences.auto_insert_bypassed and switch (module) {
+        .GATE, .EQ, .COMP => true,
+        else => false,
+    };
+}
+
 fn insertModuleLinkedFx(
     mediaTrack: MediaTrack,
     module: ModulesList,
@@ -1532,7 +1557,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                 break :blk if (found_any) min_pos else -1;
             };
 
-            if (insertModuleLinkedFx(mediaTrack, .INPUT, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+            if (insertModuleLinkedFx(mediaTrack, .INPUT, insert_pos, default_fx, insertsBypassed(.INPUT, preferences))) |result| {
                 applyInsert(&coverage, result.index);
                 coverage.INPUT = .{ .index = result.index, .guid = result.guid };
             } else {
@@ -1562,7 +1587,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                             if (coverage.EQ) |eq| max_pos = @max(max_pos, eq.index);
                             break :blk if (max_pos >= 0) max_pos + 1 else -1;
                         };
-                        if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                        if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx, insertsBypassed(.GATE, preferences))) |result| {
                             applyInsert(&coverage, result.index);
                             coverage.GATE = .{ .index = result.index, .guid = result.guid };
                         } else {
@@ -1579,7 +1604,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                             if (coverage.EQ) |eq| max_pos = @max(max_pos, eq.index);
                             break :blk if (max_pos >= 0) max_pos + 1 else -1;
                         };
-                        if (insertModuleLinkedFx(mediaTrack, .COMP, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                        if (insertModuleLinkedFx(mediaTrack, .COMP, insert_pos, default_fx, insertsBypassed(.COMP, preferences))) |result| {
                             applyInsert(&coverage, result.index);
                             coverage.COMP = .{ .index = result.index, .guid = result.guid };
                         } else {
@@ -1596,7 +1621,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                             if (coverage.COMP) |comp| max_pos = @max(max_pos, comp.index);
                             break :blk if (max_pos >= 0) max_pos + 1 else -1;
                         };
-                        if (insertModuleLinkedFx(mediaTrack, .EQ, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                        if (insertModuleLinkedFx(mediaTrack, .EQ, insert_pos, default_fx, insertsBypassed(.EQ, preferences))) |result| {
                             applyInsert(&coverage, result.index);
                             coverage.EQ = .{ .index = result.index, .guid = result.guid };
                         } else {
@@ -1619,7 +1644,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                 break :blk if (high_pos == -1) high_pos else high_pos + 1;
             };
 
-            if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+            if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx, insertsBypassed(.OUTPT, preferences))) |result| {
                 applyInsert(&coverage, result.index);
                 coverage.OUTPT = .{ .index = result.index, .guid = result.guid };
             } else {

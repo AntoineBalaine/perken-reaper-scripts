@@ -86,14 +86,20 @@ fn rate(dl: Dl, cx: f64, cy: f64, r: f64, color: c_int, accent: c_int) void {
     widgets.circleFilled(dl, cx, cy + r * 0.2, r * 0.12, accent);
 }
 
-/// The grid: a square cut by two lines each way.
+/// The grid: a square cut by two lines each way, and under it a double arrow that points left and right, the directions in
+/// which the divisions of the grid grow and shrink.
 fn grid(dl: Dl, cx: f64, cy: f64, r: f64, color: c_int, accent: c_int) void {
-    const a = r * 0.85;
-    widgets.rect(dl, cx - a, cy - a, cx + a, cy + a, color, 2, 2);
+    const a = r * 0.6;
+    const top = cy - r * 0.25;
+    widgets.rect(dl, cx - a, top - a, cx + a, top + a, color, 2, 2);
     for ([2]f64{ -a / 3, a / 3 }) |offset| {
-        widgets.line(dl, cx + offset, cy - a, cx + offset, cy + a, accent, 1);
-        widgets.line(dl, cx - a, cy + offset, cx + a, cy + offset, accent, 1);
+        widgets.line(dl, cx + offset, top - a, cx + offset, top + a, accent, 1);
+        widgets.line(dl, cx - a, top + offset, cx + a, top + offset, accent, 1);
     }
+    const y = cy + r * 0.85;
+    widgets.line(dl, cx - r * 0.7, y, cx + r * 0.7, y, accent, 2);
+    imgui.api.DrawList_AddTriangleFilled(dl, cx - r * 0.95, y, cx - r * 0.65, y - r * 0.2, cx - r * 0.65, y + r * 0.2, accent);
+    imgui.api.DrawList_AddTriangleFilled(dl, cx + r * 0.95, y, cx + r * 0.65, y - r * 0.2, cx + r * 0.65, y + r * 0.2, accent);
 }
 
 /// The track select: three tracks one above the other, and an arrow that goes down.

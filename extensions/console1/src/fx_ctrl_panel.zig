@@ -21,19 +21,177 @@ const TransportState = @import("action_types.zig").TransportState;
 const LabelPool = @import("track_state.zig").LabelPool;
 
 const button = @import("components/button.zig");
+const ui_helpers = @import("ui_helpers.zig");
+const param_text = @import("param_text.zig");
+const mft_icons = @import("mft/mft_icons.zig");
+const led_meter = @import("components/led_meter.zig");
+const module_plate = @import("components/module_plate.zig");
+const c1_theme = @import("theme/c1_theme.zig");
+
+/// The colors of the buttons that are on, as on a mixing desk: yellow for solo, red for mute, blue for phase.
+const solo_yellow: c_int = @bitCast(@as(u32, 0xF0C020FF));
+const mute_red: c_int = @bitCast(@as(u32, 0xE04848FF));
+const phase_blue: c_int = @bitCast(@as(u32, 0x4FA0E8FF));
+
+/// Whether an on/off button is on. Because the host library that holds the state is replaced less often
+/// than this one, a control that the host has not made a button yet reads as off.
+fn buttonIsOn(fx_state: *const FxCtrlState, cc: c1.CCs) bool {
+    const value = fx_state.values.get(cc) orelse return false;
+    return switch (value) {
+        .button => |on| on,
+        else => false,
+    };
+}
+
+/// The widest of some labels, so that a button whose label changes is given room for the longest.
+fn widestOf(ctx: imgui.ContextPtr, candidates: []const [:0]const u8) ![:0]const u8 {
+    var widest: [:0]const u8 = "";
+    var widest_w: f64 = -1;
+    for (candidates) |candidate| {
+        var w: f64 = undefined;
+        var h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, candidate, &w, &h });
+        if (w > widest_w) {
+            widest = candidate;
+            widest_w = w;
+        }
+    }
+    return widest;
+}
+
+/// The label that the plugin of the track gives to a parameter. Because the widths of the cards are made of
+/// these labels, they are read whatever the mode: the widths must not change when the mode does.
+/// Whether the controls of the plugins are shown, which is when the meters of the plugins are.
+fn showsPlugins(mode: Mode) bool {
+    return mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel;
+}
+
+/// The room that the gate and the compressor keep under their top row for a meter of reduction, when the plugin of either
+/// one reports it. Both keep it, so that the controls of the two cards stay level whichever plugin reports.
+fn meterReserve(fx_state: *const FxCtrlState, mode: Mode) f64 {
+    if (!showsPlugins(mode)) return 0;
+    if (fx_state.gate_reduction_db == null and fx_state.comp_reduction_db == null) return 0;
+    return led_meter.reserved_height;
+}
+
+/// The width that a card needs for a meter, when its plugin reports one: the half of it that is the meter's must not reach
+/// the label of the bypass button, which is in the other half.
+fn meterPlateWidth(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, mode: Mode, cc: c1.CCs, reduction_db: ?f64) !f64 {
+    if (!showsPlugins(mode) or reduction_db == null) return 0;
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, paramLabel(fx_state, cc), &w, &h });
+    return 2 * (button.default_radius * 2 + 4 + w + 8);
+}
+
+/// Draws a meter of reduction in the right half of the card, level with the bypass button, with its gauge above it. While the
+/// DAW plays, its value shows when the mouse is over it.
+fn drawReductionMeter(ctx: imgui.ContextPtr, plate: Plate, slot: Slot, mode: Mode, reduction_db: ?f64, playing: bool) !void {
+    if (!showsPlugins(mode)) return;
+    const reduction = reduction_db orelse return;
+    try led_meter.draw(ctx, plate.origin.x + plate.width, plate.center(slot).y, plate.width / 2, reduction, playing);
+}
+
+fn paramLabel(fx_state: *const FxCtrlState, cc: c1.CCs) [:0]const u8 {
+    return fx_state.track_state.label_pool.getPrmLabel(cc);
+}
+
+/// The distance that two columns must keep for the label of the bypass button of a module, which stands at the
+/// top left of the plate, not to reach the label of the first knob of the next column.
+fn bypassPitch(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, cc: c1.CCs, mode: Mode, translations: *TranslationStore) !f64 {
+    const label = paramLabel(fx_state, cc);
+    var w: f64 = 0;
+    var h: f64 = undefined;
+    if (label.len > 0) try imgui.CalcTextSize(.{ ctx, label, &w, &h });
+    // Because the button has another label in the transport mode, which can be wider than the one of the plugin, the
+    // columns keep the room for it too, or the label would reach the knobs of the next column.
+    if (mode == .transport and cc == .Comp_comp) {
+        var transport_w: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, tr(translations, .trsprt_Comp_comp), &transport_w, &h });
+        w = @max(w, transport_w);
+    }
+    return button.default_radius * 2 + 4 + w + 8;
+}
+
+const ModuleCard = enum { input, shape, eq, comp, output };
+
+/// Every title that a card can have, in any mode.
+fn moduleTitles(card: ModuleCard) [2][:0]const u8 {
+    return .{ moduleTitle(.fx_ctrl, card), moduleTitle(.transport, card) };
+}
+
+/// The title of the card of a module. The controls of the cards are those of the modules of the channel strip,
+/// except in the transport mode, where the same controls move the transport: the cards are then named after
+/// what their controls do.
+fn moduleTitle(mode: Mode, card: ModuleCard) [:0]const u8 {
+    return switch (mode) {
+        .transport => switch (card) {
+            .input => "PLAYBACK",
+            .shape => "",
+            .eq => "NAVIGATION",
+            .comp => "MARKERS",
+            .output => "VIEW",
+        },
+        else => switch (card) {
+            .input => "INPUT",
+            .shape => "SHAPE",
+            .eq => "EQUALIZER",
+            .comp => "COMPRESSOR",
+            .output => "OUTPUT",
+        },
+    };
+}
+
+/// The color of the label of a control while shift is held and the control has another use.
+const dimmed_label: c_int = @bitCast(@as(u32, 0x8A8A8AFF));
+
+/// The symbol of a transport button: only in the transport mode, where the buttons are the transport's.
+fn transportIcon(mode: Mode, icon: button.Icon) ?button.Icon {
+    return if (mode == .transport) icon else null;
+}
+
+/// The name of the control that hides the panel of Console 1 in the transport mode. It is the same in every language.
+const hide_c1_label: [:0]const u8 = "Hide C1";
 
 fn renderMappableButton(
     ctx: imgui.ContextPtr,
+    plate: Plate,
+    slot: Slot,
     comptime cc: c1.CCs,
     fx_state: *FxCtrlState,
     mode: Mode,
     text_pos: ?button.TextPosition,
+    translations: *TranslationStore,
 ) !?WidgetInput {
     const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
     const val = fx_state.values.get(cc).?.param.normalized > 0.5;
     const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
     const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
-    const color: ?c_int = if (mapped and val) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
+    const color: ?c_int = if (mapped and val) Knobs.led_orange else null;
+    // In the transport mode, the buttons of the cards are the ones of the transport: the loop, its start and its end
+    // (which is the alternative of the start button while shift is held), and the marker. The others have no use there.
+    if (mode == .transport) {
+        const accent = ui_helpers.altColor(fx_state.shift_held);
+        const used = switch (cc) {
+            .Eq_lp_shape, .Eq_hp_shape, .Comp_comp => true,
+            else => false,
+        };
+        const transport_label: [:0]const u8 = switch (cc) {
+            .Eq_lp_shape => tr(translations, .trsprt_Eq_eq),
+            .Eq_hp_shape => tr(translations, .trsprt_Eq_lp_shape),
+            .Comp_comp => tr(translations, .trsprt_Comp_comp),
+            else => "",
+        };
+        const alt: ?button.AltLabel = if (cc == .Eq_hp_shape) .{ .text = tr(translations, .trsprt_Eq_hp_shape), .color = accent } else null;
+        var joined_buf: [96:0]u8 = undefined;
+        const joined: [:0]const u8 = if (alt) |a| std.mem.printSentinel(&joined_buf, "{s}\n{s}", .{ transport_label, a.text }, 0) catch transport_label else transport_label;
+        try plate.button(ctx, slot, joined, .right);
+        if (try roundButton(.{ ctx, transport_label, "##" ++ @tagName(cc), null, null, text_pos, !used, null, null, null, null, alt })) {
+            return .{ .cc = cc, .value = 1 };
+        }
+        return null;
+    }
+    try plate.button(ctx, slot, label, text_pos orelse .right);
     if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !mapped, color })) {
         return .{ .cc = cc, .value = if (val) 0 else 1 };
     }
@@ -82,7 +240,7 @@ fn centerWidgetLabel(ctx: imgui.ContextPtr, label: [:0]const u8, max_width: f64)
     }
 }
 // Layout constants
-const KNOB_SIZE = 40.0;
+const KNOB_SIZE = Knobs.knob_size;
 
 fn @"editMode?"(fx_state: *FxCtrlState, cc: c1.CCs) Knobs.EditMode {
     if (fx_state.editing_cc) |ecc| {
@@ -96,9 +254,22 @@ fn toWidgetInput(result: Knobs.KnobResult, cc: c1.CCs, normalized: f64, fx_state
         .active => return .{ .cc = cc, .value = normalized },
         .value_dclick => {
             fx_state.editing_cc = cc;
-            const written = std.mem.printSentinel(&fx_state.edit_buf, "{d:.4}", .{normalized}, 0) catch "";
-            @memset(fx_state.edit_buf[written.len..], 0);
+            // The box shows the value as the plugin writes it, when that has a number that can be typed back, and the
+            // normalized value otherwise.
+            const formatted = fx_state.track_state.label_pool.getFmtValue(cc);
+            const typed_back = fx_state.track_state.forward_map.get(cc) != null and param_text.scaledNumber(formatted) != null;
+            @memset(&fx_state.edit_buf, 0);
+            if (typed_back) {
+                const length = @min(formatted.len, fx_state.edit_buf.len - 1);
+                @memcpy(fx_state.edit_buf[0..length], formatted[0..length]);
+            } else {
+                _ = std.mem.printSentinel(&fx_state.edit_buf, "{d:.4}", .{normalized}, 0) catch {};
+            }
             return null;
+        },
+        .text_submit => |text| {
+            fx_state.editing_cc = null;
+            return .{ .cc = cc, .value = normalized, .text = text };
         },
         .value_submit => |val| {
             fx_state.editing_cc = null;
@@ -111,6 +282,64 @@ fn toWidgetInput(result: Knobs.KnobResult, cc: c1.CCs, normalized: f64, fx_state
     }
 }
 
+/// A knob of the panel. Because the id of each knob is the name of its control, the knob that the controller turned a
+/// moment ago shows its value as it does while the mouse drags it.
+fn drawKnob(
+    fx_state: *const FxCtrlState,
+    mode: Mode,
+    ctx: imgui.ContextPtr,
+    value: *f64,
+    label_id: Knobs.LabelId,
+    flags: Knobs.ControlFlags,
+    max_width: ?f64,
+    edit_mode: Knobs.EditMode,
+) !?Knobs.KnobResult {
+    var shown = flags;
+    const cc = std.meta.stringToEnum(c1.CCs, label_id.id);
+    if (cc) |known| {
+        shown.popup = fx_state.knobPopupVisible(known);
+        // The knobs of the plugin's parameters are typed in the units that the plugin writes them in.
+        shown.edit_text = fx_state.track_state.forward_map.get(known) != null;
+        // The cap of a knob that carries an icon has no pointer, as the icon takes its place.
+        shown.no_pointer = mode == .transport and !flags.disabled and transportKnobIcon(known) != null;
+    }
+    // The widget is as wide as it is given, and at least as wide as the knob, so the icon can be placed before it is drawn.
+    var origin: Knobs.Position = .{ .x = undefined, .y = undefined };
+    try imgui.GetCursorScreenPos(.{ ctx, &origin.x, &origin.y });
+    const result = try Knobs.drawWidget(ctx, value, label_id, shown, max_width, edit_mode);
+    if (mode == .transport and !flags.disabled) {
+        if (cc) |known| {
+            if (transportKnobIcon(known)) |icon| try drawCapIcon(ctx, origin, max_width, icon);
+        }
+    }
+    return result;
+}
+
+/// The icon of the knobs of the transport mode that have one, which are the ones of the MFT.
+fn transportKnobIcon(cc: c1.CCs) ?mft_icons.Icon {
+    return switch (cc) {
+        .Eq_LoGain, .Eq_LoMidGain, .Eq_HiGain => .jog,
+        .Comp_Attack => .marker,
+        .Out_Drive => .zoom_h,
+        .Out_DriveChar => .zoom_v,
+        .Out_Pan => .grid,
+        else => null,
+    };
+}
+
+/// Draws an icon of the MFT at the center of the cap of a knob: the strokes in the color of the text, and the details
+/// that move in the accent. `origin` is where the widget starts.
+fn drawCapIcon(ctx: imgui.ContextPtr, origin: Knobs.Position, max_width: ?f64, icon: mft_icons.Icon) !void {
+    var label_w: f64 = undefined;
+    var label_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &label_w, &label_h });
+    const width = @max(max_width orelse 0, Knobs.knob_size);
+    const center_x = origin.x + width / 2;
+    const center_y = origin.y + Knobs.centerOffsetY(label_h);
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    mft_icons.draw(dl, icon, center_x, center_y, Knobs.knob_size * 0.2, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), ui_helpers.accentColor(), false, null);
+}
+
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = ui.state.current_mode;
     const fx_state = &ui.state.fx_ctrl;
@@ -119,12 +348,13 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
-    if (try inputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |input_rv| {
+    module_plate.startFrame();
+    if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf)) |input_rv| {
         rv = input_rv;
     }
     try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, &id_buf)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, translations, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
     try sectional(ctx);
@@ -134,7 +364,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
@@ -146,6 +376,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     if (!ui.midi_connected) {
         try imgui.SameLine(.{ctx});
         try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_disconnected) });
+    } else if (ui.legacy_mode) {
+        try imgui.SameLine(.{ctx});
+        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_legacy_mode) });
     }
     return rv;
 }
@@ -153,203 +386,289 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
 pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
-    try vSeparator(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_Border }) });
-    try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 }
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+const Slot = module_plate.Slot;
+const Plate = module_plate.Plate;
+
+// The slots of the modules: where each control is on the hardware, in pixels of a photograph of the console,
+// and in which column of the module. A slot is named after the control it holds.
+
+const input_slots = struct {
+    const Inpt_disp_on = Slot{ .kind = .button, .col = 0, .y = 378, .at_left = true };
+    const Inpt_disp_mode = Slot{ .kind = .button, .col = 1, .y = 378 };
+    const Inpt_Gain = Slot{ .kind = .knob, .col = 0, .y = 553 };
+    const Inpt_HiCut = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    const Inpt_LoCut = Slot{ .kind = .knob, .col = 1, .y = 519 };
+    // The three buttons sit a little left of the center of the second column.
+    const Inpt_filt_to_comp = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 572 };
+    const Inpt_phase_inv = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 596 };
+    const Inpt_preset = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 620 };
+    const all = [_]Slot{ Inpt_disp_on, Inpt_disp_mode, Inpt_Gain, Inpt_HiCut, Inpt_LoCut, Inpt_filt_to_comp, Inpt_phase_inv, Inpt_preset };
+};
+
+const shape_slots = struct {
+    // The bypass buttons are in the top left corner of their plates.
+    const Shp_shape = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+    const Shp_Gate = Slot{ .kind = .knob, .col = 0, .y = 483 };
+    const Shp_hard_gate = Slot{ .kind = .button_below, .col = 0, .y = 553 };
+    const Shp_GateRelease = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    const Shp_sustain = Slot{ .kind = .knob, .col = 1, .y = 519 };
+    const Shp_Punch = Slot{ .kind = .knob, .col = 1, .y = 591 };
+    const all = [_]Slot{ Shp_shape, Shp_Gate, Shp_hard_gate, Shp_GateRelease, Shp_sustain, Shp_Punch };
+};
+
+const eq_slots = struct {
+    const Eq_eq = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+    // The shape buttons sit a little higher than on the hardware, to stay clear of the label of the knob under them.
+    const Eq_lp_shape = Slot{ .kind = .button, .col = 0, .dx = -19, .y = 454 };
+    const Eq_LoFrq = Slot{ .kind = .knob, .col = 0, .y = 518 };
+    const Eq_LoGain = Slot{ .kind = .knob, .col = 0, .y = 590 };
+    const Eq_LoMidQ = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    const Eq_LoMidFrq = Slot{ .kind = .knob, .col = 1, .y = 518 };
+    const Eq_LoMidGain = Slot{ .kind = .knob, .col = 1, .y = 590 };
+    const Eq_HiMidQ = Slot{ .kind = .knob, .col = 2, .y = 447 };
+    const Eq_HiMidFrq = Slot{ .kind = .knob, .col = 2, .y = 518 };
+    const Eq_HiMidGain = Slot{ .kind = .knob, .col = 2, .y = 590 };
+    const Eq_hp_shape = Slot{ .kind = .button, .col = 3, .dx = -20, .y = 454 };
+    const Eq_HiFrq = Slot{ .kind = .knob, .col = 3, .y = 518 };
+    const Eq_HiGain = Slot{ .kind = .knob, .col = 3, .y = 590 };
+    const all = [_]Slot{ Eq_eq, Eq_lp_shape, Eq_LoFrq, Eq_LoGain, Eq_LoMidQ, Eq_LoMidFrq, Eq_LoMidGain, Eq_HiMidQ, Eq_HiMidFrq, Eq_HiMidGain, Eq_hp_shape, Eq_HiFrq, Eq_HiGain };
+};
+
+const comp_slots = struct {
+    const Comp_comp = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+    const Comp_Ratio = Slot{ .kind = .knob, .col = 0, .y = 483 };
+    const Comp_DryWet = Slot{ .kind = .knob, .col = 0, .y = 555 };
+    const Comp_Attack = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    const Comp_Release = Slot{ .kind = .knob, .col = 1, .y = 519 };
+    const Comp_Thresh = Slot{ .kind = .knob, .col = 1, .y = 591 };
+    const all = [_]Slot{ Comp_comp, Comp_Ratio, Comp_DryWet, Comp_Attack, Comp_Release, Comp_Thresh };
+};
+
+const out_slots = struct {
+    const Tr_order = Slot{ .kind = .button, .col = 0, .y = 382, .at_left = true };
+    const Out_Drive = Slot{ .kind = .knob, .col = 0, .y = 447 };
+    const Out_DriveChar = Slot{ .kind = .knob, .col = 0, .y = 519 };
+    const Out_Pan = Slot{ .kind = .knob, .col = 0, .y = 591 };
+    // The sidechain button stands right after the label of the order button, which is the first slot.
+    const Tr_ext_sidechain = Slot{ .kind = .button, .y = 382, .follows = 0 };
+    // Solo and mute are stacked just above the volume knob, with room between them and the knob's label, and the meter of the
+    // output level fills the space that this leaves in the second column, between the sidechain button and them.
+    const Out_solo = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 503 };
+    const Out_mute = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 535 };
+    // The volume knob is left aligned with the solo and mute buttons, which are the sixth slot.
+    const Out_Vol = Slot{ .kind = .knob, .col = 1, .y = 591, .align_left_to = 5 };
+    const all = [_]Slot{ Tr_order, Out_Drive, Out_DriveChar, Out_Pan, Tr_ext_sidechain, Out_solo, Out_mute, Out_Vol };
+};
+
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, shift_held: bool, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
+    // The display button is named "FX" in the FX modes and "Hide C1" in the transport mode, and is in the accent of
+    // the theme. Both names are the same in every language, and so are not translated.
+    const disp_on_fx_label: [:0]const u8 = "FX";
 
-    // try imgui.Text(.{ ctx, "Input" });
+    // The labels of the buttons are translations of the panel, and so are the same in every mode.
+    // Because the label of the preset button has the alternative label after it, the plate is as wide as both together.
+    var preset_with_alt_buf: [96:0]u8 = undefined;
+    const preset_with_alt = std.mem.printSentinel(&preset_with_alt_buf, "{s}  {s}", .{ tr(translations, .fx_ctrl_Inpt_preset), tr(translations, .preset_save) }, 0) catch tr(translations, .fx_ctrl_Inpt_preset);
+    const labels = [_][:0]const u8{ try widestOf(ctx, &.{disp_on_fx_label}), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .trsprt_Tr_tr17) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .trsprt_Tr_tr18) }), try widestOf(ctx, &.{ preset_with_alt, tr(translations, .trsprt_Tr_tr19) }) };
+    const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input), .title_alternatives = &moduleTitles(.input), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
 
-    { // First column
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
+    const disp_on_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
+        else => null,
+    };
+    const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
+    const disp_on_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+    const disp_on_display_label: [:0]const u8 = if (disp_on_fx_mode) disp_on_fx_label else disp_on_label orelse "-";
+    try plate.button(ctx, input_slots.Inpt_disp_on, disp_on_display_label, .right);
+    const disp_on_color: ?c_int = if (disp_on_label == null or mode == .transport) null else try ui_helpers.themeAccent(ctx);
+    if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, .right, disp_on_label == null, disp_on_color, disp_on_fx_mode and fx_state.display != null })) {
+        rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
+    }
 
-        const disp_on_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
-            .transport => .trsprt_Inpt_disp_on,
-            else => null,
-        };
-        const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
-        const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
-        const disp_on_disabled = (disp_on_label == null);
-        if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {
-            rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
-        }
-        try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 2 });
+    const disp_mode_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_mode,
+        .transport => .trsprt_Inpt_disp_mode,
+        else => null,
+    };
+    const disp_mode_label = if (disp_mode_key) |key| tr(translations, key) else null;
+    const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
+    try plate.button(ctx, input_slots.Inpt_disp_mode, disp_mode_display_label, .right);
+    if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, .right, disp_mode_label == null })) {
+        rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
+    }
 
-        // Center-align the knob
+    // The gain knob, at the left of the first knob row.
+    {
         const pool = &fx_state.track_state.label_pool;
         const gain_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
         const gain_disabled = !gain_is_fx;
-        const gain_no_val_display = gain_disabled or value_display_disabled;
         const label_id = Knobs.LabelId{
             .label = if (gain_is_fx) pool.getPrmLabel(.Inpt_Gain) else "-",
             .id = try std.mem.printSentinel(id_buf, "Inpt_Gain", .{}, 0),
             .value_text = if (gain_is_fx) pool.getFmtValue(.Inpt_Gain) else null,
         };
-        var offsets = [_]?f64{null};
-        const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
-
-        // Apply offset if needed
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        if (try Knobs.drawWidget(
+        try plate.knob(ctx, input_slots.Inpt_Gain);
+        if (try drawKnob(
+            fx_state,
+            mode,
             ctx,
             &gain_prm.normalized,
             label_id,
-            .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-            max_width,
+            .{ .no_val_display = gain_disabled or value_display_disabled, .disabled = gain_disabled },
+            plate.knob_w,
             @"editMode?"(fx_state, .Inpt_Gain),
         )) |knob_res| {
             rv = toWidgetInput(knob_res, .Inpt_Gain, gain_prm.normalized, fx_state);
         }
     }
-    try imgui.SameLine(.{ctx});
 
-    // Second column (aligned right)
+    // The two filter knobs, at the right of the gain knob.
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        const disp_mode_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_mode,
-            .transport => .trsprt_Inpt_disp_mode,
-            else => null,
+        const ftc = fx_state.filter_to_comp;
+
+        // When filter_to_comp is active, check whether the COMP mapping
+        // has the filter params defined; if not, disable the knobs.
+        const comp_filter_unmapped = if (ftc) blk: {
+            const panel_locs = fx_state.track_state.getModuleLocations() orelse break :blk true;
+            const comp_loc = panel_locs.get(.COMP) orelse break :blk true;
+            const mapping = comp_loc.mapping orelse break :blk true;
+            break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
+        } else false;
+
+        const inpt_pool = &fx_state.track_state.label_pool;
+        const hicut_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+        const hicut_is_transport = (mode == .transport);
+        const hicut_pool_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
+        const hicut_disabled = (!hicut_is_fx and !hicut_is_transport) or comp_filter_unmapped;
+        const hicut_label_id = Knobs.LabelId{
+            .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
+            .id = try std.mem.printSentinel(id_buf, "Inpt_HiCut", .{}, 0),
+            .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
         };
-        const disp_mode_label = if (disp_mode_key) |key| tr(translations, key) else null;
-        const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
-        const disp_mode_disabled = (disp_mode_label == null);
-        if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, null, disp_mode_disabled })) {
-            rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
-        }
-        {
-            const ftc = fx_state.filter_to_comp;
 
-            // When filter_to_comp is active, check whether the COMP mapping
-            // has the filter params defined; if not, disable the knobs.
-            const comp_filter_unmapped = if (ftc) blk: {
-                const panel_locs = fx_state.track_state.getModuleLocations() orelse break :blk true;
-                const comp_loc = panel_locs.get(.COMP) orelse break :blk true;
-                const mapping = comp_loc.mapping orelse break :blk true;
-                break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
-            } else false;
+        const locut_pool_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+        const locut_disabled = !hicut_is_fx or comp_filter_unmapped;
+        const locut_label_id = Knobs.LabelId{
+            .label = if (hicut_is_fx) inpt_pool.getPrmLabel(locut_pool_cc) else "-",
+            .id = "Inpt_LoCut",
+            .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(locut_pool_cc) else null,
+        };
 
-            const inpt_pool = &fx_state.track_state.label_pool;
-            const hicut_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
-            const hicut_is_transport = (mode == .transport);
-            const hicut_pool_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
-            const hicut_disabled = (!hicut_is_fx and !hicut_is_transport) or comp_filter_unmapped;
-            const hicut_no_val_display = hicut_disabled or value_display_disabled;
-            const hicut_label_id = Knobs.LabelId{
-                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
-                .id = try std.mem.printSentinel(id_buf, "Inpt_HiCut", .{}, 0),
-                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
-            };
-
-            const locut_pool_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
-            const locut_disabled = !hicut_is_fx or comp_filter_unmapped;
-            const locut_no_val_display = locut_disabled or value_display_disabled;
-            const locut_label_id = Knobs.LabelId{
-                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(locut_pool_cc) else "-",
-                .id = "Inpt_LoCut",
-                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(locut_pool_cc) else null,
-            };
-            var offsets = [_]?f64{ null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_label_id.label, locut_label_id.label }, &offsets);
-
-            // First knob - read from the virtual CC when filter_to_comp is active
-            const hicut_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
-            var hicut_val: f64 = if (mode == .transport)
-                @as(f64, @floatFromInt(transport.rate)) / 127.0
-            else
-                fx_state.values.get(hicut_cc).?.param.normalized;
-            if (try Knobs.drawWidget(
-                ctx,
-                &hicut_val,
-                hicut_label_id,
-                .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
-                @"editMode?"(fx_state, .Inpt_HiCut),
-            )) |knob_res| {
-                rv = toWidgetInput(knob_res, .Inpt_HiCut, hicut_val, fx_state);
-            }
-
-            // Second knob
-            const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
-            var locut_prm = fx_state.values.get(locut_cc).?.param;
-            if (try Knobs.drawWidget(
-                ctx,
-                &locut_prm.normalized,
-                locut_label_id,
-                .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
-                @"editMode?"(fx_state, .Inpt_LoCut),
-            )) |knob_res| {
-                rv = toWidgetInput(knob_res, .Inpt_LoCut, locut_prm.normalized, fx_state);
-            }
+        // First knob - read from the virtual CC when filter_to_comp is active
+        const hicut_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
+        var hicut_val: f64 = if (mode == .transport)
+            @as(f64, @floatFromInt(transport.rate)) / 127.0
+        else
+            fx_state.values.get(hicut_cc).?.param.normalized;
+        try plate.knob(ctx, input_slots.Inpt_HiCut);
+        if (try drawKnob(
+            fx_state,
+            mode,
+            ctx,
+            &hicut_val,
+            hicut_label_id,
+            .{ .no_val_display = hicut_disabled or value_display_disabled, .disabled = hicut_disabled },
+            plate.knob_w,
+            @"editMode?"(fx_state, .Inpt_HiCut),
+        )) |knob_res| {
+            rv = toWidgetInput(knob_res, .Inpt_HiCut, hicut_val, fx_state);
         }
 
-        const filt_to_comp_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_filt_to_comp,
-            else => null,
-        };
-        const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
-        const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
-        const filt_to_comp_disabled = (filt_to_comp_label == null);
-        // Orange color (ABGR) when the toggle is active
-        const ftc_color: ?c_int = if (fx_state.filter_to_comp) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
-        if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
-            rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
-        }
-
-        const phase_inv_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,
-            else => null,
-        };
-        const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
-        const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
-        const phase_inv_disabled = (phase_inv_label == null);
-        if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled })) {
-            rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
-        }
-
-        const preset_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_preset,
-            else => null,
-        };
-        const preset_label = if (preset_key) |key| tr(translations, key) else null;
-        const preset_display_label: [:0]const u8 = preset_label orelse "-";
-        const preset_disabled = (preset_label == null);
-        if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_disabled })) {
-            rv = .{ .cc = .Inpt_preset, .value = 1.0 };
+        // Second knob
+        const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+        var locut_prm = fx_state.values.get(locut_cc).?.param;
+        try plate.knob(ctx, input_slots.Inpt_LoCut);
+        if (try drawKnob(
+            fx_state,
+            mode,
+            ctx,
+            &locut_prm.normalized,
+            locut_label_id,
+            .{ .no_val_display = locut_disabled or value_display_disabled, .disabled = locut_disabled },
+            plate.knob_w,
+            @"editMode?"(fx_state, .Inpt_LoCut),
+        )) |knob_res| {
+            rv = toWidgetInput(knob_res, .Inpt_LoCut, locut_prm.normalized, fx_state);
         }
     }
 
+    // The preset, phase and filter buttons, stacked under the filter knobs.
+
+    const preset_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_preset,
+        .transport => .trsprt_Tr_tr19,
+        else => null,
+    };
+    const preset_label = if (preset_key) |key| tr(translations, key) else null;
+    const preset_display_label: [:0]const u8 = preset_label orelse "-";
+    // The alternative use of the button, which is saving a preset while shift is held on the controller, always stands
+    // after the label, in the accent color of the interface. While shift is held, the label itself is dimmed.
+    const preset_alt: ?button.AltLabel = if (mode == .fx_ctrl) .{ .text = tr(translations, .preset_save), .color = ui_helpers.altColor(shift_held), .same_line = true } else null;
+    const preset_color: ?c_int = if (mode == .fx_ctrl and shift_held) dimmed_label else null;
+    try plate.button(ctx, input_slots.Inpt_preset, preset_display_label, .right);
+    if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_label == null, null, null, transportIcon(mode, .rec), preset_color, preset_alt })) {
+        rv = .{ .cc = .Inpt_preset, .value = 1.0 };
+    }
+
+    const phase_inv_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,
+        // In the transport mode, the three buttons are the transport's: play, stop and record.
+        .transport => .trsprt_Tr_tr18,
+        else => null,
+    };
+    const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
+    const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
+    const phase_inv_color: ?c_int = if (mode != .transport and buttonIsOn(fx_state, .Inpt_phase_inv)) phase_blue else null;
+    try plate.button(ctx, input_slots.Inpt_phase_inv, phase_inv_display_label, .right);
+    if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_label == null, phase_inv_color, null, transportIcon(mode, .stop) })) {
+        rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
+    }
+
+    const filt_to_comp_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_filt_to_comp,
+        .transport => .trsprt_Tr_tr17,
+        else => null,
+    };
+    const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
+    const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
+    // The orange of the LEDs when the toggle is active
+    const ftc_color: ?c_int = if (mode != .transport and fx_state.filter_to_comp) Knobs.led_orange else null;
+    try plate.button(ctx, input_slots.Inpt_filt_to_comp, filt_to_comp_display_label, .right);
+    if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_label == null, ftc_color, null, transportIcon(mode, .play) })) {
+        rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
+    }
+
+    try plate.end(ctx);
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
+    const shape_widest = try widestOf(ctx, &.{
+        "Release",
+        paramLabel(fx_state, .Shp_Gate),
+        paramLabel(fx_state, .Shp_GateRelease),
+        paramLabel(fx_state, .Shp_sustain),
+        paramLabel(fx_state, .Shp_Punch),
+    });
+    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
 
-    if (try renderMappableButton(ctx, .Shp_shape, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
+    try drawReductionMeter(ctx, plate, shape_slots.Shp_shape, mode, fx_state.gate_reduction_db, fx_state.meters_playing);
 
     // First column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 0.75 });
 
             // Center-align the knob
             const pool = &fx_state.track_state.label_pool;
@@ -361,34 +680,29 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
                 .id = try std.mem.printSentinel(id_buf, "Shp_Gate", .{}, 0),
                 .value_text = if (gate_is_fx) pool.getFmtValue(.Shp_Gate) else null,
             };
-            var offsets = [_]?f64{null};
-            _ = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
-
-            // Apply offset if needed
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, shape_slots.Shp_Gate);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &gate_prm.normalized,
                 label_id,
-                .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                null,
+                .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Shp_Gate),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Shp_Gate, gate_prm.normalized, fx_state);
             }
 
-            if (try renderMappableButton(ctx, .Shp_hard_gate, fx_state, mode, .below)) |action| {
+            if (try renderMappableButton(ctx, plate, shape_slots.Shp_hard_gate, .Shp_hard_gate, fx_state, mode, .below, translations)) |action| {
                 rv = action;
             }
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
     // Second column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
             const shp_pool = &fx_state.track_state.label_pool;
@@ -416,17 +730,18 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
                 .id = "Shp_Punch",
                 .value_text = if (shp_is_fx) shp_pool.getFmtValue(.Shp_Punch) else null,
             };
-            var offsets = [_]?f64{ null, null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ release_label_id.label, sustain_label_id.label, punch_label_id.label }, &offsets);
 
             // First knob
             var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, shape_slots.Shp_GateRelease);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &release_prm.normalized,
                 release_label_id,
-                .{ .no_val_display = release_no_val_display, .disabled = release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = release_no_val_display, .disabled = release_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Shp_GateRelease),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Shp_GateRelease, release_prm.normalized, fx_state);
@@ -434,12 +749,15 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Second knob
             var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, shape_slots.Shp_sustain);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &sustain_prm.normalized,
                 sustain_label_id,
-                .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Shp_sustain),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Shp_sustain, sustain_prm.normalized, fx_state);
@@ -447,12 +765,15 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Third knob
             var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, shape_slots.Shp_Punch);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &punch_prm.normalized,
                 punch_label_id,
-                .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Shp_Punch),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Shp_Punch, punch_prm.normalized, fx_state);
@@ -460,6 +781,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
         }
     }
 
+    try plate.end(ctx);
     return rv;
 }
 
@@ -467,20 +789,33 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
+    // The knobs are as wide as the widest of the labels that the plugin gives them, and at least as wide as
+    // the longest label of the hardware.
+    const eq_widest = try widestOf(ctx, &.{
+        "Low Mid Gain",
+        paramLabel(fx_state, .Eq_LoFrq),
+        paramLabel(fx_state, .Eq_LoGain),
+        paramLabel(fx_state, .Eq_LoMidQ),
+        paramLabel(fx_state, .Eq_LoMidFrq),
+        paramLabel(fx_state, .Eq_LoMidGain),
+        paramLabel(fx_state, .Eq_HiMidQ),
+        paramLabel(fx_state, .Eq_HiMidFrq),
+        paramLabel(fx_state, .Eq_HiMidGain),
+        paramLabel(fx_state, .Eq_HiFrq),
+        paramLabel(fx_state, .Eq_HiGain),
+        tr(translations, .trsprt_Eq_LoGain),
+        tr(translations, .trsprt_Eq_LoMidGain),
+        tr(translations, .trsprt_Eq_HiGain),
+    });
+    const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq, mode, translations) });
 
-    if (try renderMappableButton(ctx, .Eq_eq, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, eq_slots.Eq_eq, .Eq_eq, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
 
     { // first column
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
-
-            if (try renderMappableButton(ctx, .Eq_lp_shape, fx_state, mode, .right)) |action| {
+            if (try renderMappableButton(ctx, plate, eq_slots.Eq_lp_shape, .Eq_lp_shape, fx_state, mode, .right, translations)) |action| {
                 rv = action;
             }
 
@@ -502,17 +837,18 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 .id = "Eq_LoGain",
                 .value_text = if (eq_is_fx) eq_pool.getFmtValue(.Eq_LoGain) else null,
             };
-            var offsets = [_]?f64{ null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lofreq_label_id.label, logain_label_id.label }, &offsets);
 
             // First knob
             var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_LoFrq);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lofreq_prm.normalized,
                 lofreq_label_id,
-                .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_LoFrq),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_LoFrq, lofreq_prm.normalized, fx_state);
@@ -523,12 +859,15 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.scrub)) / 127.0
             else
                 fx_state.values.get(.Eq_LoGain).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_LoGain);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &logain_val,
                 logain_label_id,
-                .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_LoGain),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_LoGain, logain_val, fx_state);
@@ -536,11 +875,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
     { // second col
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
             const eq2_pool = &fx_state.track_state.label_pool;
@@ -568,17 +903,18 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 .id = "Eq_LoMidGain",
                 .value_text = if (eq2_is_fx) eq2_pool.getFmtValue(.Eq_LoMidGain) else null,
             };
-            var offsets = [_]?f64{ null, null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lomidq_label_id.label, lomidfreq_label_id.label, lomidgain_label_id.label }, &offsets);
 
             // First knob
             var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_LoMidQ);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidq_prm.normalized,
                 lomidq_label_id,
-                .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_LoMidQ),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_LoMidQ, lomidq_prm.normalized, fx_state);
@@ -586,12 +922,15 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // Second knob
             var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_LoMidFrq);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidfreq_prm.normalized,
                 lomidfreq_label_id,
-                .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_LoMidFrq),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_LoMidFrq, lomidfreq_prm.normalized, fx_state);
@@ -602,12 +941,15 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog)) / 127.0
             else
                 fx_state.values.get(.Eq_LoMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_LoMidGain);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &lomidgain_val,
                 lomidgain_label_id,
-                .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_LoMidGain),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_LoMidGain, lomidgain_val, fx_state);
@@ -615,11 +957,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
     { // third col
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
             const eq3_pool = &fx_state.track_state.label_pool;
@@ -640,24 +978,25 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidFrq) else null,
             };
 
-            const himidgain_disabled = !eq3_is_fx and mode != .transport;
+            const himidgain_disabled = !eq3_is_fx;
             const himidgain_no_val_display = himidgain_disabled or value_display_disabled;
             const himidgain_label_id = Knobs.LabelId{
-                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidGain) else if (mode == .transport) tr(translations, .trsprt_Eq_HiMidGain) else "-",
+                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidGain) else "-",
                 .id = "Eq_HiMidGain",
                 .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidGain) else null,
             };
-            var offsets = [_]?f64{ null, null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ himidq_label_id.label, himidfreq_label_id.label, himidgain_label_id.label }, &offsets);
 
             // First knob
             var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_HiMidQ);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidq_prm.normalized,
                 himidq_label_id,
-                .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_HiMidQ),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_HiMidQ, himidq_prm.normalized, fx_state);
@@ -665,28 +1004,31 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // Second knob
             var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_HiMidFrq);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidfreq_prm.normalized,
                 himidfreq_label_id,
-                .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_HiMidFrq),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_HiMidFrq, himidfreq_prm.normalized, fx_state);
             }
 
             // Third knob
-            var himidgain_val: f64 = if (mode == .transport)
-                @as(f64, @floatFromInt(transport.jog_marker)) / 127.0
-            else
-                fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(
+            var himidgain_val: f64 = fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
+            try plate.knob(ctx, eq_slots.Eq_HiMidGain);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &himidgain_val,
                 himidgain_label_id,
-                .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_HiMidGain),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_HiMidGain, himidgain_val, fx_state);
@@ -694,15 +1036,9 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
     { // fourth column
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
-
-            if (try renderMappableButton(ctx, .Eq_hp_shape, fx_state, mode, .right)) |action| {
+            if (try renderMappableButton(ctx, plate, eq_slots.Eq_hp_shape, .Eq_hp_shape, fx_state, mode, .right, translations)) |action| {
                 rv = action;
             }
 
@@ -724,17 +1060,18 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 .id = "Eq_HiGain",
                 .value_text = if (eq4_is_fx) eq4_pool.getFmtValue(.Eq_HiGain) else null,
             };
-            var offsets = [_]?f64{ null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hifreq_label_id.label, higain_label_id.label }, &offsets);
 
             // First knob
             var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_HiFrq);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &hifreq_prm.normalized,
                 hifreq_label_id,
-                .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_HiFrq),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_HiFrq, hifreq_prm.normalized, fx_state);
@@ -745,12 +1082,15 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog_item)) / 127.0
             else
                 fx_state.values.get(.Eq_HiGain).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, eq_slots.Eq_HiGain);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &higain_val,
                 higain_label_id,
-                .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Eq_HiGain),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Eq_HiGain, higain_val, fx_state);
@@ -758,26 +1098,33 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         }
     }
 
+    try plate.end(ctx);
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
+    const comp_widest = try widestOf(ctx, &.{
+        "Threshold",
+        paramLabel(fx_state, .Comp_Ratio),
+        paramLabel(fx_state, .Comp_DryWet),
+        paramLabel(fx_state, .Comp_Attack),
+        paramLabel(fx_state, .Comp_Release),
+        paramLabel(fx_state, .Comp_Thresh),
+        tr(translations, .trsprt_Eq_HiMidGain),
+    });
+    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
 
-    if (try renderMappableButton(ctx, .Comp_comp, fx_state, mode, .right)) |action| {
+    if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
+    try drawReductionMeter(ctx, plate, comp_slots.Comp_comp, mode, fx_state.comp_reduction_db, fx_state.meters_playing);
 
     // First column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
             // Calculate max width for this column's knobs
             const comp_pool = &fx_state.track_state.label_pool;
@@ -797,17 +1144,18 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
                 .id = "Comp_DryWet",
                 .value_text = if (comp_is_fx) comp_pool.getFmtValue(.Comp_DryWet) else null,
             };
-            var offsets = [_]?f64{ null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ ratio_label_id.label, drywet_label_id.label }, &offsets);
 
             // First knob
             var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, comp_slots.Comp_Ratio);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &ratio_prm.normalized,
                 ratio_label_id,
-                .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Comp_Ratio),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Comp_Ratio, ratio_prm.normalized, fx_state);
@@ -815,12 +1163,15 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Second knob
             var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, comp_slots.Comp_DryWet);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &drywet_prm.normalized,
                 drywet_label_id,
-                .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Comp_DryWet),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Comp_DryWet, drywet_prm.normalized, fx_state);
@@ -828,20 +1179,17 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
     // Second column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
             const comp2_pool = &fx_state.track_state.label_pool;
             const comp2_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
-            const attack_disabled = !comp2_is_fx;
+            // In the transport mode, the attack knob is the jog of the markers.
+            const attack_disabled = !comp2_is_fx and mode != .transport;
             const attack_no_val_display = attack_disabled or value_display_disabled;
             const attack_label_id = Knobs.LabelId{
-                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else "-",
+                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else if (mode == .transport) tr(translations, .trsprt_Eq_HiMidGain) else "-",
                 .id = try std.mem.printSentinel(id_buf, "Comp_Attack", .{}, 0),
                 .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Attack) else null,
             };
@@ -861,17 +1209,19 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
                 .id = "Comp_Thresh",
                 .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Thresh) else null,
             };
-            var offsets = [_]?f64{ null, null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ attack_label_id.label, release_label_id.label, thresh_label_id.label }, &offsets);
 
             // First knob
             var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-            if (try Knobs.drawWidget(
+            if (mode == .transport) attack_prm.normalized = @as(f64, @floatFromInt(transport.jog_marker)) / 127.0;
+            try plate.knob(ctx, comp_slots.Comp_Attack);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &attack_prm.normalized,
                 attack_label_id,
-                .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Comp_Attack),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Comp_Attack, attack_prm.normalized, fx_state);
@@ -879,12 +1229,15 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Second knob
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, comp_slots.Comp_Release);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &release_prm.normalized,
                 release_label_id,
-                .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Comp_Release),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Comp_Release, release_prm.normalized, fx_state);
@@ -892,12 +1245,15 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Third knob
             var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, comp_slots.Comp_Thresh);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &thresh_prm.normalized,
                 thresh_label_id,
-                .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Comp_Thresh),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Comp_Thresh, thresh_prm.normalized, fx_state);
@@ -905,6 +1261,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
         }
     }
 
+    try plate.end(ctx);
     return rv;
 }
 
@@ -914,16 +1271,38 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
     const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
     const is_strip = is_fx_mode and fx_state.track_state.mode == .channel_strip;
 
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
+    // In a channel strip, the two buttons show the text that the plugin gives them, which can be longer than
+    // the translations: its width is measured too.
+    const strip_order: [:0]const u8 = if (fx_state.track_state.mode == .channel_strip) fx_state.track_state.label_pool.getFmtValue(.Tr_order) else "";
+    const strip_sidechain: [:0]const u8 = if (fx_state.track_state.mode == .channel_strip) fx_state.track_state.label_pool.getFmtValue(.Tr_ext_sidechain) else "";
+    const out_widest = try widestOf(ctx, &.{
+        "Character",
+        paramLabel(fx_state, .Out_Drive),
+        paramLabel(fx_state, .Out_DriveChar),
+        tr(translations, .trsprt_Out_Drive),
+        tr(translations, .trsprt_Out_DriveChar),
+        tr(translations, .fx_ctrl_Out_Pan),
+        tr(translations, .trsprt_Out_Pan),
+        tr(translations, .fx_ctrl_Out_Vol),
+        tr(translations, .trsprt_Out_Vol),
+    });
+    const plate = try Plate.begin(ctx, .{ .slots = &out_slots.all, .title = moduleTitle(mode, .output), .title_alternatives = &moduleTitles(.output), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = out_widest, .column_gap = 24, .labels = &[_][:0]const u8{
+        try widestOf(ctx, &.{ strip_order, tr(translations, .fx_ctrl_Tr_order_eq_s_c), tr(translations, .fx_ctrl_Tr_order_s_c_eq), tr(translations, .fx_ctrl_Tr_order_s_eq_c) }),
+        "",
+        "",
+        "",
+        try widestOf(ctx, &.{ strip_sidechain, tr(translations, .trsprt_Tr_tr20), tr(translations, .fx_ctrl_Tr_ext_sidechain), tr(translations, .fx_ctrl_Tr_ext_sidechain_shape), tr(translations, .fx_ctrl_Tr_ext_sidechain_comp) }),
+        try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Out_solo), tr(translations, .trsprt_Out_solo) }),
+        try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Out_mute), hide_c1_label }),
+        "",
+    } });
 
     // First column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
         if (is_strip) {
             const mapped = fx_state.track_state.forward_map.get(.Tr_order) != null;
             const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getFmtValue(.Tr_order) else "-";
+            try plate.button(ctx, out_slots.Tr_order, label, .right);
             if (try roundButton(.{ ctx, label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, !mapped })) {
                 rv = .{ .cc = .Tr_order, .value = 0 };
             }
@@ -939,13 +1318,16 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
             const tr_order_display_label: [:0]const u8 = tr_order_label orelse "-";
             const tr_order_disabled = (tr_order_label == null);
+            try plate.button(ctx, out_slots.Tr_order, tr_order_display_label, .right);
             if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
-                const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
-                    .@"EQ-S-C" => .@"S-C-EQ",
-                    .@"S-C-EQ" => .@"S-EQ-C",
-                    .@"S-EQ-C" => .@"EQ-S-C",
-                };
-                rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@backingInt(next_order))) };
+                {
+                    const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
+                        .@"EQ-S-C" => .@"S-C-EQ",
+                        .@"S-C-EQ" => .@"S-EQ-C",
+                        .@"S-EQ-C" => .@"EQ-S-C",
+                    };
+                    rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@backingInt(next_order))) };
+                }
             }
         }
         {
@@ -982,20 +1364,21 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 .label = pan_label orelse "-",
                 .id = "Out_Pan",
             };
-            var offsets = [_]?f64{ null, null, null };
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ drive_label_id.label, char_label_id.label, pan_label_id.label }, &offsets);
 
             // First knob
             var drive_val: f64 = if (mode == .transport)
                 @as(f64, @floatFromInt(transport.zoom_horizontal)) / 127.0
             else
                 fx_state.values.get(.Out_Drive).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, out_slots.Out_Drive);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &drive_val,
                 drive_label_id,
-                .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Out_Drive),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Out_Drive, drive_val, fx_state);
@@ -1006,12 +1389,15 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.zoom_vertical)) / 127.0
             else
                 fx_state.values.get(.Out_DriveChar).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, out_slots.Out_DriveChar);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &char_val,
                 char_label_id,
-                .{ .no_val_display = char_no_val_display, .disabled = char_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = char_no_val_display, .disabled = char_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Out_DriveChar),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Out_DriveChar, char_val, fx_state);
@@ -1022,28 +1408,28 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.grid)) / 127.0
             else
                 fx_state.values.get(.Out_Pan).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, out_slots.Out_Pan);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &pan_val,
                 pan_label_id,
-                .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Out_Pan),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Out_Pan, pan_val, fx_state);
             }
         }
     }
-    try imgui.SameLine(.{ctx});
 
     // Second column
     {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
         if (is_strip) {
             const mapped = fx_state.track_state.forward_map.get(.Tr_ext_sidechain) != null;
             const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getFmtValue(.Tr_ext_sidechain) else "-";
+            try plate.button(ctx, out_slots.Tr_ext_sidechain, label, .right);
             if (try roundButton(.{ ctx, label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, !mapped })) {
                 rv = .{ .cc = .Tr_ext_sidechain, .value = 0 };
             }
@@ -1059,18 +1445,20 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
             const ext_sidechain_display_label: [:0]const u8 = ext_sidechain_label orelse "-";
             const ext_sidechain_disabled = (ext_sidechain_label == null);
+            try plate.button(ctx, out_slots.Tr_ext_sidechain, ext_sidechain_display_label, .right);
             if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
-                const next_routing: SCRouting = switch (fx_state.scRouting) {
-                    .off => .toShape,
-                    .toShape => .toComp,
-                    .toComp => .off,
-                };
-                rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@backingInt(next_routing))) };
+                {
+                    const next_routing: SCRouting = switch (fx_state.scRouting) {
+                        .off => .toShape,
+                        .toShape => .toComp,
+                        .toComp => .off,
+                    };
+                    rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@backingInt(next_routing))) };
+                }
             }
         }
         {
-            try imgui.Dummy(.{ ctx, KNOB_SIZE * 2, KNOB_SIZE * 2 });
-            const solo = fx_state.values.get(.Out_solo).?.button;
+            const solo = buttonIsOn(fx_state, .Out_solo);
             const out_solo_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_solo,
                 .transport => .trsprt_Out_solo,
@@ -1079,21 +1467,22 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const out_solo_label = if (out_solo_key) |key| tr(translations, key) else null;
             const out_solo_display_label: [:0]const u8 = out_solo_label orelse "-";
             const out_solo_disabled = (out_solo_label == null);
-            if (try roundButton(.{ ctx, out_solo_display_label, "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below, out_solo_disabled })) {
+            try plate.button(ctx, out_slots.Out_solo, out_solo_display_label, .right);
+            if (try roundButton(.{ ctx, out_solo_display_label, "##" ++ @tagName(c1.CCs.Out_solo), null, null, .right, out_solo_disabled, if (solo) solo_yellow else null })) {
                 rv = .{ .cc = .Out_solo, .value = if (solo) 0 else 1 };
             }
 
-            try imgui.SameLine(.{ctx});
-
-            const mute = fx_state.values.get(.Out_mute).?.button;
+            const mute = buttonIsOn(fx_state, .Out_mute);
             const out_mute_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_mute,
                 else => null,
             };
             const out_mute_label = if (out_mute_key) |key| tr(translations, key) else null;
-            const out_mute_display_label: [:0]const u8 = out_mute_label orelse "-";
-            const out_mute_disabled = (out_mute_label == null);
-            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .below, out_mute_disabled })) {
+            // In the transport mode, the button under the snap button hides Console 1's panel.
+            const out_mute_display_label: [:0]const u8 = if (mode == .transport) hide_c1_label else out_mute_label orelse "-";
+            const out_mute_disabled = (out_mute_label == null and mode != .transport);
+            try plate.button(ctx, out_slots.Out_mute, out_mute_display_label, .right);
+            if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .right, out_mute_disabled, if (mute and mode != .transport) mute_red else null })) {
                 rv = .{ .cc = .Out_mute, .value = if (mute) 0 else 1 };
             }
 
@@ -1111,20 +1500,19 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 .label = vol_label orelse "-",
                 .id = try std.mem.printSentinel(id_buf, "Out_Vol", .{}, 0),
             };
-            var offsets = [_]?f64{null};
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
-
-            // Apply offset if needed
             var vol_val: f64 = if (mode == .transport)
                 @as(f64, @floatFromInt(transport.tr_sel)) / 127.0
             else
                 fx_state.values.get(.Out_Vol).?.param.normalized;
-            if (try Knobs.drawWidget(
+            try plate.knob(ctx, out_slots.Out_Vol);
+            if (try drawKnob(
+                fx_state,
+                mode,
                 ctx,
                 &vol_val,
                 label_id,
-                .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) },
-                max_width,
+                .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled },
+                plate.knob_w,
                 @"editMode?"(fx_state, .Out_Vol),
             )) |knob_res| {
                 rv = toWidgetInput(knob_res, .Out_Vol, vol_val, fx_state);
@@ -1132,6 +1520,18 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         }
     }
 
+    // The meter of the output level is in the second column, between the sidechain button and the solo button, against the
+    // right edge of the card.
+    {
+        const sidechain = plate.center(out_slots.Tr_ext_sidechain);
+        const solo = plate.center(out_slots.Out_solo);
+        const button_radius = button.default_radius;
+        const levels = fx_state.out_level_db;
+        const meter_width = try led_meter.levelWidth(ctx);
+        try led_meter.drawLevel(ctx, plate.origin.x + plate.width - meter_width, sidechain.y + button_radius + 6, solo.y - button_radius - 6, levels[0], levels[1]);
+    }
+
+    try plate.end(ctx);
     return rv;
 }
 

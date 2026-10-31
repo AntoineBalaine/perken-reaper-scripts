@@ -6,6 +6,7 @@
 //    - Update debug overlay to show new structures
 
 const std = @import("std");
+const fx_browser = @import("fx_browser.zig");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
@@ -69,19 +70,37 @@ pub const Mode = enum {
     settings,
     /// Default Fx selection - in settings
     default_fx_sel,
+    /// Loading and saving the presets of the FX of the modules
+    presets,
     /// if the user toggles the extension
     suspended,
 };
 
 // Helper for valid transitions
+/// The module that a button of the track list stands for in the modes where the first six rows are the keys of the modules:
+/// the strip, the gate, the EQ, the compressor, the input and the output, in the order of the shifted rows of the FX control
+/// mode. It is null for the other buttons.
+pub fn moduleOfTrackRow(cc: c1.CCs) ?ModulesList {
+    return switch (cc) {
+        .Tr_tr1 => .STRIP,
+        .Tr_tr2 => .GATE,
+        .Tr_tr3 => .EQ,
+        .Tr_tr4 => .COMP,
+        .Tr_tr5 => .INPUT,
+        .Tr_tr6 => .OUTPT,
+        else => null,
+    };
+}
+
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
-    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport },
+    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport, .presets },
+    .presets = &.{ .fx_ctrl, .suspended },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel, .suspended },
     .default_fx_sel = &.{ .settings, .default_fx_sel, .suspended },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
     .settings = &.{ .fx_ctrl, .transport, .suspended, .default_fx_sel },
     .suspended = &.{.fx_ctrl},
-    .transport = &.{ .fx_ctrl, .settings, .fx_sel, .suspended },
+    .transport = &.{ .fx_ctrl, .settings, .fx_sel, .mapping_panel, .suspended },
 });
 
 pub const State = struct {
@@ -93,6 +112,7 @@ pub const State = struct {
     default_fx_sel: FxSelectionState = .{},
     transport: TransportState = .{},
     mapping_panel: MappingPanelState,
+    presets: PresetsState,
 
     // Shared state
     current_tr_id: ?c_int = null,
@@ -103,6 +123,7 @@ pub const State = struct {
         return .{
             .fx_ctrl = FxControlState.init(gpa),
             .mapping_panel = MappingPanelState.init(),
+            .presets = PresetsState.init(gpa),
             // Shared state uses default values
         };
     }
@@ -110,8 +131,69 @@ pub const State = struct {
     pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
         self.fx_ctrl.deinit();
         self.mapping_panel.deinit();
+        self.presets.deinit();
         self.selectedTracks.deinit(allocator);
         // Any other cleanup needed...
+    }
+};
+
+pub const PresetsPurpose = enum { load, save };
+
+pub const PresetsStage = enum {
+    /// The modules, each with the FX that it has
+    modules,
+    /// The presets of the FX of the module that was chosen, to load one
+    presets,
+    /// The name to save the preset under
+    name,
+    /// The name is the one of a preset that exists
+    overwrite,
+};
+
+pub const PresetsMessage = enum { none, no_presets, unsupported_fx, save_failed };
+
+pub const PresetsRow = struct {
+    module: ModulesList,
+    /// Null when the module has no FX on the track
+    fx_index: ?c_int,
+    fx_name: [:0]const u8,
+};
+
+/// The screen that loads or saves the presets of the FX of the modules.
+pub const PresetsState = struct {
+    /// Holds the rows, the names and everything else that the screen shows, until it is entered again.
+    arena: std.heap.ArenaAllocator,
+    purpose: PresetsPurpose = .load,
+    stage: PresetsStage = .modules,
+    rows: []const PresetsRow = &.{},
+    module_cursor: usize = 0,
+    /// The FX of the module that was chosen
+    fx_index: c_int = 0,
+    names: []const [:0]const u8 = &.{},
+    preset_cursor: usize = 0,
+    name_buffer: [256:0]u8 = @splat(0),
+    message: PresetsMessage = .none,
+    /// Set when the cursor moved, so that the list scrolls to it
+    scroll_changed: bool = false,
+    /// The position that the legacy knob had when it last scrolled the list
+    scroll_position_abs: u8 = 0,
+
+    pub fn init(gpa: std.mem.Allocator) PresetsState {
+        return .{ .arena = std.heap.ArenaAllocator.init(gpa) };
+    }
+
+    /// Forgets what the screen showed, for a new visit
+    pub fn reset(self: *PresetsState, purpose: PresetsPurpose) void {
+        _ = self.arena.reset(.retain_capacity);
+        self.* = .{ .arena = self.arena, .purpose = purpose };
+    }
+
+    pub fn deinit(self: *PresetsState) void {
+        self.arena.deinit();
+    }
+
+    pub fn nameSlice(self: *const PresetsState) []const u8 {
+        return std.mem.sliceTo(&self.name_buffer, 0);
     }
 };
 
@@ -132,9 +214,53 @@ pub const FxSelSubMode = union(enum) {
 pub const FxSelectionState = struct {
     current_category: ModulesList = .COMP,
     scroll_position_abs: u8 = 0,
+    /// The cursor of the first level of the browser, which is the one where the browser starts.
     scroll_position_rel: usize = 0,
     sub_mode: FxSelSubMode = .browse_fx,
     scroll_changed: bool = false,
+    /// How many menus of the browser are open, one inside the other. The first level is level 0.
+    menu_depth: u8 = 0,
+    /// The entry that was entered at each level, which leads to the level after it.
+    menu_path: [fx_browser.max_depth]usize = @splat(0),
+    /// The cursor of each open level below the first, which has its cursor in `scroll_position_rel`.
+    menu_cursor: [fx_browser.max_depth]usize = @splat(0),
+
+    /// The cursor of the level that is open.
+    pub fn cursorPtr(self: *FxSelectionState) *usize {
+        return if (self.menu_depth == 0) &self.scroll_position_rel else &self.menu_cursor[self.menu_depth - 1];
+    }
+
+    /// The entries that lead from the first level to the level that is open.
+    pub fn path(self: *const FxSelectionState) []const usize {
+        return self.menu_path[0..self.menu_depth];
+    }
+
+    /// Opens the menu that is the entry `index` of the level that is open, and puts the cursor on that entry first, so
+    /// that leaving the menu finds it there.
+    pub fn enterMenu(self: *FxSelectionState, index: usize) void {
+        std.debug.assert(self.menu_depth < fx_browser.max_depth);
+        self.cursorPtr().* = index;
+        self.menu_path[self.menu_depth] = index;
+        self.menu_cursor[self.menu_depth] = 0;
+        self.menu_depth += 1;
+        self.scroll_changed = true;
+    }
+
+    /// Closes the menu that is open, which puts the cursor back on the entry that opened it.
+    pub fn leaveMenu(self: *FxSelectionState) void {
+        std.debug.assert(self.menu_depth > 0);
+        self.menu_depth -= 1;
+        self.scroll_changed = true;
+    }
+
+    /// Back to the first level, with its cursor on its first entry.
+    pub fn resetMenus(self: *FxSelectionState) void {
+        self.menu_depth = 0;
+        self.menu_path = @splat(0);
+        self.menu_cursor = @splat(0);
+        self.scroll_position_abs = 0;
+        self.scroll_position_rel = 0;
+    }
 };
 
 pub const SettingsSelectionState = struct {
@@ -254,7 +380,7 @@ pub const AssignState = struct {
         .knob_values = @splat(0.5),
         .module_fx_names = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
         .save_error = null,
-        .preset_strings = undefined,
+        .preset_strings = .empty,
         .preset_name_offsets = &.{},
         .selected_preset = null,
         .store_preset_data = false,

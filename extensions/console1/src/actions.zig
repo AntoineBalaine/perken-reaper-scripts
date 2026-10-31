@@ -15,6 +15,7 @@ const log = std.log.scoped(.dispatch);
 const trackListAction = @import("tracklist_actions.zig").trackListAction;
 const midi_out = @import("midi_out.zig");
 const transportAction = @import("transport_actions.zig").transportAction;
+const presets_actions = @import("presets_actions.zig");
 const default_fx_sel_actions = @import("default_fx_sel_actions.zig");
 const theme_dump = @import("theme_dump.zig");
 
@@ -85,6 +86,7 @@ pub fn dispatch(app: *Globals, action: ModeAction) void {
                 .fx_ctrl => |fx_action| fxCtrlActions(app, fx_action),
                 .fx_sel => |sel_action| fx_sel_actions.fxSelActions(app, sel_action),
                 .mapping_panel => |mp_action| mappingPanelActions(app, mp_action),
+                .presets => |presets_action| presets_actions.presetsActions(app, presets_action),
                 .settings => |set_action| settings_actions.settingsActions(app, set_action),
                 .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(app, sel_action),
                 .Csurf => |set_action| csurfActions(app, set_action),

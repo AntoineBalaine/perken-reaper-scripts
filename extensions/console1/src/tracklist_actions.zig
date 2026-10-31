@@ -3,6 +3,7 @@ const c1 = @import("c1.zig");
 const reaper = @import("reaper").reaper;
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
+const MidiEvtsFxCtrl = @import("csurf/midi_events_fxctrl.zig");
 const log = std.log.scoped(.track_list);
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const constants = @import("constants.zig");
@@ -26,6 +27,7 @@ pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = tr } });
             }
         },
+        .step_track => |direction| stepTrack(globals, direction),
         .blink_leds => |led_state| {
             const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
             const track_count = reaper.GetNumTracks() + 1; // +  1 to account for master
@@ -43,9 +45,9 @@ pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
 
                 // If track is selected, blink its LED
                 if (globals.state.selectedTracks.contains(track_id)) {
-                    const cc = @backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
+                    const cc: c1.CCs = @fromBackingInt(@intCast(@backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(i))));
                     const value: u8 = if (led_state.blink_state) 0x7f else 0x0;
-                    c.MidiOut_Send(led_state.midi_out, 0xb0, cc, value, -1);
+                    globals.unit.setLed(cc, value);
                 }
             }
         },
@@ -88,6 +90,40 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
             try midi_out.send(0xB0, cc, 0x7F);
         }
     }
+}
+
+/// Selects the neighbor of the current track, and shows the page that it is on.
+fn stepTrack(globals: *Globals, direction: i8) void {
+    const track_count: c_int = reaper.GetNumTracks() + 1; // including master
+    const current = globals.state.current_tr_id orelse return;
+    const step = planStep(current, direction, track_count) orelse return;
+
+    if (step.page != globals.state.fx_ctrl.current_page) {
+        globals.state.fx_ctrl.current_page = step.page;
+        updateTrackNames(globals);
+        if (globals.preferences.focus_page_tracks) focusPageTracks(globals);
+        actions.dispatch(globals, .{ .midi_out = .page_change });
+    }
+    actions.dispatch(globals, .{ .track_list = .{ .track_select = step.track } });
+}
+
+pub const TrackStep = struct { track: c_int, page: u8 };
+
+/// The track that a step from `current` lands on, with its page, or null at the first and the last track.
+/// The track ids are REAPER's, with 0 for the master.
+pub fn planStep(current: c_int, direction: i8, track_count: c_int) ?TrackStep {
+    std.debug.assert(direction == 1 or direction == -1);
+    std.debug.assert(track_count > 0);
+    const next = std.math.clamp(current + direction, 0, track_count - 1);
+    if (next == current) return null;
+    return .{ .track = next, .page = @intCast(@as(usize, @intCast(next)) / TrackList.PageSize) };
+}
+
+test planStep {
+    try std.testing.expectEqual(TrackStep{ .track = 20, .page = 1 }, planStep(19, 1, 26).?);
+    try std.testing.expectEqual(TrackStep{ .track = 19, .page = 0 }, planStep(20, -1, 26).?);
+    try std.testing.expectEqual(@as(?TrackStep, null), planStep(0, -1, 26));
+    try std.testing.expectEqual(@as(?TrackStep, null), planStep(25, 1, 26));
 }
 
 fn handlePageChange(globals: *Globals, direction: PgDirection) void {
@@ -136,6 +172,7 @@ fn updateTrackNames(globals: *Globals) void {
         // ASSUMPTION: csurf track ids are sequential, start 0 for master track
         const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);
         globals.state.fx_ctrl.track_list.track_names[i].id = track_id;
+        globals.state.fx_ctrl.track_list.track_names[i].color = MidiEvtsFxCtrl.trackListColor(track_id);
         _ = reaper.GetTrackName(track, &globals.state.fx_ctrl.track_list.track_names[i].name, TrackList.TrackNameSize);
         globals.state.fx_ctrl.track_list.name_count += 1;
     }
@@ -260,7 +297,7 @@ pub fn setReaperTrackSelection(globals: *Globals, csurf_id: c_int) ?reaper.Media
     while (it.next()) |entry| {
         const tr_id = entry.key_ptr.*;
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-        pReaper.CSurf_SetSurfaceSelected(.{ track, pReaper.CSurf_OnSelectedChange(.{ track, 0 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
+        pReaper.CSurf_SetSurfaceSelected(.{ track, pReaper.CSurf_OnSelectedChange(.{ track, 0 }), csurf.surface() });
     }
     globals.state.selectedTracks.clearRetainingCapacity();
 
@@ -268,6 +305,6 @@ pub fn setReaperTrackSelection(globals: *Globals, csurf_id: c_int) ?reaper.Media
 
     globals.state.selectedTracks.put(globals.arena_int.allocator(), csurf_id, {}) catch {};
 
-    pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
+    pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), csurf.surface() });
     return media_track;
 }

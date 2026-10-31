@@ -66,6 +66,16 @@ const Mocks = struct {
     CSurf_OnStop: @TypeOf(reaper.CSurf_OnStop),
     CSurf_OnRewFwd: @TypeOf(reaper.CSurf_OnRewFwd),
     CSurf_OnZoom: @TypeOf(reaper.CSurf_OnZoom),
+    SLIDER2DB: @TypeOf(reaper.SLIDER2DB),
+    TrackFX_GetPreset: @TypeOf(reaper.TrackFX_GetPreset),
+    TrackFX_SetPreset: @TypeOf(reaper.TrackFX_SetPreset),
+    TrackFX_GetUserPresetFilename: @TypeOf(reaper.TrackFX_GetUserPresetFilename),
+    GetTrackStateChunk: @TypeOf(reaper.GetTrackStateChunk),
+    CSurf_ScrubAmt: @TypeOf(reaper.CSurf_ScrubAmt),
+    GetTrackColor: @TypeOf(reaper.GetTrackColor),
+    CSurf_OnSelectedChange: @TypeOf(reaper.CSurf_OnSelectedChange),
+    CSurf_SetSurfaceSelected: @TypeOf(reaper.CSurf_SetSurfaceSelected),
+    DB2SLIDER: @TypeOf(reaper.DB2SLIDER),
     CSurf_OnPlayRateChange: @TypeOf(reaper.CSurf_OnPlayRateChange),
     CSurf_OnRecArmChange: @TypeOf(reaper.CSurf_OnRecArmChange),
     GetToggleCommandState: @TypeOf(reaper.GetToggleCommandState),
@@ -546,6 +556,51 @@ pub fn CSurf_OnZoom(xdir: c_int, ydir: c_int) callconv(.c) void {
     _ = xdir;
     _ = ydir;
 }
+/// Sets the volume of the track and returns it, as REAPER does for an absolute change.
+pub fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.c) f64 {
+    std.debug.assert(!relative);
+    const track: ?*Track = @ptrCast(@alignCast(trackid));
+    const clamped = std.math.clamp(volume, 0.0, 4.0);
+    if (track) |t| t.info.volume = clamped;
+    return clamped;
+}
+
+pub fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = volume;
+    _ = ignoresurf;
+}
+
+/// Sets the pan of the track and returns it, as REAPER does for an absolute change.
+pub fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.c) f64 {
+    std.debug.assert(!relative);
+    const track: ?*Track = @ptrCast(@alignCast(trackid));
+    const clamped = std.math.clamp(pan, -1.0, 1.0);
+    if (track) |t| t.info.pan = clamped;
+    return clamped;
+}
+
+pub fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = pan;
+    _ = ignoresurf;
+}
+
+// An increasing and invertible stand-in for REAPER's fader scale, over the slider range 0 to 1000 and -150 to +12 dB.
+// It is not REAPER's curve: tests only rely on the two functions being inverse of each other and increasing.
+pub fn SLIDER2DB(y: f64) callconv(.c) f64 {
+    const t = std.math.clamp(y, 0.0, 1000.0) / 1000.0;
+    return -150.0 + 162.0 * std.math.sqrt(t);
+}
+
+pub fn DB2SLIDER(x: f64) callconv(.c) f64 {
+    const t = std.math.clamp((x + 150.0) / 162.0, 0.0, 1.0);
+    return 1000.0 * t * t;
+}
+
+pub fn CSurf_ScrubAmt(amt: f64) callconv(.c) void {
+    _ = amt;
+}
 pub fn CSurf_OnPlayRateChange(playrate: f64) callconv(.c) void {
     _ = playrate;
 }
@@ -641,16 +696,6 @@ pub fn CSurf_OnSoloChange(trackid: MediaTrack, solo: c_int) callconv(.c) bool {
     _ = solo;
     return true;
 }
-pub fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.c) f64 {
-    _ = trackid;
-    _ = relative;
-    return volume;
-}
-pub fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.c) f64 {
-    _ = trackid;
-    _ = relative;
-    return pan;
-}
 pub fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = mute;
@@ -659,16 +704,6 @@ pub fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper
 pub fn CSurf_SetSurfaceSolo(trackid: MediaTrack, solo: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = solo;
-    _ = ignoresurf;
-}
-pub fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
-    _ = trackid;
-    _ = volume;
-    _ = ignoresurf;
-}
-pub fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
-    _ = trackid;
-    _ = pan;
     _ = ignoresurf;
 }
 pub fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.c) *reaper.MediaTrack {
@@ -838,6 +873,71 @@ pub fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv
     }
 
     return 0;
+}
+
+/// Selects or deselects the track, and returns the selection that REAPER ends up with.
+pub fn CSurf_OnSelectedChange(trackid: MediaTrack, selected: c_int) callconv(.c) bool {
+    SetTrackSelected(trackid, selected != 0);
+    return selected != 0;
+}
+
+pub fn CSurf_SetSurfaceSelected(trackid: MediaTrack, selected: bool, ignoresurf: reaper.IReaperControlSurface) callconv(.c) void {
+    _ = trackid;
+    _ = selected;
+    _ = ignoresurf;
+}
+
+/// The mock tracks have no custom color: bit 0x1000000 of a native color is the "has a color" flag.
+pub fn GetTrackColor(track: MediaTrack) callconv(.c) c_int {
+    _ = track;
+    return 0;
+}
+
+/// The path that the mock gives as the preset file of every FX. The tests set it.
+pub var user_preset_path: []const u8 = "";
+/// The chunk that the mock gives for every track. The tests set it.
+pub var track_chunk: []const u8 = "";
+/// The name that the mock gives as the preset showing in the dropdown of every FX, or "" for none.
+pub var current_preset_name: []const u8 = "";
+/// The name of the last preset that was activated through TrackFX_SetPreset.
+pub var activated_preset: [256]u8 = undefined;
+pub var activated_preset_len: usize = 0;
+
+fn copyToBuffer(source: []const u8, buffer: [*]u8, size: c_int) void {
+    if (size <= 0) return;
+    const len = @min(@as(usize, @intCast(size)) - 1, source.len);
+    @memcpy(buffer[0..len], source[0..len]);
+    buffer[len] = 0;
+}
+
+pub fn TrackFX_GetPreset(track: MediaTrack, fx: c_int, presetnameOut: [*:0]u8, presetnameOut_sz: c_int) callconv(.c) bool {
+    _ = track;
+    _ = fx;
+    copyToBuffer(current_preset_name, presetnameOut, presetnameOut_sz);
+    return current_preset_name.len > 0;
+}
+
+pub fn TrackFX_SetPreset(track: MediaTrack, fx: c_int, presetname: [*:0]const u8) callconv(.c) bool {
+    _ = track;
+    _ = fx;
+    const name = std.mem.span(presetname);
+    activated_preset_len = @min(name.len, activated_preset.len);
+    @memcpy(activated_preset[0..activated_preset_len], name[0..activated_preset_len]);
+    return true;
+}
+
+pub fn TrackFX_GetUserPresetFilename(track: MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.c) void {
+    _ = track;
+    _ = fx;
+    copyToBuffer(user_preset_path, @ptrCast(fnOut), fnOut_sz);
+}
+
+/// Like REAPER, the chunk is cut when the buffer is too small.
+pub fn GetTrackStateChunk(track: MediaTrack, strNeedBig: *c_char, strNeedBig_sz: c_int, isundoOptional: bool) callconv(.c) bool {
+    _ = track;
+    _ = isundoOptional;
+    copyToBuffer(track_chunk, @ptrCast(strNeedBig), strNeedBig_sz);
+    return true;
 }
 
 pub fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.c) void {

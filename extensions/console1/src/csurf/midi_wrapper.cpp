@@ -198,6 +198,21 @@ void MidiOut_SendMsg(midi_Output_w m_midiout, MIDI_event_t *msg,
   }
 }
 
+void MidiOut_SendSysex(midi_Output_w m_midiout, const unsigned char *bytes,
+                       int len) {
+  // The longest message of the Console 1 protocol is the 111-byte state frame.
+  const int max_len = 256;
+  if (!m_midiout || !bytes || len < 3 || len > max_len)
+    return;
+  // The header of MIDI_event_t is two ints, and the message follows it.
+  alignas(MIDI_event_t) unsigned char buffer[sizeof(MIDI_event_t) + max_len];
+  MIDI_event_t *evt = reinterpret_cast<MIDI_event_t *>(buffer);
+  evt->frame_offset = 0;
+  evt->size = len;
+  memcpy(evt->midi_message, bytes, len);
+  static_cast<zMidi_Output *>(m_midiout)->SendMsg(evt, -1);
+}
+
 void MidiOut_Send(midi_Output_w m_midiout, unsigned char status,
                   unsigned char d1, unsigned char d2, int frame_offset) {
   if (m_midiout) {

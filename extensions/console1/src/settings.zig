@@ -4,6 +4,7 @@ const ModulesList = @import("statemachine.zig").ModulesList; // Changed from map
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const log = std.log.scoped(.preferences);
 const fs_helpers = @import("fs_helpers");
+const StepSettings = @import("unit/step.zig").Settings;
 
 // Hard-coded fallback defaults as EnumMap
 pub const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -27,6 +28,7 @@ pub const SettingsFields = enum {
     start_suspended,
     // show_track_list,
     focus_page_tracks,
+    mode_is_modifier,
     auto_insert_modules,
     auto_insert_bypassed,
     auto_reorder_modules,
@@ -54,10 +56,16 @@ log_to_file: bool,
 start_suspended: bool,
 show_track_list: bool,
 focus_page_tracks: bool,
+/// Whether the Mode button of the unit is a modifier: the transport mode shows only while it is held down.
+mode_is_modifier: bool,
 auto_insert_modules: bool,
 auto_insert_bypassed: bool,
 auto_reorder_modules: bool,
 preferred_module_order: ModulesOrder,
+// How far a tick of a knob of the sysex unit moves a value (see unit/step.zig)
+base_step: f64,
+sensitivity: f64,
+fine_multiplier: f64,
 
 pub const empty: @This() = .{
     .language = "en",
@@ -70,11 +78,21 @@ pub const empty: @This() = .{
     .start_suspended = false,
     .show_track_list = true,
     .focus_page_tracks = false,
+    .mode_is_modifier = false,
     .auto_insert_modules = true,
     .auto_insert_bypassed = false,
     .auto_reorder_modules = true,
     .preferred_module_order = .@"S-EQ-C",
+    .base_step = default_step.base_step,
+    .sensitivity = default_step.sensitivity,
+    .fine_multiplier = default_step.fine_multiplier,
 };
+
+const default_step: StepSettings = .{};
+
+pub fn stepSettings(self: *const Preferences) StepSettings {
+    return .{ .base_step = self.base_step, .sensitivity = self.sensitivity, .fine_multiplier = self.fine_multiplier };
+}
 
 /// defaults-only prefs
 pub fn defaults(arena: std.mem.Allocator) !@This() {
@@ -182,6 +200,7 @@ pub fn saveToDisk(self: *Preferences, io: std.Io, resource_path: [:0]const u8) !
                     );
                 }
             },
+            f64 => try writer.print("{s} = {d}\n", .{ field_name, @field(self, field_name) }),
             ModulesOrder => {
                 try writer.print(
                     "{s} = {s}\n",
@@ -241,6 +260,16 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                                         @field(self, field_name) = try g_arena.dupeSentinel(u8, prop.value, 0);
                                     }
                                 },
+                                f64 => {
+                                    // Because a step that is not a positive number would stop the knobs or reverse them,
+                                    // such a value is refused and the default stays.
+                                    const parsed = std.fmt.parseFloat(f64, prop.value) catch std.math.nan(f64);
+                                    if (std.math.isFinite(parsed) and parsed > 0) {
+                                        @field(self, field_name) = parsed;
+                                    } else {
+                                        log.warn("Invalid value '{s}' for {s}, using the default", .{ prop.value, field_name });
+                                    }
+                                },
                                 ModulesOrder => {
                                     @field(self, field_name) = std.meta.stringToEnum(ModulesOrder, prop.value) orelse blk: {
                                         log.warn("Invalid value '{s}' for {s}, using default S-C-EQ", .{ prop.value, field_name });
@@ -284,6 +313,7 @@ pub fn toggleField(self: *@This(), field: SettingsFields) bool {
         .log_to_file => self.log_to_file = !self.log_to_file,
         .start_suspended => self.start_suspended = !self.start_suspended,
         .focus_page_tracks => self.focus_page_tracks = !self.focus_page_tracks,
+        .mode_is_modifier => self.mode_is_modifier = !self.mode_is_modifier,
         // Handle combo boxes differently
         else => {
             rv = false;
@@ -420,4 +450,18 @@ test "preferences - save and restore" {
     try testing.expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);
     try testing.expect(final_verify.show_plugin_ui == original_prefs.show_plugin_ui);
     try testing.expect(final_verify.manual_routing == original_prefs.manual_routing);
+}
+
+test "preferences - the step settings are read, and a value that is not positive keeps the default" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var prefs: Preferences = .empty;
+    var reader = std.Io.Reader.fixed("sensitivity = 2.5\nfine_multiplier = -1\nbase_step = abc\n");
+    var parser = ini.parse(arena.allocator(), &reader, ";#");
+    try prefs.parsePreferences(&parser, arena.allocator());
+    try testing.expectEqual(@as(f64, 2.5), prefs.sensitivity);
+    try testing.expectEqual(@as(f64, 0.1), prefs.fine_multiplier);
+    try testing.expectEqual(@as(f64, 1.0 / 127.0), prefs.base_step);
+    try testing.expect(prefs.stepSettings().valid());
 }

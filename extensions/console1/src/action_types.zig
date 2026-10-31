@@ -29,6 +29,9 @@ pub const MidiInput = struct {
 pub const WidgetInput = struct {
     cc: CCs,
     value: f64,
+    /// The text that the user typed for the value, which the host reads as the parameter writes its values. When it is
+    /// set, `value` is the value that the knob had.
+    text: ?[24]u8 = null,
 };
 
 pub const FxCtrlAction = union(enum) {
@@ -50,7 +53,11 @@ pub const FxCtrlAction = union(enum) {
 pub const FxSelActions = union(enum) {
     select_fx: StringPool.StringRef,
     scroll: u8,
+    /// One row up (-1) or down (1), from a tick of the sysex unit.
+    scroll_by: i8,
     confirm: void,
+    /// Opens the menu that is the entry of the level that is open, which a click on it does.
+    enter_menu: usize,
     back: void,
     toggle_module_browser: ModulesList,
     fx_chain: struct { path: []const u8 },
@@ -64,9 +71,12 @@ pub const FxSelActions = union(enum) {
 
 pub const MappingPanelAction = union(enum) {
     enter_browse: void,
+    /// Opens the mapping panel on the assignment of a module that has an FX on the track, without the list of modules.
+    map_module: ModulesList,
     enter_assign: ModulesList,
     exit_to_fx_ctrl: void,
     browse_scroll: u8,
+    browse_scroll_by: i8,
     browse_select_module: ModulesList,
     browse_confirm: void,
     browse_cancel: void,
@@ -86,10 +96,14 @@ pub const MappingPanelAction = union(enum) {
 
 // Settings
 
+/// The settings of the step of a knob that the panel edits. They are not rows of the list that the unit scrolls.
+pub const StepField = enum { sensitivity, fine_multiplier };
+
 pub const SettingsValUpdate = union(enum) {
     bool_val: struct { field: SettingsFields, val: bool },
     string_val: struct { field: SettingsFields, val: [:0]const u8 },
     enum_val: struct { field: SettingsFields, val: ModulesOrder },
+    float_val: struct { field: StepField, val: f64 },
 };
 
 pub const SettingsActions = union(enum) {
@@ -97,6 +111,7 @@ pub const SettingsActions = union(enum) {
     save,
     cancel,
     scroll: u8,
+    scroll_by: i8,
     toggle,
     update_val: SettingsValUpdate,
     install_presets,
@@ -138,6 +153,23 @@ pub const TransportAction = union(enum) {
     tr_sel: u8,
     zoom_horizontal: u8,
     zoom_vertical: u8,
+    /// A tick of a knob of the sysex unit, with the same effect as the knob has in the absolute actions above.
+    knob_by: struct { cc: CCs, delta: i8, fine: bool },
+};
+
+// Presets
+
+pub const PresetsAction = union(enum) {
+    /// Opens the screen to load or to save presets
+    enter: @import("statemachine.zig").PresetsPurpose,
+    /// A position of the legacy knob
+    scroll: u8,
+    /// One row up (-1) or down (1), from a tick of the sysex unit
+    scroll_by: i8,
+    /// A row that was clicked: the cursor goes to it, and it is confirmed
+    pick: usize,
+    confirm,
+    cancel,
 };
 
 // Track List
@@ -147,9 +179,10 @@ pub const PgDirection = enum { up, down };
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
     track_select: c_int,
+    /// Selects the previous (-1) or the next (1) track in the order of REAPER, and moves the page along.
+    step_track: i8,
     blink_leds: struct {
         blink_state: bool,
-        midi_out: reaper.midi_Output,
     },
     refresh,
 };
@@ -200,6 +233,7 @@ pub const ModeAction = union(enum) {
     fx_sel: FxSelActions,
     transport: TransportAction,
     mapping_panel: MappingPanelAction,
+    presets: PresetsAction,
     settings: SettingsActions,
     default_fx_sel: FxSelActions,
     Csurf: CsurfAction,

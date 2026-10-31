@@ -131,11 +131,11 @@ test "knob in edit mode clamps out-of-range input" {
     } else return error.TestUnexpectedResult;
 }
 
-test "double-click on value text returns value_dclick" {
+test "right click on the knob returns value_dclick, which opens the edit box" {
     const mock = try setupMock(testing.allocator);
     defer teardownMock(mock, testing.allocator);
 
-    mock.doubleClick("##val_dc_test_knob_id");
+    mock.rightClick("test_knob_id");
 
     const result = try callDrawWidget(null);
 
