@@ -98,7 +98,7 @@ test "fx_ctrl panel shows disconnected text when midi not connected" {
     try testing.expect(mock.containsText("Console disconnected") or mock.containsWidget(.text_colored, "Console disconnected"));
 }
 
-test "mapping panel in strip assign mode renders preset checkbox and param list" {
+test "mapping panel in strip assign mode renders the store key and param list" {
     const statemachine = @import("../statemachine.zig");
     const mappings = @import("../mappings.zig");
     const StringPool = @import("string_pool").StringPool;
@@ -135,7 +135,7 @@ test "mapping panel in strip assign mode renders preset checkbox and param list"
     offsets[0] = ref;
     assign_state.preset_name_offsets = offsets;
 
-    builder.state.mapping_panel.mode = .{ .assign = assign_state };
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
 
     var ui = builder.build();
     var style_mgr = builder.buildStyleManager();
@@ -143,11 +143,16 @@ test "mapping panel in strip assign mode renders preset checkbox and param list"
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
 
     // The module selection dropdown should be rendered
-    try testing.expect(mock.containsWidget(.begin_combo, "##module_selection"));
+    // Every module is open at once: there is no combo to choose one, and each plate has its key that saves its mapping.
+    try testing.expect(!mock.containsWidget(.begin_combo, "##module_selection"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##save_INPUT"));
 
-    // When preset data is populated, the preset section should be visible
-    try testing.expect(mock.containsWidget(.begin_combo, "##preset_selection"));
-    try testing.expect(mock.containsWidget(.checkbox, "Store preset in map file"));
+    // The state of the plugin is stored without a named preset: there is no dropdown of presets, and the key of the plate is there.
+    try testing.expect(!mock.containsWidget(.begin_combo, "##preset_selection"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##store_INPUT"));
+    // The keys without a label are in the bar at the left.
+    try testing.expect(mock.containsWidget(.invisible_button, "##midi_learn"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##map_close"));
 
     // In strip assign mode, all 5 module panels should be active (not disabled),
     // because ChannelStripMapping shares the same CC field names.
@@ -160,13 +165,11 @@ test "mapping panel in strip assign mode renders preset checkbox and param list"
     try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_ext_sidechain"));
     try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_order"));
 
-    // No module panels should be disabled (the checkbox disabled region is expected
-    // when no preset is selected, but the knob panels should all be enabled).
-    // The only begin_disabled should be from the preset checkbox.
-    try testing.expect(mock.widgetCount(.begin_disabled) <= 1);
+    // No module panels should be disabled: the store key does not wait for a preset, and the knob panels are all enabled.
+    try testing.expect(mock.widgetCount(.begin_disabled) == 0);
 }
 
-test "mapping panel shows preset checkbox even without presets on disk" {
+test "the store key of a plate does not need a preset to be loaded" {
     const statemachine = @import("../statemachine.zig");
     const mappings = @import("../mappings.zig");
 
@@ -189,20 +192,52 @@ test "mapping panel shows preset checkbox even without presets on disk" {
     assign_state.assign_fx_index = 0;
     // No presets populated -- preset_name_offsets stays empty
 
-    builder.state.mapping_panel.mode = .{ .assign = assign_state };
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
 
     var ui = builder.build();
     var style_mgr = builder.buildStyleManager();
 
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
 
-    // Both the preset dropdown and checkbox should be rendered (disabled,
-    // since there are no presets on disk).
-    try testing.expect(mock.containsWidget(.begin_combo, "##preset_selection"));
-    try testing.expect(mock.containsWidget(.checkbox, "Store preset in map file"));
+    // The key that stores the state of the plugin is there, and it is enabled although no preset is loaded: it only needs a plugin.
+    try testing.expect(mock.containsWidget(.invisible_button, "##store_COMPRESSOR"));
+    // The plugin has a key that opens its window, and MIDI learn is in the bar at the left.
+    try testing.expect(mock.containsWidget(.invisible_button, "##openfx_COMP"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##midi_learn"));
+}
 
-    // The disabled region should wrap both the dropdown and checkbox
-    try testing.expect(mock.widgetCount(.begin_disabled) >= 1);
+test "while the browser is open from the assignment, the window still shows the mapping panel" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    builder.state.fx_sel.return_to_mapping = true;
+
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // The save keys of the plates are the ones of the mapping panel, and the keys of the panel of the FX controls are not there.
+    try testing.expect(mock.containsWidget(.invisible_button, "##save_COMPRESSOR"));
+    try testing.expect(!mock.containsWidget(.invisible_button, "##Out_mute"));
 }
 
 test "roundButton component renders with mock imgui" {

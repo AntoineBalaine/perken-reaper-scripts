@@ -35,6 +35,10 @@ fn browserSource(ui: *UiState, mapped_count: usize) fx_browser.Source {
         .track_templates = ui.track_templates,
         .plugins_by_type = ui.fx_plugins_by_type,
         .tags = ui.fx_tags,
+        // Because the browser that was opened from a mapping only chooses a plugin that can be mapped, it has no FX chains, no
+        // track templates and no container.
+        .hidden_menus = if (ui.state.fx_sel.return_to_mapping) fx_browser.plugins_only_hidden else .{},
+        .recent = ui.fx_recent,
     };
 }
 
@@ -143,8 +147,11 @@ fn drawMappedRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
 
 /// The menus of the first level, which come after the plugins that have a mapping.
 fn drawMenuRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
+    var listed: usize = 0;
     for (std.enums.values(fx_browser.RootMenu)) |menu| {
-        const index = list.source.mapped_count + @backingInt(menu);
+        if (list.source.hidden_menus.contains(menu)) continue;
+        const index = list.source.mapped_count + listed;
+        listed += 1;
         const is_menu = fx_browser.isMenu(list.source, list.level, index);
         if (try card_kit.row(ctx, rootMenuName(menu, list.translations), is_menu, list.cursor == index, list.scroll_changed)) {
             list.rv = clickAction(list.source, list.level, index, list.translations);
@@ -238,9 +245,12 @@ pub fn ModulePopup(
             .browse_fx => breadcrumb(&crumb_buf, source, path, translations),
             .select_mapping => |sel| sel.fx_name,
         };
-        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, panel_theme.text_dim });
-        try imgui.Text(.{ ctx, if (subtitle.len > 0) subtitle else " " });
-        try imgui.PopStyleColor(.{ ctx, 1 });
+        // Because a line with nothing in it would leave a gap over the first card, the subtitle is only there when it has a text.
+        if (subtitle.len > 0) {
+            try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, panel_theme.text_dim });
+            try imgui.Text(.{ ctx, subtitle });
+            try imgui.PopStyleColor(.{ ctx, 1 });
+        }
 
         var list: ListContext = .{
             .source = source,
@@ -257,21 +267,16 @@ pub fn ModulePopup(
         var available_w: f64 = undefined;
         var available_h: f64 = undefined;
         try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
-        const footer_height = 24.0;
         const overhead = try card_kit.cardOverhead(ctx);
         const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
-        const room = @max(available_h - footer_height, 120);
+        const room = @max(available_h, 120);
 
-        var entry_count: usize = 0;
-        var cursor_index: usize = 0;
         switch (sub_mode) {
             .browse_fx => {
-                entry_count = fx_browser.entryCount(source, level);
-                cursor_index = list.cursor orelse 0;
                 switch (level) {
                     .root => if (display_menus) {
                         // The plugins that have a mapping are in one card, and the menus of the browser in another.
-                        const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.root_menu_count)) + 4;
+                        const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.rootMenuCount(source))) + 4;
                         const mapped_height = @max(room - menus_height - overhead * 2, row_height * 3);
 
                         const mapped_card = try card_kit.beginCard(ctx, "##fx_card_mapped", "Mapped plugins", mapped_height);
@@ -297,8 +302,6 @@ pub fn ModulePopup(
                 }
             },
             .select_mapping => |sel| {
-                if (mappings.get(sel.fx_string_pool_offset)) |mapping_entries| entry_count = mapping_entries.items.len;
-                cursor_index = sel.scroll_position_rel;
                 list.cursor = if (highlight) |hl| hl.current_index else null;
                 const card = try card_kit.beginCard(ctx, "##fx_card_mappings", "Mappings", @max(room - overhead, row_height * 3));
                 if (card.visible) try drawMappingRows(ctx, &list, sel);
@@ -306,12 +309,6 @@ pub fn ModulePopup(
             },
         }
         if (list.rv) |chosen| rv = chosen;
-
-        // Under the cards: the place of the cursor in the list.
-        var count_buf: [48:0]u8 = undefined;
-        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, panel_theme.text_dim });
-        try imgui.Text(.{ ctx, safePrint(&count_buf, "{d} / {d}", .{ if (entry_count == 0) 0 else cursor_index + 1, entry_count }) });
-        try imgui.PopStyleColor(.{ ctx, 1 });
     }
     if (!open) rv = .close_browser;
 

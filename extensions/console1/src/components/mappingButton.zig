@@ -1,147 +1,101 @@
+//! The key of a control in the mapping panel, with its combo where the label of the key is in the panel of the FX controls:
+//! at its right, or under it. The combo is as tall as a line of text.
+const std = @import("std");
 const imgui = @import("reaper_imgui");
 const knob = @import("knob");
+const panel_theme = @import("panel_theme");
 const Size = knob.Size;
 const Position = knob.Position;
-const Rectangle = knob.Rectangle;
-const roundButton = @import("button.zig");
-const TextPosition = roundButton.TextPosition;
+const button = @import("button.zig");
+const TextPosition = button.TextPosition;
 const mappingKnob = @import("mappingKnob.zig");
-const constants = @import("../constants.zig");
 const TranslationStore = @import("../translations.zig").TranslationStore;
+
+/// The text that gives the width of the combo of a key. A plate whose slots have keys is given it as the label of those, so
+/// that it leaves the room for the combo where the label stands.
+pub const combo_label: [:0]const u8 = "Param";
+
+/// The space between a key and its combo, as `roundButton` leaves between a key and its label.
+const gap = 4.0;
+
+/// The width of the combo of a key.
+pub fn comboWidth(ctx: imgui.ContextPtr) !f64 {
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, combo_label, &w, &h });
+    return w;
+}
 
 pub fn mappingButton(
     ctx: imgui.ContextPtr,
+    /// What the key is, which the combo shows dimmed while nothing is mapped.
     label: [:0]const u8,
     id: [:0]const u8,
-    tooltip: ?[:0]const u8,
-    provided_radius: ?f64,
-    text_position: ?TextPosition,
-    disabled: ?bool,
+    text_position: TextPosition,
+    disabled: bool,
+    /// The control is the one that the next parameter will be mapped to: it is washed in the amber of the panel.
+    selected: bool,
     comptime cc: @import("../c1.zig").CCs,
-    assignment_label: [:0]const u8,
-    param_store: *const @import("../statemachine.zig").ParamStore,
+    assigned: ?[:0]const u8,
+    param_store: ?*const @import("../statemachine.zig").ParamStore,
     translations: *const TranslationStore,
 ) anyerror!?mappingKnob.Res {
-    const is_disabled = disabled orelse false;
-    const radius = if (provided_radius) |rad| rad else 5.0;
-    const text_pos = if (text_position) |pos| pos else TextPosition.above;
+    std.debug.assert(text_position == .right or text_position == .below);
+    const radius = button.default_radius;
     const draw_list = try imgui.GetWindowDrawList(.{ctx});
     var rv: ?mappingKnob.Res = null;
 
-    // Check if label is empty
-    const has_label = label.len > 0;
+    var line: Size = .{ .w = undefined, .h = undefined };
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line.w, &line.h });
+    const combo_w = try comboWidth(ctx);
 
-    // Calculate text size for label
-    var label_size: Size = .{ .w = 0, .h = 0 };
-    if (has_label) {
-        try imgui.CalcTextSize(.{ ctx, label, &label_size.w, &label_size.h });
-    }
-    const text_padding = 2.0;
-
-    // Get current cursor position
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    const button_size = radius * 2;
-    const combo_width = constants.knob_size * 2;
-    const total_width = if (!has_label) @max(button_size, combo_width) else switch (text_pos) {
-        .above, .below => @max(@max(button_size, label_size.w), combo_width),
-        .right => @max(button_size + text_padding * 2 + label_size.w, combo_width),
+    const key_size = radius * 2;
+    const width = switch (text_position) {
+        .right => key_size + gap + combo_w,
+        else => @max(key_size, combo_w),
+    };
+    const height = switch (text_position) {
+        .right => @max(key_size, line.h),
+        else => key_size + gap + line.h,
+    };
+    const center_x = switch (text_position) {
+        .right => cur_pos.x + radius,
+        else => cur_pos.x + width / 2,
+    };
+    const center_y = switch (text_position) {
+        .right => cur_pos.y + height / 2,
+        else => cur_pos.y + radius,
+    };
+    const combo_x = switch (text_position) {
+        .right => cur_pos.x + key_size + gap,
+        else => cur_pos.x + (width - combo_w) / 2,
+    };
+    const combo_y = switch (text_position) {
+        .right => center_y - line.h / 2,
+        else => cur_pos.y + key_size + gap,
     };
 
-    var frm_pdg: f64 = undefined;
-    var var_dummy: f64 = undefined;
-    try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_FramePadding, &frm_pdg, &var_dummy });
+    if (selected) try imgui.DrawList_AddRectFilled(.{ draw_list, cur_pos.x - 2, cur_pos.y - 2, cur_pos.x + width + 2, cur_pos.y + height + 2, panel_theme.amber_faint, 6 });
 
-    const total_height = if (!has_label) button_size else switch (text_pos) {
-        .above, .below => button_size + label_size.h + text_padding * 4 + try imgui.GetTextLineHeightWithSpacing(.{ctx}) + frm_pdg * 4,
-        .right => @max(button_size, label_size.h) + text_padding * 4 + try imgui.GetTextLineHeightWithSpacing(.{ctx}) + frm_pdg * 4,
-    };
-
-    const widget_rect = Rectangle{
-        .min_x = cur_pos.x,
-        .min_y = cur_pos.y,
-        .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + total_height,
-    };
-
-    {
-        try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
-        defer imgui.PopClipRect(.{ctx}) catch {};
-
-        // Calculate circle position
-        const center_x = if (!has_label) widget_rect.min_x + radius else switch (text_pos) {
-            .above, .below => widget_rect.min_x + total_width / 2,
-            .right => widget_rect.min_x + radius,
-        };
-        const center_y = if (!has_label) widget_rect.min_y + radius else switch (text_pos) {
-            .above => widget_rect.min_y + label_size.h + text_padding * 2 + radius,
-            .below => widget_rect.min_y + radius,
-            .right => widget_rect.min_y + total_height / 2,
-        };
-
-        // Only draw label and add label button if we have a label
-        if (has_label) {
-            // Calculate label position
-            const label_pos_x = switch (text_pos) {
-                .above, .below => widget_rect.min_x + (total_width - label_size.w) / 2,
-                .right => center_x + radius + text_padding * 2,
-            };
-            const label_pos_y = switch (text_pos) {
-                .above => widget_rect.min_y + text_padding,
-                .below => widget_rect.min_y + button_size + text_padding * 2,
-                .right => center_y - label_size.h / 2,
-            };
-
-            // Draw label
-            try imgui.DrawList_AddText(.{
-                draw_list,
-                label_pos_x,
-                label_pos_y,
-                try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
-                label,
-            });
-
-            // Add invisible button over label for tooltip
-            try imgui.SetCursorScreenPos(.{ ctx, label_pos_x, label_pos_y });
-            if (try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h })) {}
-
-            if (tooltip) |tip| {
-                if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) {
-                    try imgui.SetTooltip(.{ ctx, tip });
-                }
-            }
-        }
-
-        // Position and create the invisible button
-        try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
-
-        if (!is_disabled) {
-            if (try imgui.InvisibleButton(.{ ctx, id, button_size, button_size })) {
-                rv = .click;
-            }
-        }
-
-        // Check if the button is hovered
-        const isHovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
-
-        const held = !is_disabled and try imgui.IsItemActive(.{ctx});
-        try knob.drawRoundKey(draw_list, center_x, center_y, radius, -1, .{ .hovered = isHovered, .active = held, .disabled = is_disabled });
+    try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
+    var clicked = false;
+    if (!disabled) {
+        clicked = try imgui.InvisibleButton(.{ ctx, id, key_size, key_size });
+    } else {
+        try imgui.Dummy(.{ ctx, key_size, key_size });
     }
+    const hovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
+    const held = !disabled and try imgui.IsItemActive(.{ctx});
+    try knob.drawRoundKey(draw_list, center_x, center_y, radius, -1, .{ .hovered = hovered, .active = held, .disabled = disabled });
+    if (clicked) rv = .click;
 
-    const available_width = widget_rect.max_x - widget_rect.min_x;
-    try imgui.SetNextItemWidth(.{ ctx, available_width - 10.0 });
-    if (try mappingKnob.paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
-        rv = v;
-    }
+    try imgui.SetCursorScreenPos(.{ ctx, combo_x, combo_y });
+    if (try mappingKnob.paramsCombo(ctx, cc, label, assigned, combo_w, param_store, translations)) |v| rv = v;
 
-    // Create dummy space for entire widget
-    try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
-    try imgui.Dummy(.{
-        ctx,
-        widget_rect.max_x - widget_rect.min_x,
-        widget_rect.max_y - widget_rect.min_y,
-    });
-
+    try imgui.SetCursorScreenPos(.{ ctx, cur_pos.x, cur_pos.y });
+    try imgui.Dummy(.{ ctx, width, height });
     return rv;
 }

@@ -48,8 +48,8 @@ test "assign mode forwards non reserved midi to fx ctrl" {
 
     // Set up assign sub-mode with dummy mappings
     const dummy_mappings = TaggedMapping{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .assign = statemachine.AssignState.init(allocator, dummy_mappings) };
-    defer g.state.mapping_panel.mode.assign.deinit();
+    g.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(statemachine.AssignState.init(allocator, dummy_mappings)) };
+    defer g.state.mapping_panel.mode.assign.active().deinit();
 
     // Verify mode setup
     try testing.expect(g.state.current_mode == .mapping_panel);
@@ -89,6 +89,6 @@ test "all mapping panel sub modes exist" {
     // Assign mode
     g.state.mapping_panel.deinitCurrentSubMode();
     const dummy_mappings1 = TaggedMapping{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .assign = statemachine.AssignState.init(allocator, dummy_mappings1) };
+    g.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(statemachine.AssignState.init(allocator, dummy_mappings1)) };
     try testing.expect(g.state.mapping_panel.mode == .assign);
 }

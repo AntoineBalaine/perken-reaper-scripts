@@ -82,12 +82,12 @@ const System = struct {
 
         g.state.mapping_panel.deinitCurrentSubMode();
         g.state.mapping_panel.mode = .{
-            .assign = statemachine.AssignState.init(
+            .assign = statemachine.AssignSet.single(statemachine.AssignState.init(
                 g.state.mapping_panel.gpa_int.allocator(),
                 .{ .COMP = mappings.Comp{} },
-            ),
+            )),
         };
-        g.state.mapping_panel.mode.assign.assign_fx_index = 0;
+        g.state.mapping_panel.mode.assign.active().assign_fx_index = 0;
 
         return System{
             .globals = g,
@@ -100,12 +100,12 @@ const System = struct {
     pub fn reset(self: *System) void {
         self.globals.state.mapping_panel.deinitCurrentSubMode();
         self.globals.state.mapping_panel.mode = .{
-            .assign = statemachine.AssignState.init(
+            .assign = statemachine.AssignSet.single(statemachine.AssignState.init(
                 self.globals.state.mapping_panel.gpa_int.allocator(),
                 .{ .COMP = mappings.Comp{} },
-            ),
+            )),
         };
-        self.globals.state.mapping_panel.mode.assign.assign_fx_index = 0;
+        self.globals.state.mapping_panel.mode.assign.active().assign_fx_index = 0;
         self.globals.state.current_mode = .mapping_panel;
     }
 
@@ -118,7 +118,7 @@ const System = struct {
     }
 
     pub fn getAssign(self: *System) *statemachine.AssignState {
-        return &self.globals.state.mapping_panel.mode.assign;
+        return self.globals.state.mapping_panel.mode.assign.active();
     }
 };
 

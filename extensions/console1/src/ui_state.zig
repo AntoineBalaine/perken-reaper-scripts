@@ -17,6 +17,8 @@ const Theme = @import("theme/ReaperTheme.zig");
 const fx_types = @import("fx_parser_types");
 const c1 = @import("c1.zig");
 
+const no_recent: fx_types.FxList = .{};
+
 pub const UiState = struct {
     state: *statemachine.State,
     translations: *TranslationStore,
@@ -37,6 +39,8 @@ pub const UiState = struct {
     tab_font: imgui.FontPtr,
     // FX browser data — pointers into fx_parser module globals.
     fx_plugins_by_type: *fx_types.FxByType,
+    /// The plugins that were chosen last in the browser, the latest first.
+    fx_recent: *const fx_types.FxList = &no_recent,
     fx_chains: *fx_types.Directory,
     track_templates: *fx_types.Directory,
     fx_tags: *fx_types.FxTags,

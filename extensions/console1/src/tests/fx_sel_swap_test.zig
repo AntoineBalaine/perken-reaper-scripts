@@ -185,3 +185,83 @@ test "swapping INPUT FX removes old input and preserves other modules" {
     try testing.expect(found_comp);
     try testing.expect(found_outpt);
 }
+
+test "swapping a plugin from the mapping panel comes back to the mapping panel, on the new plugin" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    _ = setupFullChain(globals);
+    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+
+    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_swap_fx = .GATE } });
+    try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_sel.return_to_mapping);
+
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = "JS: Transient Controller", .mapping_name = null } } });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+    try testing.expect(globals.state.mapping_panel.mode == .assign);
+    try testing.expectEqual(ModulesList.GATE, globals.state.mapping_panel.mode.assign.focus);
+}
+
+test "swapping to a plugin that has a mapping from the mapping panel also comes back to the mapping panel" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    _ = setupFullChain(globals);
+    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_swap_fx = .COMP } });
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = "VST: ReaComp (Cockos)", .mapping_name = null } } });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+    try testing.expect(globals.state.mapping_panel.mode == .assign);
+}
+
+test "the plugins that were chosen are remembered, the latest first and without repeats" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+
+    _ = setupFullChain(globals);
+    globals.state.fx_sel.current_category = .GATE;
+    globals.state.current_mode = .fx_sel;
+    fx_sel_actions.fxSelActions(globals, .{ .plugin = .{ .name = "JS: Transient Controller", .mapping_name = null } });
+    globals.state.fx_sel.current_category = .COMP;
+    globals.state.current_mode = .fx_sel;
+    fx_sel_actions.fxSelActions(globals, .{ .plugin = .{ .name = "VST: ReaComp (Cockos)", .mapping_name = null } });
+    globals.state.fx_sel.current_category = .GATE;
+    globals.state.current_mode = .fx_sel;
+    fx_sel_actions.fxSelActions(globals, .{ .plugin = .{ .name = "JS: Transient Controller", .mapping_name = null } });
+
+    const recent = globals.recent_plugins.keys();
+    try testing.expectEqual(@as(usize, 2), recent.len);
+    try testing.expectEqualStrings("JS: Transient Controller", recent[0]);
+    try testing.expectEqualStrings("VST: ReaComp (Cockos)", recent[1]);
+}

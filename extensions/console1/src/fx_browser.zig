@@ -30,7 +30,35 @@ pub const Source = struct {
     track_templates: *const types.Directory,
     plugins_by_type: *const types.FxByType,
     tags: *const types.FxTags,
+    /// The menus that the first level does not list. A browser that only chooses a plugin leaves out the FX chains and the track
+    /// templates, which insert more than a plugin, and the container, which has nothing to map.
+    hidden_menus: HiddenMenus = .{},
+    /// The plugins that were chosen last, the latest first, which the recent menu lists.
+    recent: *const types.FxList = &no_recent,
 };
+
+pub const HiddenMenus = std.EnumSet(RootMenu);
+
+const no_recent: types.FxList = .{};
+
+/// The menus to leave out so that only plugins that can be mapped are chosen.
+pub const plugins_only_hidden: HiddenMenus = HiddenMenus.initMany(&.{ .fx_chains, .track_templates, .container });
+
+/// How many menus the first level lists.
+pub fn rootMenuCount(source: Source) usize {
+    return root_menu_count - source.hidden_menus.count();
+}
+
+/// The menu that the n-th of the listed menus is, which is the n-th of the menus that are not hidden.
+pub fn rootMenuAt(source: Source, n: usize) ?RootMenu {
+    var seen: usize = 0;
+    for (std.enums.values(RootMenu)) |menu| {
+        if (source.hidden_menus.contains(menu)) continue;
+        if (seen == n) return menu;
+        seen += 1;
+    }
+    return null;
+}
 
 /// One level of the browser.
 pub const Level = union(enum) {
@@ -100,9 +128,7 @@ fn fileCount(directory: *const types.Directory) usize {
 /// The root menu of an entry of the first level, or null for one of the plugins that have a mapping.
 pub fn rootMenuOf(source: Source, index: usize) ?RootMenu {
     if (index < source.mapped_count) return null;
-    const menu = index - source.mapped_count;
-    if (menu >= root_menu_count) return null;
-    return @fromBackingInt(@intCast(menu));
+    return rootMenuAt(source, index - source.mapped_count);
 }
 
 /// The level that an entry of a level opens, or null when the entry is not a menu.
@@ -116,7 +142,8 @@ pub fn enter(source: Source, level: Level, index: usize) ?Level {
                 .all_plugins => .plugin_types,
                 .tags_category => .{ .tag_list = &source.tags.category },
                 .tags_developer => .{ .tag_list = &source.tags.developer },
-                .container, .video_processor, .recent => null,
+                .container, .video_processor => null,
+                .recent => .{ .fx_list = source.recent },
             };
         },
         .directory => |folder| {
@@ -146,7 +173,7 @@ pub fn levelAt(source: Source, path: []const usize) ?Level {
 /// How many entries a level has.
 pub fn entryCount(source: Source, level: Level) usize {
     return switch (level) {
-        .root => source.mapped_count + root_menu_count,
+        .root => source.mapped_count + rootMenuCount(source),
         .directory => |folder| subdirCount(folder.directory) + fileCount(folder.directory),
         .plugin_types => source.plugins_by_type.values.len,
         .tag_list => |tags| tags.count(),
@@ -162,7 +189,7 @@ pub fn activate(source: Source, level: Level, index: usize, buf: *[std.fs.max_pa
             if (index < source.mapped_count) return .{ .mapped = index };
             const menu = rootMenuOf(source, index) orelse return .none;
             return switch (menu) {
-                .container, .video_processor, .recent => .{ .root_leaf = menu },
+                .container, .video_processor => .{ .root_leaf = menu },
                 else => .enter,
             };
         },
@@ -246,7 +273,8 @@ test "the first level has the mapped plugins and then the menus, and a menu open
     var buf: [std.fs.max_path_bytes:0]u8 = undefined;
     try std.testing.expectEqual(Activation{ .mapped = 1 }, activate(source, .root, 1, &buf));
     try std.testing.expectEqual(Activation.enter, activate(source, .root, 2 + @backingInt(RootMenu.all_plugins), &buf));
-    try std.testing.expectEqual(Activation{ .root_leaf = .recent }, activate(source, .root, 2 + @backingInt(RootMenu.recent), &buf));
+    try std.testing.expectEqual(Activation{ .root_leaf = .video_processor }, activate(source, .root, 2 + @backingInt(RootMenu.video_processor), &buf));
+    try std.testing.expectEqual(Activation.enter, activate(source, .root, 2 + @backingInt(RootMenu.recent), &buf));
 
     const types_level = enter(source, .root, 2 + @backingInt(RootMenu.all_plugins)).?;
     try std.testing.expectEqual(@as(usize, std.enums.values(types.FxType).len), entryCount(source, types_level));
@@ -293,4 +321,43 @@ test "a path that leaves the levels leads nowhere" {
     const source = testSource(std.testing.allocator, &chains, &templates, &by_type, &tags, 0);
     try std.testing.expectEqual(@as(?Level, null), levelAt(source, &.{ @backingInt(RootMenu.recent), 0 }));
     try std.testing.expectEqual(@as(?Level, null), levelAt(source, &.{99}));
+}
+
+test "a browser that only chooses plugins has neither FX chains nor track templates" {
+    const allocator = std.testing.allocator;
+    var chains: types.Directory = .{ .path = "/chains", .name = "chains", .subdirs = null, .files = null };
+    var templates: types.Directory = .{ .path = "/templates", .name = "templates", .subdirs = null, .files = null };
+    var by_type = types.FxByType.initFill(.{});
+    var tags: types.FxTags = .{ .category = .{}, .developer = .{} };
+    var source = testSource(allocator, &chains, &templates, &by_type, &tags, 3);
+    source.hidden_menus = plugins_only_hidden;
+
+    // The FX chains, the track templates and the container are left out.
+    try std.testing.expectEqual(@as(usize, 3 + root_menu_count - 3), entryCount(source, .root));
+    // The first menu after the mapped plugins is the list of all the plugins, and the container is not between the others.
+    try std.testing.expectEqual(@as(?RootMenu, .all_plugins), rootMenuOf(source, 3));
+    try std.testing.expectEqual(@as(?RootMenu, .video_processor), rootMenuOf(source, 3 + 3));
+    try std.testing.expectEqual(@as(?RootMenu, .recent), rootMenuOf(source, 3 + 4));
+    try std.testing.expectEqual(@as(?RootMenu, null), rootMenuOf(source, 3 + 5));
+    var buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    try std.testing.expectEqual(Activation.enter, activate(source, .root, 3, &buf));
+}
+
+test "the recent menu lists the plugins that were chosen last" {
+    const allocator = std.testing.allocator;
+    var chains: types.Directory = .{ .path = "/chains", .name = "chains", .subdirs = null, .files = null };
+    var templates: types.Directory = .{ .path = "/templates", .name = "templates", .subdirs = null, .files = null };
+    var by_type = types.FxByType.initFill(.{});
+    var tags: types.FxTags = .{ .category = .{}, .developer = .{} };
+    var recent: types.FxList = .{};
+    defer recent.deinit(allocator);
+    try recent.put(allocator, "ReaComp", {});
+    try recent.put(allocator, "ReaEQ", {});
+    var source = testSource(allocator, &chains, &templates, &by_type, &tags, 0);
+    source.recent = &recent;
+
+    const level = enter(source, .root, @backingInt(RootMenu.recent)).?;
+    try std.testing.expectEqual(@as(usize, 2), entryCount(source, level));
+    var buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    try std.testing.expectEqualStrings("ReaComp", activate(source, level, 0, &buf).plugin);
 }

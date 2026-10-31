@@ -1,3 +1,4 @@
+const std = @import("std");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const imgui = @import("reaper_imgui");
@@ -23,7 +24,7 @@ pub const GuiError = error{
 };
 
 /// What the row of the track list does while shift is held, which is what the shift of the controller does: the browser
-/// of the plugins of a module on the first six rows, and the settings on the last one. It matches `shiftLabel`.
+/// of the plugins of a module on the first six rows, the creation of a mapping on the seventh, and the settings on the last one. It matches `shiftLabel`.
 fn shiftAction(cc: c1.CCs) ?actions.ModeAction {
     return switch (cc) {
         .Tr_tr1 => .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
@@ -32,9 +33,34 @@ fn shiftAction(cc: c1.CCs) ?actions.ModeAction {
         .Tr_tr4 => .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
         .Tr_tr5 => .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
         .Tr_tr6 => .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
+        .Tr_tr7 => .{ .mapping_panel = .create_mapping },
         .Tr_tr20 => .{ .settings = .open },
         else => null,
     };
+}
+
+/// The mapping panel, in its own child region with independent scrolling. Because its widgets use PushClipRect and custom draw
+/// list operations that crash when scrolled off-screen in the main window, it is not drawn in the window itself.
+fn drawMappingContent(ctx: imgui.ContextPtr, ui: *UiState, rv: *?actions.ModeAction) !void {
+    if (try imgui.BeginChild(.{ ctx, "##mapping_panel_content", 0, 0, null, imgui.WindowFlags_None })) {
+        const map_action: ?actions.MappingPanelAction = switch (ui.state.mapping_panel.mode) {
+            .browse => |*browse_state| try module_selection_panel.drawModuleSelectionPanel(
+                ctx,
+                browse_state,
+                ui.drwls_splitter,
+                ui.translations,
+            ),
+            .assign => |*assign_set| try mapping_panel.drawMappingPanel(
+                ctx,
+                assign_set,
+                ui.translations,
+            ),
+        };
+        if (map_action) |action| {
+            rv.* = .{ .mapping_panel = action };
+        }
+    }
+    imgui.EndChild(.{ctx}) catch {};
 }
 
 pub fn main(
@@ -137,31 +163,37 @@ pub fn main(
                 }
             },
             .fx_sel => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
-                    switch (ctrl_input.cc) {
-                        .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
-                        .Out_solo => rv = .{ .fx_sel = .confirm },
-                        // Cancel steps out of a menu, or out of the mappings of a plugin, before it closes the browser.
-                        .Out_mute => rv = if (ui.state.fx_sel.menu_depth > 0 or ui.state.fx_sel.sub_mode == .select_mapping)
-                            .{ .fx_sel = .back }
-                        else
-                            .{ .fx_sel = .close_browser },
-                        else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
+                // Because the browser that was opened from the assignment of a module is a step of the mapping, the mapping panel stays
+                // in the window under it, and the panel of the FX controls does not take its place.
+                if (ui.state.fx_sel.return_to_mapping and std.meta.activeTag(ui.state.mapping_panel.mode) == .assign) {
+                    try drawMappingContent(ctx, ui, &rv);
+                } else {
+                    if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
+                        switch (ctrl_input.cc) {
+                            .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
+                            .Out_solo => rv = .{ .fx_sel = .confirm },
+                            // Cancel steps out of a menu, or out of the mappings of a plugin, before it closes the browser.
+                            .Out_mute => rv = if (ui.state.fx_sel.menu_depth > 0 or ui.state.fx_sel.sub_mode == .select_mapping)
+                                .{ .fx_sel = .back }
+                            else
+                                .{ .fx_sel = .close_browser },
+                            else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
+                        }
                     }
-                }
 
-                if (ui.preferences.show_track_list) {
-                    try imgui.SameLine(.{ctx});
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
-                        switch (tr_cc) {
-                            .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
-                            .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
-                            .Tr_tr3 => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
-                            .Tr_tr4 => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
-                            .Tr_tr5 => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
-                            .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
-                            .Tr_tr20 => rv = .{ .settings = .open },
-                            else => {},
+                    if (ui.preferences.show_track_list) {
+                        try imgui.SameLine(.{ctx});
+                        if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
+                            switch (tr_cc) {
+                                .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
+                                .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
+                                .Tr_tr3 => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
+                                .Tr_tr4 => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
+                                .Tr_tr5 => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
+                                .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
+                                .Tr_tr20 => rv = .{ .settings = .open },
+                                else => {},
+                            }
                         }
                     }
                 }
@@ -193,32 +225,7 @@ pub fn main(
                     rv = .{ .fx_sel = sel_action };
                 }
             },
-            .mapping_panel => {
-                // Because the mapping panel widgets use PushClipRect and
-                // custom draw list operations that crash when scrolled
-                // off-screen in the main window, we render the mapping
-                // panel in its own child region with independent scrolling.
-                if (try imgui.BeginChild(.{ ctx, "##mapping_panel_content", 0, 0, null, imgui.WindowFlags_None })) {
-                    const map_action: ?actions.MappingPanelAction = switch (ui.state.mapping_panel.mode) {
-                        .browse => |*browse_state| try module_selection_panel.drawModuleSelectionPanel(
-                            ctx,
-                            browse_state,
-                            ui.drwls_splitter,
-                            ui.translations,
-                        ),
-                        .assign => |*assign_state| try mapping_panel.drawMappingPanel(
-                            ctx,
-                            ui.state,
-                            assign_state,
-                            ui.translations,
-                        ),
-                    };
-                    if (map_action) |action| {
-                        rv = .{ .mapping_panel = action };
-                    }
-                }
-                imgui.EndChild(.{ctx}) catch {};
-            },
+            .mapping_panel => try drawMappingContent(ctx, ui, &rv),
             .presets => {
                 if (try imgui.BeginChild(.{ ctx, "##presets_content", 0, 0, null, imgui.WindowFlags_None })) {
                     if (try presets_panel.drawPresetsPanel(ctx, &ui.state.presets, ui.drwls_splitter, ui.translations)) |presets_action| {
@@ -258,10 +265,6 @@ pub fn main(
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, ui.shift_held, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
-                            // The first six rows map the module that they stand for.
-                            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6 => if (statemachine.moduleOfTrackRow(tr_cc)) |module| {
-                                rv = .{ .mapping_panel = .{ .map_module = module } };
-                            },
                             .Tr_tr11 => rv = .{ .transport = .{ .automation_mode = .trim } },
                             .Tr_tr12 => rv = .{ .transport = .{ .automation_mode = .read } },
                             .Tr_tr13 => rv = .{ .transport = .{ .automation_mode = .latch } },

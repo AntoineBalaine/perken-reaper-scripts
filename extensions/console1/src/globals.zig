@@ -48,6 +48,8 @@ arena_int: std.heap.ArenaAllocator = undefined,
 resource_path: [:0]const u8 = undefined,
 fs_ops: fs_helpers.FileSystemOps = undefined,
 translations: TranslationStore = undefined,
+/// The plugins that were chosen last in the browser of plugins, the latest first.
+recent_plugins: @import("fx_parser_types").FxList = .{},
 
 // midi
 m_midi_in_dev: ?c_int = null,

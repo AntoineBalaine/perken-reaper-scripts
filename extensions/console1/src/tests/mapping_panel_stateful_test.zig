@@ -205,7 +205,7 @@ const EnterAssign = struct {
 
         // Verify synchronization
         return switch (sut.globals.state.mapping_panel.mode) {
-            .assign => |s| std.meta.activeTag(s.current_mappings) == self.module,
+            .assign => |s| std.meta.activeTag(s.activeConst().current_mappings) == self.module,
             else => false,
         };
     }
@@ -305,7 +305,7 @@ const ConfirmBrowse = struct {
 
         // Verify synchronization
         return switch (sut.globals.state.mapping_panel.mode) {
-            .assign => |s| std.meta.activeTag(s.current_mappings) == model.selected_module,
+            .assign => |s| std.meta.activeTag(s.activeConst().current_mappings) == model.selected_module,
             else => false,
         };
     }
@@ -434,7 +434,7 @@ const AddMapping = struct {
 
         // Verify synchronization - check that the mapping was added
         const sut_mappings = switch (sut.globals.state.mapping_panel.mode) {
-            .assign => |s| s.current_mappings,
+            .assign => |s| s.activeConst().current_mappings,
             else => return false,
         };
         const model_mappings = model.current_mappings orelse return false;
@@ -576,7 +576,7 @@ const RemoveMapping = struct {
 
         // Verify synchronization - check that the mapping was removed
         const sut_mappings = switch (sut.globals.state.mapping_panel.mode) {
-            .assign => |s| s.current_mappings,
+            .assign => |s| s.activeConst().current_mappings,
             else => return false,
         };
 

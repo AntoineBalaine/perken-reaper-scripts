@@ -4,6 +4,7 @@ const mapping_actions = @import("action_types.zig");
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
 const AssignState = statemachine.AssignState;
+const AssignSet = statemachine.AssignSet;
 const c1 = @import("c1.zig");
 const tr = @import("translations.zig").tr;
 const ModulesList = statemachine.ModulesList;
@@ -17,46 +18,18 @@ const constants = @import("constants.zig");
 const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 const mappingKnob = @import("components/mappingKnob.zig");
-
-// Function to handle the parameters column
-fn params(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-
-    for (0..assign_state.param_store.len()) |i| {
-        const param_name = assign_state.param_store.getName(i);
-        var is_selected = if (assign_state.selected_parameter) |sel|
-            sel == i
-        else
-            false;
-
-        if (try imgui.Selectable(.{
-            ctx,
-            param_name,
-            &is_selected,
-            null,
-            0.0, // full width
-        })) {
-            rv = .{ .assign_select_parameter = @intCast(i) };
-        }
-
-        if (isParamMapped(state, i)) {
-            try imgui.SameLine(.{ctx});
-            try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_mapped) });
-        }
-    }
-
-    return rv;
-}
+const palette = @import("ui_palette");
+const Knobs = @import("knob");
+const panel_theme = @import("panel_theme");
+const widgets = @import("components/widgets.zig");
+const module_plate = @import("components/module_plate.zig");
+const combo_style = @import("components/combo_style.zig");
+const Plate = module_plate.Plate;
+const button_radius = @import("components/button.zig").default_radius;
 
 pub fn drawMappingPanel(
     ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
+    set: *const AssignSet,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
@@ -64,109 +37,51 @@ pub fn drawMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (try controls(ctx, state, assign_state, translations)) |action| {
+    // The bar of keys is all the way to the left, then the modules, then the assignments.
+    if (try buttonBar(ctx, set, translations)) |action| {
+        rv = action;
+    }
+    try fx_ctrl_panel.sectional(ctx);
+    if (try controls(ctx, set, translations)) |action| {
         rv = action;
     }
     try imgui.SameLine(.{ctx});
-    if (try formControls(ctx, assign_state, translations)) |action| {
+    if (try formControls(ctx, set, translations)) |action| {
         rv = action;
     }
     return rv;
 }
 
-// Function to handle the controls column
+// Function to handle the controls column: the modules, on the plates that they have in the panel of the FX controls. Every
+// module that has an FX is open at once.
 fn controls(
     ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
+    set: *const AssignSet,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
+    // Because the plates are as tall as the tallest, as they are in the panel of the FX controls.
+    module_plate.startFrame();
 
-    // Define an array of panel functions and their corresponding modules
-    const panels = [_]struct { module: ModulesList, panel_fn: @TypeOf(inputMappingPanel) }{
-        .{ .module = .INPUT, .panel_fn = inputMappingPanel },
-        .{ .module = .GATE, .panel_fn = gateMappingPanel },
-        .{ .module = .EQ, .panel_fn = eqMappingPanel },
-        .{ .module = .COMP, .panel_fn = compMappingPanel },
-        .{ .module = .OUTPT, .panel_fn = outputMappingPanel },
-    };
-
-    // Because ChannelStripMapping has the same CC field names as the individual
-    // module mappings, we can reuse the 5 existing panel functions with all of
-    // them active. The strip FX name header is shown once at the top.
-    if (assign_state.current_mappings == .STRIP) {
-        if (assign_state.target_fx.len > 0) {
-            try imgui.TextDisabled(.{ ctx, assign_state.target_fx });
-        }
-
-        inline for (panels) |panel_info| {
-            if (try panel_info.panel_fn(ctx, state, assign_state, translations, false)) |act| {
-                rv = act;
-            }
-            try fx_ctrl_panel.sectional(ctx);
-        }
-
-        if (try stripExtraControls(ctx, state, assign_state, translations)) |act| {
-            rv = act;
-        }
-
-        return rv;
-    }
-
-    // Call each panel function, but only process actions from the active one
-    inline for (panels) |panel_info| {
-        const is_active = assign_state.current_mappings == panel_info.module;
-
-        if (!is_active) {
-            try imgui.BeginDisabled(.{ctx});
-        }
-        defer if (!is_active) {
-            imgui.EndDisabled(.{ctx}) catch {};
-        };
-
-        if (try panel_info.panel_fn(ctx, state, assign_state, translations, !is_active)) |act| {
-            if (is_active) {
-                rv = act;
-            }
-        }
-
-        // Add sectional divider between panels (except after the last one)
+    inline for ([_]ModuleDef{ input_def, shape_def, eq_def, comp_def, output_def }) |def| {
+        if (try modulePanel(ctx, def, set, translations)) |act| rv = act;
         try fx_ctrl_panel.sectional(ctx);
     }
 
     return rv;
 }
 
-fn isParamMapped(state: *const State, param_idx: usize) bool {
-    const param: u16 = @intCast(param_idx);
-    const current_mappings = switch (state.mapping_panel.mode) {
-        .assign => |s| s.current_mappings,
-        else => return false,
-    };
-    switch (current_mappings) {
-        inline else => |mapping| {
-            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
-                // Skip non-parameter fields because they are not optional u16 values
-                if (comptime std.mem.eql(u8, field_name, "version")) continue;
-                if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
-
-                if (@field(mapping, field_name)) |mapped_param| {
-                    if (mapped_param == param) return true;
-                }
-            }
-        },
-    }
-    return false;
+/// The state that owns the controls of a module: the one of the channel strip when the track has one, and the one of the
+/// module when it has an FX. Null when the module has no FX, which leaves its controls disabled.
+fn ownerOf(set: *const AssignSet, module: ModulesList) ?*const AssignState {
+    if (set.getConst(.STRIP)) |strip| return strip;
+    const state = set.getConst(module) orelse return null;
+    return if (state.assign_fx_index != null) state else null;
 }
 
-fn getControlMapping(state: *const State, cc: c1.CCs) ?u32 {
+fn getControlMapping(assign_state: *const AssignState, cc: c1.CCs) ?u32 {
     const cc_name = @tagName(cc);
-    const current_mappings = switch (state.mapping_panel.mode) {
-        .assign => |s| s.current_mappings,
-        else => return null,
-    };
-    switch (current_mappings) {
+    switch (assign_state.current_mappings) {
         inline else => |mapping| {
             inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
                 // Skip non-parameter fields because they are not optional u16 values
@@ -184,871 +99,706 @@ fn getControlMapping(state: *const State, cc: c1.CCs) ?u32 {
     }
 }
 
-// Function to handle the bottom panel with buttons
+/// How many entries of the assignments stand in a column, as the rows of a page stand in the list of the tracks.
+const entry_rows = 10;
+const entry_capacity = 96;
+
+const Entry = struct { cc: c1.CCs, text: [96:0]u8 };
+
+/// The assignments of every module, in the order of the modules.
+fn collectEntries(set: *const AssignSet, entries: *[entry_capacity]Entry) usize {
+    // Because every field of the mapping of every module is visited at compile time, the default limit is too low.
+    @setEvalBranchQuota(100_000);
+    var count: usize = 0;
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (set.getConst(module)) |assign_state| {
+            switch (assign_state.current_mappings) {
+                inline else => |mapping| {
+                    inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
+                        if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                        if (comptime !@hasField(c1.CCs, field_name)) continue;
+                        if (@field(mapping, field_name)) |param_idx| {
+                            if (count < entries.len) {
+                                const param_name = if (param_idx < assign_state.param_store.len())
+                                    assign_state.param_store.getName(@intCast(param_idx))
+                                else
+                                    "?";
+                                entries[count].cc = @field(c1.CCs, field_name);
+                                _ = std.mem.printSentinel(&entries[count].text, "{s} -> {s} (#{d})", .{ field_name, param_name, param_idx }, 0) catch {
+                                    entries[count].text[0] = 0;
+                                };
+                                count += 1;
+                            }
+                        }
+                    }
+                },
+            }
+        }
+    }
+    return count;
+}
+
+/// Writes a text in the room of a column, cut at its width, and shows it in full under the mouse.
+fn clippedText(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64, color: c_int) !void {
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    var line_w: f64 = undefined;
+    var line_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line_w, &line_h });
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    try imgui.PushClipRect(.{ ctx, x, y, x + width, y + line_h, true });
+    try imgui.DrawList_AddText(.{ dl, x, y, color, text });
+    try imgui.PopClipRect(.{ctx});
+    try imgui.Dummy(.{ ctx, width, line_h });
+    if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) try imgui.SetTooltip(.{ ctx, text });
+}
+
+// Function to handle the two cards at the right of the modules: the mapping card, which has MIDI learn, the preset of the focused
+// module and the key that closes the panel, and the card of the assignments, which is laid out as the list of the tracks is:
+// its entries are in columns that fold after ten of them. The mapping of each module is saved from its own plate.
 fn formControls(
     ctx: imgui.ContextPtr,
-    assign_state: *const AssignState,
+    set: *const AssignSet,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+    var entries: [entry_capacity]Entry = undefined;
+    const count = collectEntries(set, &entries);
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    var line_w: f64 = undefined;
+    var line_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line_w, &line_h });
+    var spacing_x: f64 = undefined;
+    var spacing_y: f64 = undefined;
+    try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y });
+    const min_content_h = entry_rows * line_h + (entry_rows - 1) * spacing_y;
+
+    if (try assignmentsCard(ctx, &entries, count, translations, min_content_h, line_h, spacing_y)) |action| rv = action;
+
+    return rv;
+}
+
+/// The radius of the keys of the bar, a little bigger than the keys of the panel.
+const bar_key_radius = 11.0;
+
+/// The bar of keys all the way to the left of the window, one under the other, with no labels: the key that records a MIDI
+/// learn, which is red while it listens as the record key of the transport is when it records, and the key that closes the panel.
+/// What each one does is in its tooltip. A mark under them says when a mapping could not be saved.
+fn buttonBar(
+    ctx: imgui.ContextPtr,
+    set: *const AssignSet,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     var text_buf: [256:0]u8 = undefined;
+    const assign_state = set.activeConst();
 
+    // Because the next item is put at the top of what is drawn here, the bar is a group: its top is the one of the modules.
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
+
+    // The plates of the modules start under the line of their plugin: the bar leaves the same room, so that they are level.
+    var line_w: f64 = undefined;
+    var line_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line_w, &line_h });
+    try imgui.Dummy(.{ ctx, 1, line_h + 4 });
+
+    const plate = try Plate.begin(ctx, .{
+        .slots = &.{},
+        .columns = 1,
+        .widest_label = "Ag",
+        .title = "",
+        .min_width = bar_key_radius * 2,
+    });
+
+    // The keys are flush with the top of the bar: it has no title, so they start where its face starts, not under the line that
+    // a title would have.
+    try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.start.y + module_plate.pad });
     {
-        try imgui.PushItemWidth(.{ ctx, 100.0 });
-        defer imgui.PopItemWidth(.{ctx}) catch {};
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
 
-        if (try imgui.BeginCombo(.{ ctx, "##module_selection", @tagName(assign_state.current_mappings), null })) {
-            defer imgui.EndCombo(.{ctx}) catch {};
-
-            var dropdown_buf: [512:0]u8 = undefined;
-            inline for (comptime std.enums.values(ModulesList)) |module| {
-                const module_name = @tagName(module);
-                const display_text: [:0]const u8 = blk: {
-                    if (module != .STRIP) {
-                        const phys: PhysicalModule = @fromBackingInt(@intCast(@backingInt(module)));
-                        if (assign_state.module_fx_names.get(phys)) |fx_name| {
-                            break :blk std.mem.printSentinel(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }, 0) catch module_name;
-                        }
-                    }
-                    break :blk std.mem.printSentinel(&dropdown_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }, 0) catch module_name;
-                };
-
-                if (try imgui.Selectable(.{ ctx, display_text })) {
-                    rv = .{ .assign_change_module = module };
-                }
-            }
-        }
-    }
-
-    // Preset dropdown and checkbox. Both are always visible, but disabled
-    // when there are no presets available or no preset is selected.
-    {
-        const no_presets = assign_state.preset_name_offsets.len == 0;
-        const no_preset_selected = assign_state.selected_preset == null;
-
-        if (no_presets) {
-            try imgui.BeginDisabled(.{ctx});
-        }
-        defer if (no_presets) {
-            imgui.EndDisabled(.{ctx}) catch {};
-        };
-
-        try imgui.PushItemWidth(.{ ctx, 200.0 });
-        defer imgui.PopItemWidth(.{ctx}) catch {};
-
-        const current_label: [:0]const u8 = if (assign_state.selected_preset) |offset|
-            assign_state.preset_strings.get(offset)
-        else
-            tr(translations, .mapping_preset_none);
-
-        if (try imgui.BeginCombo(.{ ctx, "##preset_selection", current_label, null })) {
-            defer imgui.EndCombo(.{ctx}) catch {};
-
-            if (try imgui.Selectable(.{ ctx, tr(translations, .mapping_preset_none) })) {
-                rv = .{ .assign_set_preset = null };
-            }
-
-            for (assign_state.preset_name_offsets) |offset| {
-                const name = assign_state.preset_strings.get(offset);
-                if (try imgui.Selectable(.{ ctx, name })) {
-                    rv = .{ .assign_set_preset = offset };
-                }
-            }
-        }
-
-        if (no_preset_selected) {
-            if (!no_presets) try imgui.BeginDisabled(.{ctx});
-        }
-        defer if (no_preset_selected) {
-            if (!no_presets) imgui.EndDisabled(.{ctx}) catch {};
-        };
-
-        var store_preset = assign_state.store_preset_data;
-        if (try imgui.Checkbox(.{ ctx, tr(translations, .mapping_store_preset), &store_preset })) {
-            rv = .{ .assign_toggle_store_preset = {} };
-        }
-    }
-
-    const midi_learn_text = if (assign_state.midi_learn_active)
-        tr(translations, .mapping_midi_learn_listening)
-    else
-        tr(translations, .mapping_midi_learn);
-
-    if (try imgui.Button(.{ ctx, midi_learn_text })) {
-        rv = .{ .assign_toggle_midi_learn = {} };
-    }
-
-    if (assign_state.midi_learn_active) {
-        const has_cc = assign_state.selected_control != null;
-        const has_param = assign_state.learned_param != null;
-
-        if (has_cc and !has_param) {
-            const text = std.mem.printSentinel(&text_buf, "CC: {s} -- {s}", .{
+        // While it listens, what it waits for is its tooltip.
+        const tooltip: [:0]const u8 = if (!assign_state.midi_learn_active)
+            tr(translations, .mapping_midi_learn)
+        else if (assign_state.selected_control != null and assign_state.learned_param == null)
+            std.mem.printSentinel(&text_buf, "CC: {s} -- {s}", .{
                 @tagName(assign_state.selected_control.?),
                 tr(translations, .mapping_midi_learn_touch_param),
-            }, 0) catch "";
-            try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
-        } else if (has_param and !has_cc) {
+            }, 0) catch ""
+        else if (assign_state.learned_param != null and assign_state.selected_control == null) blk: {
             const param_name = if (assign_state.learned_param.? < assign_state.param_store.len())
                 assign_state.param_store.getName(@intCast(assign_state.learned_param.?))
             else
                 "?";
-            const text = std.mem.printSentinel(&text_buf, "Param: {s} (#{d}) -- {s}", .{
+            break :blk std.mem.printSentinel(&text_buf, "Param: {s} (#{d}) -- {s}", .{
                 param_name,
                 assign_state.learned_param.?,
                 tr(translations, .mapping_midi_learn_move_control),
             }, 0) catch "";
-            try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
-        } else {
-            try imgui.Text(.{ ctx, tr(translations, .mapping_midi_learn_waiting) });
-        }
-    }
-
-    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
-    try imgui.Separator(.{ctx});
-    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
-    if (try assignmentList(ctx, assign_state, translations, &text_buf)) |action| {
-        rv = action;
-    }
-    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
-    try imgui.Separator(.{ctx});
-    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
-
-    if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
-        rv = .{ .assign_request_save = {} };
-    }
-    try imgui.SameLine(.{ctx});
-    if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
-        rv = .{ .assign_cancel = {} };
-    }
-
-    if (assign_state.save_error) |err_key| {
-        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, err_key) });
-    }
-
-    return rv;
-}
-
-fn assignmentList(
-    ctx: imgui.ContextPtr,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-    buf: *[256:0]u8,
-) !?mapping_actions.MappingPanelAction {
-    _ = translations;
-    var rv: ?mapping_actions.MappingPanelAction = null;
-
-    switch (assign_state.current_mappings) {
-        inline else => |mapping| {
-            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
-                if (comptime std.mem.eql(u8, field_name, "version")) continue;
-                if (comptime !@hasField(c1.CCs, field_name)) continue;
-
-                if (@field(mapping, field_name)) |param_idx| {
-                    const param_name = if (param_idx < assign_state.param_store.len())
-                        assign_state.param_store.getName(@intCast(param_idx))
-                    else
-                        "?";
-                    const label = std.mem.printSentinel(buf, "{s} -> {s} (#{d})", .{
-                        field_name,
-                        param_name,
-                        param_idx,
-                    }, 0) catch "";
-                    try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(label.ptr)) });
-
-                    try imgui.SameLine(.{ctx});
-                    {
-                        try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
-                        defer imgui.PopFont(.{ctx}) catch {};
-                        const btn_label = std.mem.printSentinel(buf, "{s}##rm_{s}", .{
-                            c1_theme.Icons.get(.close), field_name,
-                        }, 0) catch "x";
-                        if (try imgui.SmallButton(.{ ctx, @as([*:0]const u8, @ptrCast(btn_label.ptr)) })) {
-                            rv = .{ .assign_remove_mapping = @field(c1.CCs, field_name) };
-                        }
-                    }
-                }
-            }
-        },
-    }
-
-    return rv;
-}
-
-fn mappingWidget(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    comptime cc: c1.CCs,
-    label: [:0]const u8,
-    variant: enum { button, knob },
-    disabled: bool,
-    translations: *TranslationStore,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-
-    // Get current mapping
-    const assignment = getControlMapping(state, cc);
-    const assignment_label: [:0]const u8 = if (assignment) |assgnmnt|
-        assign_state.param_store.getName(@intCast(assgnmnt))
-    else
-        tr(translations, .mapping_none);
-
-    const mVal = switch (variant) {
-        .button => try @import("components/mappingButton.zig").mappingButton(
+        } else tr(translations, .mapping_midi_learn_waiting);
+        const record_red: c_int = @bitCast(@as(u32, 0xE03A3AFF));
+        if (try widgets.roundButton(.{
             ctx,
-            label,
-            "##" ++ @tagName(cc),
-            null,
-            null,
+            "",
+            "##midi_learn",
+            tooltip,
+            bar_key_radius,
             .right,
             false,
-            cc,
-            assignment_label,
-            &assign_state.param_store,
-            translations,
-        ),
+            if (assign_state.midi_learn_active) record_red else null,
+            assign_state.midi_learn_active,
+            .rec,
+        })) {
+            rv = .{ .assign_toggle_midi_learn = {} };
+        }
+
+        if (try widgets.roundButton(.{ ctx, "", "##map_close", tr(translations, .mapping_close), bar_key_radius, .right, false, null, null, .cross })) {
+            rv = .{ .assign_cancel = {} };
+        }
+
+        // What went wrong when a mapping was saved, in the module where it did.
+        inline for (comptime std.enums.values(ModulesList)) |module| {
+            if (set.getConst(module)) |state| {
+                if (state.save_error) |err_key| try errorMark(ctx, tr(translations, err_key));
+            }
+        }
+    }
+    try plate.end(ctx);
+    return rv;
+}
+
+/// A red warning triangle that says what went wrong in its tooltip. It is drawn, because the icon font has no warning sign.
+fn errorMark(ctx: imgui.ContextPtr, message: [:0]const u8) !void {
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    const size: f64 = button_radius * 2;
+    _ = try imgui.InvisibleButton(.{ ctx, "##save_error", size, size });
+    const hovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    try imgui.DrawList_AddTriangleFilled(.{ dl, x + size / 2, y + 1, x + 1, y + size - 1, x + size - 1, y + size - 1, if (hovered) panel_theme.amber else panel_theme.red });
+    try imgui.DrawList_AddRectFilled(.{ dl, x + size / 2 - 1, y + 6, x + size / 2 + 1, y + 11, panel_theme.text_engraved_shadow, 0 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x + size / 2 - 1, y + 12.5, x + size / 2 + 1, y + 14.5, panel_theme.text_engraved_shadow, 0 });
+    if (hovered) try imgui.SetTooltip(.{ ctx, message });
+}
+
+/// The card of the assignments: the entries, in columns that fold after ten of them, each with the key that removes its mapping.
+fn assignmentsCard(
+    ctx: imgui.ContextPtr,
+    entries: *const [entry_capacity]Entry,
+    count: usize,
+    translations: *TranslationStore,
+    min_content_h: f64,
+    line_h: f64,
+    spacing_y: f64,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+    const key_w = try saveKeyWidth(ctx);
+
+    // The columns are as wide as the widest entry and its key.
+    var widest_entry: f64 = 0;
+    for (entries[0..count]) |*entry| {
+        var w: f64 = undefined;
+        var h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, std.mem.sliceTo(&entry.text, 0), &w, &h });
+        widest_entry = @max(widest_entry, w);
+    }
+    const none_text = tr(translations, .mapping_none);
+    if (count == 0) {
+        var h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, none_text, &widest_entry, &h });
+    }
+    const entry_w = widest_entry + 6 + (if (count == 0) 0 else key_w);
+    const column_count: usize = @max(1, (count + entry_rows - 1) / entry_rows);
+    const column_gap = 12.0;
+
+    const plate = try Plate.begin(ctx, .{
+        .slots = &.{},
+        .columns = 1,
+        .widest_label = "Ag",
+        .title = "ASSIGNMENTS",
+        .title_font = c1_theme.fonts.TAB,
+        .min_width = @as(f64, @floatFromInt(column_count)) * entry_w + @as(f64, @floatFromInt(column_count - 1)) * column_gap,
+        .min_content_h = min_content_h,
+    });
+
+    if (count == 0) {
+        try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y });
+        try clippedText(ctx, none_text, entry_w, panel_theme.text_dim);
+    }
+    for (entries[0..count], 0..) |*entry, i| {
+        const column: f64 = @floatFromInt(i / entry_rows);
+        const row: f64 = @floatFromInt(i % entry_rows);
+        const x = plate.origin.x + column * (entry_w + column_gap);
+        const y = plate.origin.y + row * (line_h + spacing_y);
+        try imgui.SetCursorScreenPos(.{ ctx, x, y });
+        try clippedText(ctx, std.mem.sliceTo(&entry.text, 0), widest_entry, panel_theme.text);
+        var id_buf: [64:0]u8 = undefined;
+        const id = std.mem.printSentinel(&id_buf, "##rm_{s}", .{@tagName(entry.cc)}, 0) catch "##rm";
+        if (try iconKey(ctx, id, x + widest_entry + 6, y, key_w, line_h, c1_theme.Icons.get(.close), true, false, null)) {
+            rv = .{ .assign_remove_mapping = entry.cc };
+        }
+    }
+    try plate.end(ctx);
+    return rv;
+}
+
+const Slot = module_plate.Slot;
+const TextPosition = @import("components/button.zig").TextPosition;
+const mappingButton = @import("components/mappingButton.zig");
+
+/// A control of a module of the mapping panel: its place on the plate, which is the one it has in the panel of the FX controls.
+const Control = struct {
+    cc: c1.CCs,
+    slot: Slot,
+    /// The label of the control when it is not the translation that the panel of the FX controls has for it.
+    label: ?[:0]const u8 = null,
+    /// The control only exists on a channel strip.
+    strip_only: bool = false,
+};
+
+const ModuleDef = struct {
+    module: ModulesList,
+    title: [:0]const u8,
+    /// All the slots of the module in the panel of the FX controls, so that the plate has the same measures.
+    slots: []const Slot,
+    columns: u8,
+    controls: []const Control,
+    /// A label that gives the width of the knobs, besides the labels of the controls.
+    widest: [:0]const u8 = "",
+    /// The module has a bypass key at the top left of its plate.
+    has_bypass: bool = false,
+    column_gap: f64 = 0,
+};
+
+const input_slots = fx_ctrl_panel.input_slots;
+const input_def = ModuleDef{
+    .module = .INPUT,
+    .title = "INPUT",
+    .slots = &input_slots.all,
+    .columns = 2,
+    .widest = "Input Gain",
+    .controls = &.{
+        .{ .cc = .Inpt_Gain, .slot = input_slots.Inpt_Gain },
+        .{ .cc = .Inpt_HiCut, .slot = input_slots.Inpt_HiCut },
+        .{ .cc = .Inpt_LoCut, .slot = input_slots.Inpt_LoCut },
+    },
+};
+
+const shape_slots = fx_ctrl_panel.shape_slots;
+const shape_def = ModuleDef{
+    .module = .GATE,
+    .title = "SHAPE",
+    .slots = &shape_slots.all,
+    .columns = 2,
+    .widest = "Release",
+    .has_bypass = true,
+    .controls = &.{
+        .{ .cc = .Shp_shape, .slot = shape_slots.Shp_shape },
+        .{ .cc = .Shp_Gate, .slot = shape_slots.Shp_Gate },
+        .{ .cc = .Shp_hard_gate, .slot = shape_slots.Shp_hard_gate },
+        .{ .cc = .Shp_GateRelease, .slot = shape_slots.Shp_GateRelease },
+        .{ .cc = .Shp_sustain, .slot = shape_slots.Shp_sustain },
+        .{ .cc = .Shp_Punch, .slot = shape_slots.Shp_Punch },
+    },
+};
+
+const eq_slots = fx_ctrl_panel.eq_slots;
+const eq_def = ModuleDef{
+    .module = .EQ,
+    .title = "EQUALIZER",
+    .slots = &eq_slots.all,
+    .columns = 4,
+    .has_bypass = true,
+    .controls = &.{
+        .{ .cc = .Eq_eq, .slot = eq_slots.Eq_eq },
+        .{ .cc = .Eq_lp_shape, .slot = eq_slots.Eq_lp_shape },
+        .{ .cc = .Eq_LoFrq, .slot = eq_slots.Eq_LoFrq },
+        .{ .cc = .Eq_LoGain, .slot = eq_slots.Eq_LoGain },
+        .{ .cc = .Eq_LoMidQ, .slot = eq_slots.Eq_LoMidQ },
+        .{ .cc = .Eq_LoMidFrq, .slot = eq_slots.Eq_LoMidFrq },
+        .{ .cc = .Eq_LoMidGain, .slot = eq_slots.Eq_LoMidGain },
+        .{ .cc = .Eq_HiMidQ, .slot = eq_slots.Eq_HiMidQ },
+        .{ .cc = .Eq_HiMidFrq, .slot = eq_slots.Eq_HiMidFrq },
+        .{ .cc = .Eq_HiMidGain, .slot = eq_slots.Eq_HiMidGain },
+        .{ .cc = .Eq_hp_shape, .slot = eq_slots.Eq_hp_shape },
+        .{ .cc = .Eq_HiFrq, .slot = eq_slots.Eq_HiFrq },
+        .{ .cc = .Eq_HiGain, .slot = eq_slots.Eq_HiGain },
+    },
+};
+
+const comp_slots = fx_ctrl_panel.comp_slots;
+const comp_def = ModuleDef{
+    .module = .COMP,
+    .title = "COMPRESSOR",
+    .slots = &comp_slots.all,
+    .columns = 2,
+    .has_bypass = true,
+    .controls = &.{
+        .{ .cc = .Comp_comp, .slot = comp_slots.Comp_comp },
+        .{ .cc = .Comp_Ratio, .slot = comp_slots.Comp_Ratio },
+        .{ .cc = .Comp_DryWet, .slot = comp_slots.Comp_DryWet },
+        .{ .cc = .Comp_Attack, .slot = comp_slots.Comp_Attack },
+        .{ .cc = .Comp_Release, .slot = comp_slots.Comp_Release },
+        .{ .cc = .Comp_Thresh, .slot = comp_slots.Comp_Thresh },
+    },
+};
+
+const out_slots = fx_ctrl_panel.out_slots;
+const output_def = ModuleDef{
+    .module = .OUTPT,
+    .title = "OUTPUT",
+    .slots = &out_slots.all,
+    .columns = 2,
+    .column_gap = 24,
+    .controls = &.{
+        // The order and the sidechain are the two controls that only a channel strip has.
+        .{ .cc = .Tr_order, .slot = out_slots.Tr_order, .label = "Order", .strip_only = true },
+        .{ .cc = .Out_Drive, .slot = out_slots.Out_Drive },
+        .{ .cc = .Out_DriveChar, .slot = out_slots.Out_DriveChar },
+        .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan },
+        .{ .cc = .Tr_ext_sidechain, .slot = out_slots.Tr_ext_sidechain, .strip_only = true },
+        .{ .cc = .Out_solo, .slot = out_slots.Out_solo },
+        .{ .cc = .Out_mute, .slot = out_slots.Out_mute },
+        .{ .cc = .Out_Vol, .slot = out_slots.Out_Vol },
+    },
+};
+
+fn controlLabel(comptime c: Control, translations: *TranslationStore) [:0]const u8 {
+    return c.label orelse tr(translations, @field(TranslationKey, "fx_ctrl_" ++ @tagName(c.cc)));
+}
+
+/// The labels of the slots of a module for its plate: the keys that are mapped have the width of their combo, and the other slots none.
+fn comboLabels(comptime def: ModuleDef) [def.slots.len][:0]const u8 {
+    var labels: [def.slots.len][:0]const u8 = undefined;
+    for (def.slots, 0..) |slot, i| {
+        labels[i] = "";
+        if (slot.kind == .knob) continue;
+        for (def.controls) |c| {
+            if (std.meta.eql(c.slot, slot)) labels[i] = mappingButton.combo_label;
+        }
+    }
+    return labels;
+}
+
+/// The widest of the labels of the knobs of a module, which gives their width.
+fn widestLabel(ctx: imgui.ContextPtr, comptime def: ModuleDef, translations: *TranslationStore) ![:0]const u8 {
+    var widest: [:0]const u8 = def.widest;
+    var widest_w: f64 = -1;
+    var h: f64 = undefined;
+    if (widest.len > 0) try imgui.CalcTextSize(.{ ctx, widest, &widest_w, &h });
+    inline for (def.controls) |c| {
+        if (c.slot.kind == .knob) {
+            const label = controlLabel(c, translations);
+            var w: f64 = undefined;
+            try imgui.CalcTextSize(.{ ctx, label, &w, &h });
+            if (w > widest_w) {
+                widest = label;
+                widest_w = w;
+            }
+        }
+    }
+    return widest;
+}
+
+/// The width that the face of the plate of each module had on the frame before, which the line of its plugin does not go over:
+/// a name that is wider is cut, because the group of the module would otherwise be wider than its plate.
+var face_widths: [5]f64 = @splat(0);
+
+/// The line over a plate that has the plugin that the module maps. It is clickable, and opens the browser of the plugins
+/// of the module, to swap the plugin or to choose one when there is none. A channel strip is one plugin: its name is over the
+/// first plate.
+fn fxHeader(
+    ctx: imgui.ContextPtr,
+    module: ModulesList,
+    set: *const AssignSet,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    const strip = set.getConst(.STRIP);
+    if (strip != null and module != .INPUT) {
+        // Because the plates are aligned, the line has the height of the one that has a name.
+        var blank_w: f64 = undefined;
+        var blank_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, "Ag", &blank_w, &blank_h });
+        try imgui.Dummy(.{ ctx, 1, blank_h + 4 });
+        return null;
+    }
+    const index: usize = @backingInt(module);
+    std.debug.assert(index < face_widths.len);
+    const swap_module: ModulesList = if (strip != null) .STRIP else module;
+    const name: [:0]const u8 = if (strip) |strip_state|
+        (if (strip_state.target_fx.len > 0) strip_state.target_fx else tr(translations, .mapping_no_fx))
+    else
+        set.activeConst().module_fx_names.get(@fromBackingInt(@intCast(@backingInt(module)))) orelse tr(translations, .mapping_no_fx);
+
+    var text_w: f64 = undefined;
+    var text_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, name, &text_w, &text_h });
+
+    // The name is in a frame, as a button that opens the browser: a combo-like display with a chevron at its right edge, which
+    // lights in the amber of the panel under the mouse. It is cut at the width of the plate, which is not known on the first
+    // frame: the name shows from the second one.
+    const frame_h = text_h + 4;
+    const wanted_w = text_w + 6 + mappingKnob.chevron_width + 4;
+    const open_key_w = try saveKeyWidth(ctx);
+    const row_w = if (face_widths[index] > 0) @max(@min(wanted_w, face_widths[index] - open_key_w - key_gap), 1) else 1;
+    var id_buf: [64:0]u8 = undefined;
+    const id = std.mem.printSentinel(&id_buf, "##fxsel_{s}", .{@tagName(module)}, 0) catch "##fxsel";
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    const clicked = try imgui.InvisibleButton(.{ ctx, id, row_w, frame_h });
+    const hovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
+    const held = try imgui.IsItemActive(.{ctx});
+
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    // Because the frame has no fill, as the combos of the panel, it shows the color of the surface that it is on.
+    if (held or hovered) try imgui.DrawList_AddRectFilled(.{ dl, x, y, x + row_w, y + frame_h, if (held) panel_theme.amber_soft else panel_theme.amber_faint, 3 });
+    try imgui.DrawList_AddRect(.{ dl, x, y, x + row_w, y + frame_h, if (hovered) panel_theme.amber else panel_theme.frame_border, 3, null, 1 });
+    try imgui.PushClipRect(.{ ctx, x + 1, y, x + row_w - mappingKnob.chevron_width, y + frame_h, true });
+    try imgui.DrawList_AddText(.{ dl, x + 6, y + 2, if (hovered) panel_theme.text else panel_theme.label, name });
+    try imgui.PopClipRect(.{ctx});
+    try mappingKnob.drawChevron(dl, x + row_w, y, y + frame_h, if (hovered) panel_theme.amber else panel_theme.text_dim);
+
+    if (hovered) {
+        // The name is read in full here, as it may be cut.
+        var tip_buf: [768:0]u8 = undefined;
+        const tip = std.mem.printSentinel(&tip_buf, "{s}\n{s}", .{ name, tr(translations, .mapping_change_fx) }, 0) catch tr(translations, .mapping_change_fx);
+        try imgui.SetTooltip(.{ ctx, tip });
+    }
+
+    // The key at the right of the name opens the window of the plugin, which is where its own controls are.
+    var open_id_buf: [64:0]u8 = undefined;
+    const open_id = std.mem.printSentinel(&open_id_buf, "##openfx_{s}", .{@tagName(module)}, 0) catch "##openfx";
+    const open_clicked = try iconKey(ctx, open_id, x + row_w + key_gap, y, open_key_w, frame_h, c1_theme.Icons.get(.wrench), ownerOf(set, module) != null, false, tr(translations, .mapping_open_fx));
+    if (clicked) return .{ .assign_swap_fx = swap_module };
+    if (open_clicked) return .{ .assign_open_fx_ui = swap_module };
+    return null;
+}
+
+/// The room between the title of a plate and its save key.
+const save_gap = 8.0;
+
+/// The width of the save key, which is its symbol and a little room around it.
+fn saveKeyWidth(ctx: imgui.ContextPtr) !f64 {
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+    defer imgui.PopFont(.{ctx}) catch {};
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, c1_theme.Icons.get(.save), &w, &h });
+    return w + 8;
+}
+
+/// A small raised key with a symbol of the icon font on it: a body of dark metal with a lit top edge and a shadow under it, which
+/// sinks when it is pressed. It glows orange while `lit`, as the toggles of the panel do, and its edge lights in amber under
+/// the mouse. It returns whether it was pressed. A key that is not enabled is dark and does nothing.
+fn iconKey(ctx: imgui.ContextPtr, id: [:0]const u8, x: f64, y: f64, w: f64, h: f64, icon: [:0]const u8, enabled: bool, lit: bool, tooltip: ?[:0]const u8) !bool {
+    try imgui.SetCursorScreenPos(.{ ctx, x, y });
+    if (!enabled) try imgui.BeginDisabled(.{ctx});
+    const clicked = try imgui.InvisibleButton(.{ ctx, id, w, h });
+    // Because a key that is off still says what it is for, the mouse over it is read even when it is disabled.
+    const over = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_AllowWhenDisabled });
+    const hovered = enabled and over;
+    const pressed = enabled and try imgui.IsItemActive(.{ctx});
+    if (!enabled) try imgui.EndDisabled(.{ctx});
+
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    const sink: f64 = if (pressed) 1 else 0;
+    const top = y + sink;
+    const bottom = y + h + sink;
+    if (lit and enabled) try imgui.DrawList_AddRectFilled(.{ dl, x - 2, top - 2, x + w + 2, bottom + 2, palette.rgba(0xFF8A2430), 6 });
+    if (!pressed) try imgui.DrawList_AddRectFilled(.{ dl, x + 0.5, y + 1.8, x + w + 0.5, y + h + 1.8, palette.rgba(0x000000AA), 4 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x, top, x + w, bottom, if (enabled) panel_theme.knob_edge else panel_theme.border, 4 });
+    const body_top = if (!enabled) panel_theme.knob_body else if (pressed) panel_theme.knob_body else panel_theme.knob_top;
+    const body_bottom = if (pressed) panel_theme.knob_top else panel_theme.knob_body;
+    try imgui.DrawList_AddRectFilledMultiColor(.{ dl, x + 1, top + 1, x + w - 1, bottom - 1, body_top, body_top, body_bottom, body_bottom });
+    if (enabled and !pressed) try imgui.DrawList_AddLine(.{ dl, x + 3, top + 1.5, x + w - 3, top + 1.5, panel_theme.card_bevel_light, 1 });
+    if (lit and enabled or hovered) try imgui.DrawList_AddRect(.{ dl, x, top, x + w, bottom, if (lit and enabled) Knobs.led_orange else panel_theme.amber, 4, null, 1.2 });
+    {
+        try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+        defer imgui.PopFont(.{ctx}) catch {};
+        var glyph_w: f64 = undefined;
+        var glyph_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, icon, &glyph_w, &glyph_h });
+        const color = if (!enabled) panel_theme.text_dim else if (lit) Knobs.led_orange else if (hovered) panel_theme.amber_bright else panel_theme.text;
+        const glyph_x = x + (w - glyph_w) / 2;
+        const glyph_y = top + (h - glyph_h) / 2;
+        // The symbol is engraved on the key: a dark copy of it a pixel lower.
+        try imgui.DrawList_AddText(.{ dl, glyph_x, glyph_y + 1, panel_theme.text_engraved_shadow, icon });
+        try imgui.DrawList_AddText(.{ dl, glyph_x, glyph_y, color, icon });
+    }
+    if (over) {
+        if (tooltip) |text| try imgui.SetTooltip(.{ ctx, text });
+    }
+    return enabled and clicked;
+}
+
+/// The place of the keys at the right of the title of a plate: the first one is the save key, and the next ones follow it.
+fn titleKeyX(plate: Plate, title_w: f64, key_w: f64, index: usize) f64 {
+    return plate.start.x + module_plate.pad + 2 + title_w + save_gap + @as(f64, @floatFromInt(index)) * (key_w + key_gap);
+}
+
+/// The room between two keys at the right of a title.
+const key_gap = 4.0;
+
+/// The height of the keys at the right of a title.
+fn titleKeyHeight(ctx: imgui.ContextPtr) !f64 {
+    var line_w: f64 = undefined;
+    var line_h: f64 = undefined;
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line_w, &line_h });
+    try imgui.PopFont(.{ctx});
+    return line_h + 2;
+}
+
+/// The key that saves the mapping of a module, at the right of the title of its plate. It returns whether it was pressed.
+fn saveKey(ctx: imgui.ContextPtr, plate: Plate, comptime title: [:0]const u8, title_w: f64, enabled: bool, translations: *TranslationStore) !bool {
+    const key_w = try saveKeyWidth(ctx);
+    return iconKey(ctx, "##save_" ++ title, titleKeyX(plate, title_w, key_w, 0), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.save), enabled, false, tr(translations, .mapping_save));
+}
+
+/// The key next to the save key that says whether the mapping stores the state of the plugin in its map file, as it is when
+/// the mapping is saved. It is a pin that glows when it is on. It returns whether it was pressed.
+fn storeKey(ctx: imgui.ContextPtr, plate: Plate, comptime title: [:0]const u8, title_w: f64, owner: ?*const AssignState, translations: *TranslationStore) !bool {
+    const key_w = try saveKeyWidth(ctx);
+    const state = owner orelse return false;
+    const enabled = true;
+    return iconKey(ctx, "##store_" ++ title, titleKeyX(plate, title_w, key_w, 1), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.pin), enabled, state.store_preset_data, tr(translations, .mapping_store_preset));
+}
+
+/// A control of a module, at its slot of the plate: a knob or a key, with the combo of its parameter where the label is. A
+/// module that has no FX has no owner: its controls are drawn disabled, with nothing mapped.
+fn control(
+    ctx: imgui.ContextPtr,
+    plate: Plate,
+    comptime c: Control,
+    owner: ?*const AssignState,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+    const disabled = owner == null;
+
+    const assigned: ?[:0]const u8 = if (owner) |assign_state|
+        (if (getControlMapping(assign_state, c.cc)) |param|
+            (if (param < assign_state.param_store.len()) assign_state.param_store.getName(@intCast(param)) else "?")
+        else
+            null)
+    else
+        null;
+    const selected = if (owner) |assign_state| assign_state.selected_control == c.cc else false;
+    const label = controlLabel(c, translations);
+    const param_store: ?*const statemachine.ParamStore = if (owner) |assign_state| &assign_state.param_store else null;
+
+    const mVal = switch (c.slot.kind) {
         .knob => blk: {
-            const label_id = @import("knob").LabelId{
-                .label = label,
-                .id = @tagName(cc),
-            };
-            const knob_value = assign_state.knob_values[@backingInt(cc)];
-            break :blk try mappingKnob.drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, cc, assignment_label, &assign_state.param_store, translations);
+            try plate.knob(ctx, c.slot);
+            const label_id = Knobs.LabelId{ .label = label, .id = @tagName(c.cc) };
+            const knob_value: f32 = if (owner) |assign_state| assign_state.knob_values[@backingInt(c.cc)] else 0.5;
+            break :blk try mappingKnob.drawWidget(
+                ctx,
+                knob_value,
+                label_id,
+                .{ .disabled = disabled, .knob_bg = if (selected) panel_theme.amber_faint else null },
+                plate.knob_w,
+                c.cc,
+                assigned,
+                param_store,
+                translations,
+            );
+        },
+        .button, .button_below => blk: {
+            const position: TextPosition = if (c.slot.kind == .button) .right else .below;
+            try plate.button(ctx, c.slot, mappingButton.combo_label, position);
+            break :blk try mappingButton.mappingButton(ctx, label, "##" ++ @tagName(c.cc), position, disabled, selected, c.cc, assigned, param_store, translations);
         },
     };
 
     if (mVal) |val| {
         switch (val) {
-            .click => rv = .{ .assign_select_control = cc },
-            .param_idx => |i| rv = .{ .assign_add_mapping = .{ .param = @intCast(i), .control = cc } },
-            .remove_mapping => rv = .{ .assign_remove_mapping = cc },
-            .value_changed => |new_val| rv = .{ .assign_update_knob = .{ .cc = cc, .value = new_val } },
+            .click => rv = .{ .assign_select_control = c.cc },
+            .param_idx => |i| rv = .{ .assign_add_mapping = .{ .param = @intCast(i), .control = c.cc } },
+            .remove_mapping => rv = .{ .assign_remove_mapping = c.cc },
+            .value_changed => |new_val| rv = .{ .assign_update_knob = .{ .cc = c.cc, .value = new_val } },
         }
     }
-
     return rv;
 }
 
-fn inputMappingPanel(
+/// The plate of a module, with the measures that it has in the panel of the FX controls, under the line of its plugin, and
+/// with the key that saves its mapping at the right of its title.
+fn modulePanel(
     ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
+    comptime def: ModuleDef,
+    set: *const AssignSet,
     translations: *TranslationStore,
-    disabled: bool,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
-    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
+    const is_strip = set.getConst(.STRIP) != null;
+    const owner = ownerOf(set, def.module);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (assign_state.module_fx_names.get(.INPUT)) |fx_name| {
-        try imgui.TextDisabled(.{ ctx, fx_name });
-    }
+    if (try fxHeader(ctx, def.module, set, translations)) |act| rv = act;
 
-    // First column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
+    // A channel strip is one mapping, which is saved from the plate of the first module.
+    const has_save_key = !is_strip or def.module == .INPUT;
+    const title_w = try titleWidth(ctx, def.title);
+    // Because the key is at the right of the title, the plate is as wide as both.
+    const title_room = if (has_save_key) title_w + 2 + save_gap + 2 * try saveKeyWidth(ctx) + key_gap else 0;
 
-        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 2 });
+    const labels = comptime comboLabels(def);
+    const bypass_pitch = button_radius * 2 + 4 + try mappingButton.comboWidth(ctx) + 8;
+    const plate = try Plate.begin(ctx, .{
+        .slots = def.slots,
+        .columns = def.columns,
+        .widest_label = try widestLabel(ctx, def, translations),
+        .labels = &labels,
+        .min_pitch = if (def.has_bypass) bypass_pitch else 0,
+        // Because the memory of a plate is keyed on its table of slots, which the panel of the FX controls has too, the plate
+        // of a module here is the size that it has there.
+        .min_width = title_room,
+        .column_gap = def.column_gap,
+        .title = def.title,
+        .title_font = c1_theme.fonts.TAB,
+    });
 
-        // Gain knob
-        const gain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Inpt_Gain,
-            else => null,
-        };
-        const gain_label = if (gain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_Gain, gain_label, .knob, disabled, translations)) |act| {
-            rv = act;
+    if (has_save_key) {
+        const keyed_module: ModulesList = if (is_strip) .STRIP else def.module;
+        if (try saveKey(ctx, plate, def.title, title_w, owner != null, translations)) {
+            rv = .{ .assign_request_save = keyed_module };
+        }
+        if (try storeKey(ctx, plate, def.title, title_w, owner, translations)) {
+            rv = .{ .assign_toggle_store_preset = keyed_module };
         }
     }
 
-    try imgui.SameLine(.{ctx});
-
-    // Second column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // Calculate max width for this column's knobs
-        const hicut_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Inpt_HiCut,
-            .transport => .trsprt_Inpt_HiCut,
-            else => null,
-        };
-        const hicut_label = if (hicut_key) |key| tr(translations, key) else "-";
-
-        const locut_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Inpt_LoCut,
-            else => null,
-        };
-        const locut_label = if (locut_key) |key| tr(translations, key) else "-";
-
-        // HiCut knob
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_HiCut, hicut_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // LoCut knob
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_LoCut, locut_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    return rv;
-}
-
-fn gateMappingPanel(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-    disabled: bool,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (assign_state.module_fx_names.get(.GATE)) |fx_name| {
-        try imgui.TextDisabled(.{ ctx, fx_name });
-    }
-
-    // Shape button at the top
-    const shp_shape_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl => .fx_ctrl_Shp_shape,
-        else => null,
+    // Because a module that has no FX has nothing to map, its controls are disabled.
+    if (owner == null) try imgui.BeginDisabled(.{ctx});
+    defer if (owner == null) {
+        imgui.EndDisabled(.{ctx}) catch {};
     };
-    const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else "-";
-
-    if (try mappingWidget(ctx, state, assign_state, .Shp_shape, shp_shape_label, .button, disabled, translations)) |act| {
-        rv = act;
-    }
-
-    // First column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 0.75 });
-
-        // Gate knob
-        const gate_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Shp_Gate,
-            else => null,
-        };
-        const gate_label = if (gate_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Shp_Gate, gate_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Hard gate button
-        const hard_gate_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Shp_hard_gate,
-            else => null,
-        };
-        const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Shp_hard_gate, hard_gate_label, .button, disabled, translations)) |act| {
-            rv = act;
+    inline for (def.controls) |c| {
+        if (!c.strip_only or is_strip) {
+            if (try control(ctx, plate, c, owner, translations)) |act| rv = act;
         }
     }
-
-    try imgui.SameLine(.{ctx});
-
-    // Second column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // Release knob
-        const release_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Shp_GateRelease,
-            else => null,
-        };
-        const release_label = if (release_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Shp_GateRelease, release_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Sustain knob
-        const sustain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Shp_sustain,
-            else => null,
-        };
-        const sustain_label = if (sustain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Shp_sustain, sustain_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Punch knob
-        const punch_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Shp_Punch,
-            else => null,
-        };
-        const punch_label = if (punch_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Shp_Punch, punch_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
+    face_widths[@backingInt(def.module)] = plate.width + module_plate.pad * 2;
+    try plate.end(ctx);
     return rv;
 }
 
-fn eqMappingPanel(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-    disabled: bool,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (assign_state.module_fx_names.get(.EQ)) |fx_name| {
-        try imgui.TextDisabled(.{ ctx, fx_name });
-    }
-
-    // EQ button at the top
-    const eq_eq_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl => .fx_ctrl_Eq_eq,
-        else => null,
-    };
-    const eq_eq_label = if (eq_eq_key) |key| tr(translations, key) else "-";
-
-    if (try mappingWidget(ctx, state, assign_state, .Eq_eq, eq_eq_label, .button, disabled, translations)) |act| {
-        rv = act;
-    }
-
-    // First column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 0.5 });
-
-        // LP Shape button
-        const lp_shape_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_lp_shape,
-            else => null,
-        };
-        const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_lp_shape, lp_shape_label, .button, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // LoFreq knob
-        const lofreq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_LoFrq,
-            else => null,
-        };
-        const lofreq_label = if (lofreq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoFrq, lofreq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // LoGain knob
-        const logain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_LoGain,
-            else => null,
-        };
-        const logain_label = if (logain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoGain, logain_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    try imgui.SameLine(.{ctx});
-
-    // Second column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // LoMidQ knob
-        const lomidq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_LoMidQ,
-            else => null,
-        };
-        const lomidq_label = if (lomidq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidQ, lomidq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // LoMidFreq knob
-        const lomidfreq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_LoMidFrq,
-            else => null,
-        };
-        const lomidfreq_label = if (lomidfreq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidFrq, lomidfreq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // LoMidGain knob
-        const lomidgain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_LoMidGain,
-            else => null,
-        };
-        const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidGain, lomidgain_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    try imgui.SameLine(.{ctx});
-
-    // Third column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // HiMidQ knob
-        const himidq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_HiMidQ,
-            else => null,
-        };
-        const himidq_label = if (himidq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidQ, himidq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // HiMidFreq knob
-        const himidfreq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_HiMidFrq,
-            else => null,
-        };
-        const himidfreq_label = if (himidfreq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidFrq, himidfreq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // HiMidGain knob
-        const himidgain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_HiMidGain,
-            else => null,
-        };
-        const himidgain_label = if (himidgain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidGain, himidgain_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    try imgui.SameLine(.{ctx});
-
-    // Fourth column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 0.5 });
-
-        // HP Shape button
-        const hp_shape_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_hp_shape,
-            else => null,
-        };
-        const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_hp_shape, hp_shape_label, .button, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // HiFreq knob
-        const hifreq_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_HiFrq,
-            else => null,
-        };
-        const hifreq_label = if (hifreq_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiFrq, hifreq_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // HiGain knob
-        const higain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Eq_HiGain,
-            else => null,
-        };
-        const higain_label = if (higain_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiGain, higain_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    return rv;
-}
-
-fn compMappingPanel(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-    disabled: bool,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (assign_state.module_fx_names.get(.COMP)) |fx_name| {
-        try imgui.TextDisabled(.{ ctx, fx_name });
-    }
-
-    // Comp button at the top
-    const comp_comp_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl => .fx_ctrl_Comp_comp,
-        else => null,
-    };
-    const comp_comp_label = if (comp_comp_key) |key| tr(translations, key) else "-";
-
-    if (try mappingWidget(ctx, state, assign_state, .Comp_comp, comp_comp_label, .button, disabled, translations)) |act| {
-        rv = act;
-    }
-
-    // First column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 0.5 });
-
-        // Ratio knob
-        const ratio_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_Ratio,
-            else => null,
-        };
-        const ratio_label = if (ratio_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Ratio, ratio_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // DryWet knob
-        const drywet_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_DryWet,
-            else => null,
-        };
-        const drywet_label = if (drywet_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_DryWet, drywet_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    try imgui.SameLine(.{ctx});
-
-    // Second column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // Attack knob
-        const attack_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_Attack,
-            else => null,
-        };
-        const attack_label = if (attack_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Attack, attack_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Release knob
-        const release_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_Release,
-            else => null,
-        };
-        const release_label = if (release_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Release, release_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Thresh knob
-        const thresh_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_Thresh,
-            else => null,
-        };
-        const thresh_label = if (thresh_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Thresh, thresh_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Comp HiCut knob
-        const comp_hicut_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_HiCut,
-            else => null,
-        };
-        const comp_hicut_label = if (comp_hicut_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_HiCut, comp_hicut_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Comp LoCut knob
-        const comp_locut_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Comp_LoCut,
-            else => null,
-        };
-        const comp_locut_label = if (comp_locut_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Comp_LoCut, comp_locut_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    return rv;
-}
-
-fn outputMappingPanel(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-    disabled: bool,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (assign_state.module_fx_names.get(.OUTPT)) |fx_name| {
-        try imgui.TextDisabled(.{ ctx, fx_name });
-    }
-
-    // First column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        // Drive knob
-        const drive_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_Drive,
-            else => null,
-        };
-        const drive_label = if (drive_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_Drive, drive_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // DriveChar knob
-        const char_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_DriveChar,
-            else => null,
-        };
-        const char_label = if (char_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_DriveChar, char_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Pan knob
-        const pan_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_Pan,
-            else => null,
-        };
-        const pan_label = if (pan_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_Pan, pan_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    try imgui.SameLine(.{ctx});
-
-    // Second column
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-
-        try imgui.Dummy(.{ ctx, constants.knob_size * 2, constants.knob_size * 2 });
-
-        // Solo button
-        const out_solo_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_solo,
-            else => null,
-        };
-        const out_solo_label = if (out_solo_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_solo, out_solo_label, .button, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        try imgui.SameLine(.{ctx});
-
-        // Mute button
-        const out_mute_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_mute,
-            else => null,
-        };
-        const out_mute_label = if (out_mute_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_mute, out_mute_label, .button, disabled, translations)) |act| {
-            rv = act;
-        }
-
-        // Volume knob
-        const vol_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl => .fx_ctrl_Out_Vol,
-            else => null,
-        };
-        const vol_label = if (vol_key) |key| tr(translations, key) else "-";
-
-        if (try mappingWidget(ctx, state, assign_state, .Out_Vol, vol_label, .knob, disabled, translations)) |act| {
-            rv = act;
-        }
-    }
-
-    return rv;
-}
-
-// Renders the two reassignable CCs that only exist in channel-strip mode.
-fn stripExtraControls(
-    ctx: imgui.ContextPtr,
-    state: *const State,
-    assign_state: *const AssignState,
-    translations: *TranslationStore,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (try mappingWidget(ctx, state, assign_state, .Tr_ext_sidechain, "Sidechain", .knob, false, translations)) |act| {
-        rv = act;
-    }
-    try imgui.SameLine(.{ctx});
-    if (try mappingWidget(ctx, state, assign_state, .Tr_order, "Order", .knob, false, translations)) |act| {
-        rv = act;
-    }
-
-    return rv;
+/// The width of a title, in the font that plates engrave it in.
+fn titleWidth(ctx: imgui.ContextPtr, title: [:0]const u8) !f64 {
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
+    defer imgui.PopFont(.{ctx}) catch {};
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, title, &w, &h });
+    return w;
 }

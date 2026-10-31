@@ -71,8 +71,8 @@ pub const FxSelActions = union(enum) {
 
 pub const MappingPanelAction = union(enum) {
     enter_browse: void,
-    /// Opens the mapping panel on the assignment of a module that has an FX on the track, without the list of modules.
-    map_module: ModulesList,
+    /// Switches to the mapping panel, on the list of modules, from any mode that can: the shift row of the FX controls has it.
+    create_mapping: void,
     enter_assign: ModulesList,
     exit_to_fx_ctrl: void,
     browse_scroll: u8,
@@ -88,9 +88,15 @@ pub const MappingPanelAction = union(enum) {
     assign_update_knob: struct { cc: CCs, value: f32 },
     assign_remove_mapping: CCs,
     assign_change_module: ModulesList,
+    /// Opens the browser of the plugins of a module from the assignment, to swap its plugin: the assignment is back once one is chosen.
+    assign_swap_fx: ModulesList,
+    /// Opens the window of the plugin of a module, or closes it when it is open.
+    assign_open_fx_ui: ModulesList,
     assign_set_preset: ?StringPool.StringRef,
-    assign_toggle_store_preset: void,
-    assign_request_save: void,
+    /// Whether the mapping of a module stores the preset that is selected for it in its map file.
+    assign_toggle_store_preset: ModulesList,
+    /// Saves the mapping of a module, which has its own file.
+    assign_request_save: ModulesList,
     assign_cancel: void,
 };
 

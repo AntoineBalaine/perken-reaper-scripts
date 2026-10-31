@@ -180,10 +180,6 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
                 .Inpt_filt_to_comp => actions.dispatch(globals, .{ .transport = .play }),
                 .Inpt_phase_inv => actions.dispatch(globals, .{ .transport = .stop }),
                 .Inpt_preset => actions.dispatch(globals, .{ .transport = .rec }),
-                // The first six track buttons open the mapping of the module that they stand for, as the rows of the track list do.
-                .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6 => if (statemachine.moduleOfTrackRow(cc)) |module| {
-                    actions.dispatch(globals, .{ .mapping_panel = .{ .map_module = module } });
-                },
                 .Tr_tr11 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
                 .Tr_tr12 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
                 .Tr_tr13 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
@@ -216,7 +212,8 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
                     }
                 },
                 .assign => {
-                    const assign = &globals.state.mapping_panel.mode.assign;
+                    const set = &globals.state.mapping_panel.mode.assign;
+                    const assign = set.activeConst();
                     const normalized: f32 = @floatFromInt(val);
 
                     if (cc.isFxAssignable()) {
@@ -224,11 +221,9 @@ pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
                     }
 
                     if (assign.midi_learn_active) {
-                        const current_module = std.meta.activeTag(assign.current_mappings);
-                        const module_matches = if (current_module == .STRIP)
-                            cc.isFxAssignable() or cc == .Tr_order or cc == .Tr_ext_sidechain
-                        else if (cc.toModule()) |mod|
-                            @backingInt(mod) == @backingInt(current_module)
+                        // Because every module is assigned at once, a control is the one of the module that has it.
+                        const module_matches = if (set.moduleOf(cc)) |owner|
+                            owner != .STRIP or cc.isFxAssignable() or cc == .Tr_order or cc == .Tr_ext_sidechain
                         else
                             false;
                         if (module_matches) {

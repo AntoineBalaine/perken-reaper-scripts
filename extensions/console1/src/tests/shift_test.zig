@@ -85,22 +85,129 @@ test "shift only has these functions in the fx_ctrl mode" {
     try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
 }
 
-test "in the transport mode the first six buttons open the mapping of their module, when it has an FX" {
+test "shift with Tr7 creates a mapping: every module that has an FX is open at once, and the first one is focused" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_tr_id = 1;
+    var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
+    locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
+    locations.set(.COMP, .{ .fx_index = 1, .mapping = null });
+    h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
+    h.shift(true);
+    h.press(.Tr_tr7);
+    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
+    const set = &h.globals.state.mapping_panel.mode.assign;
+    try testing.expectEqual(statemachine.ModulesList.GATE, set.focus);
+    try testing.expect(set.getConst(.GATE) != null);
+    try testing.expect(set.getConst(.COMP) != null);
+    // A module that has no FX is not open.
+    try testing.expect(set.getConst(.EQ) == null);
+    try testing.expect(set.getConst(.INPUT) == null);
+}
+
+test "a control maps in its own module: the module is focused, and the others keep their mapping" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    const actions = @import("../actions.zig");
+    h.globals.state.current_tr_id = 1;
+    var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
+    locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
+    locations.set(.COMP, .{ .fx_index = 1, .mapping = null });
+    h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
+    actions.dispatch(h.globals, .{ .mapping_panel = .create_mapping });
+    const set = &h.globals.state.mapping_panel.mode.assign;
+    try testing.expectEqual(statemachine.ModulesList.GATE, set.focus);
+
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_add_mapping = .{ .param = 3, .control = .Shp_Gate } } });
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_add_mapping = .{ .param = 5, .control = .Comp_Ratio } } });
+    try testing.expectEqual(statemachine.ModulesList.COMP, set.focus);
+    try testing.expectEqual(@as(?u16, 5), set.getConst(.COMP).?.current_mappings.COMP.Comp_Ratio);
+    try testing.expectEqual(@as(?u16, 3), set.getConst(.GATE).?.current_mappings.GATE.Shp_Gate);
+
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_remove_mapping = .Shp_Gate } });
+    try testing.expectEqual(statemachine.ModulesList.GATE, set.focus);
+    try testing.expectEqual(@as(?u16, null), set.getConst(.GATE).?.current_mappings.GATE.Shp_Gate);
+    try testing.expectEqual(@as(?u16, 5), set.getConst(.COMP).?.current_mappings.COMP.Comp_Ratio);
+
+    // The learn mode is the same for every module.
+    actions.dispatch(h.globals, .{ .mapping_panel = .assign_toggle_midi_learn });
+    try testing.expect(set.getConst(.GATE).?.midi_learn_active);
+    try testing.expect(set.getConst(.COMP).?.midi_learn_active);
+
+    // A control selected in one module is dropped when a control of another is selected.
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_select_control = .Shp_Gate } });
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_select_control = .Comp_Ratio } });
+    try testing.expectEqual(@as(?c1.CCs, null), set.getConst(.GATE).?.selected_control);
+    try testing.expectEqual(@as(?c1.CCs, .Comp_Ratio), set.getConst(.COMP).?.selected_control);
+}
+
+test "the store key of a plate toggles the preset of its own module" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    const actions = @import("../actions.zig");
+    h.globals.state.current_tr_id = 1;
+    var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
+    locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
+    locations.set(.COMP, .{ .fx_index = 1, .mapping = null });
+    h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
+    actions.dispatch(h.globals, .{ .mapping_panel = .create_mapping });
+    const set = &h.globals.state.mapping_panel.mode.assign;
+
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_toggle_store_preset = .COMP } });
+    try testing.expectEqual(statemachine.ModulesList.COMP, set.focus);
+    try testing.expect(set.getConst(.COMP).?.store_preset_data);
+    try testing.expect(!set.getConst(.GATE).?.store_preset_data);
+}
+
+test "create mapping without any FX on the track still opens the panel, with the first module focused" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    h.globals.state.current_tr_id = 1;
+    h.shift(true);
+    h.press(.Tr_tr7);
+    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
+    try testing.expectEqual(statemachine.ModulesList.INPUT, h.globals.state.mapping_panel.mode.assign.focus);
+}
+
+test "swapping the plugin from the assignment opens the browser of the module, and closing it comes back to the assignment" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    const actions = @import("../actions.zig");
+    h.globals.state.current_tr_id = 1;
+    actions.dispatch(h.globals, .{ .mapping_panel = .create_mapping });
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .enter_assign = .INPUT } });
+    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
+
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_swap_fx = .INPUT } });
+    try testing.expectEqual(statemachine.Mode.fx_sel, h.globals.state.current_mode);
+    try testing.expectEqual(statemachine.ModulesList.INPUT, h.globals.state.fx_sel.current_category);
+    try testing.expect(h.globals.state.fx_sel.return_to_mapping);
+
+    actions.dispatch(h.globals, .{ .fx_sel = .close_browser });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
+    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
+    try testing.expect(!h.globals.state.fx_sel.return_to_mapping);
+
+    // Any other way into the browser forgets where it came from.
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_swap_fx = .GATE } });
+    actions.dispatch(h.globals, .{ .fx_sel = .close_browser });
+    actions.dispatch(h.globals, .{ .change_mode = .fx_ctrl });
+    actions.dispatch(h.globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } });
+    try testing.expect(!h.globals.state.fx_sel.return_to_mapping);
+}
+
+test "in the transport mode the first six buttons no longer map a module" {
     const h = try Harness.init(2);
     defer h.deinit();
     h.globals.state.current_mode = .transport;
     h.globals.state.current_tr_id = 1;
-
-    // Because the track has no FX for the gate, its button does nothing.
-    h.press(.Tr_tr2);
-    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
-
     var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
     locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
     h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
     h.press(.Tr_tr2);
-    try testing.expectEqual(statemachine.Mode.mapping_panel, h.globals.state.current_mode);
-    try testing.expect(h.globals.state.mapping_panel.mode == .assign);
+    try testing.expectEqual(statemachine.Mode.transport, h.globals.state.current_mode);
 }
 
 test "a plain Preset of the sysex unit no longer opens the mapping panel, and the legacy one still does" {

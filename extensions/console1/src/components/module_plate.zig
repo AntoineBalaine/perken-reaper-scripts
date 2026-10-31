@@ -68,6 +68,8 @@ pub const Spec = struct {
     /// The other titles that the module can have: the plate is as wide as the widest of them and of the title,
     /// so that its width does not change when its title does.
     title_alternatives: []const [:0]const u8 = &.{},
+    /// What tells the memory of this plate from the others, when two plates share the same slots: the address of `slots` when it is zero.
+    memory_key: usize = 0,
 };
 
 /// The height of the controls of the tallest module, on the frame before and on this one: the plates are all as tall as it.
@@ -89,7 +91,8 @@ const scale = Knobs.knob_size / photo_knob_size;
 const row_squeeze = 0.82;
 /// The rows are never farther apart than this fraction of the spacing of the hardware.
 const max_stretch = 1.1;
-const pad = 6.0;
+/// The padding of the face of a plate around its content.
+pub const pad = 6.0;
 const button_r = button.default_radius;
 /// The space between a button and its label, as roundButton leaves it.
 const label_gap = 4.0;
@@ -164,7 +167,7 @@ var memory_len: usize = 0;
 /// The memory of the plate of this spec, made if there is none yet. Null for a plate that has no slots.
 fn memoryOf(spec: Spec) ?*Memory {
     if (spec.slots.len == 0) return null;
-    const key = @intFromPtr(spec.slots.ptr);
+    const key = if (spec.memory_key != 0) spec.memory_key else @intFromPtr(spec.slots.ptr);
     for (memory[0..memory_len]) |*entry| {
         if (entry.key == key) return entry;
     }

@@ -209,7 +209,7 @@ fn MappingsEntry(globals: *Globals, unit: *Unit) void {
 
     // Light up module selection button
     const current_mappings = switch (globals.state.mapping_panel.mode) {
-        .assign => |state| state.current_mappings,
+        .assign => |*set| set.activeConst().current_mappings,
         else => return,
     };
     const module_btn = switch (current_mappings) {

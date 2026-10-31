@@ -12,13 +12,13 @@ const tr = @import("translations.zig").tr;
 const safePrint = @import("utils").safePrint;
 const Knobs = @import("knob");
 const widgets = @import("components/widgets.zig");
+const combo_style = @import("components/combo_style.zig");
 const button = @import("components/button.zig");
 const module_plate = @import("components/module_plate.zig");
 const c1_theme = @import("theme/c1_theme.zig");
+const panel_theme = @import("panel_theme");
 const StepField = @import("action_types.zig").StepField;
 const Plate = module_plate.Plate;
-const panel_theme = @import("panel_theme");
-const palette = @import("ui_palette");
 
 // Temporary copy for editing
 temp_settings: Preferences,
@@ -118,38 +118,6 @@ fn labelAbove(ctx: imgui.ContextPtr, x: f64, label: [:0]const u8) !void {
     try imgui.SetCursorScreenPos(.{ ctx, x, y });
     try imgui.Text(.{ ctx, label });
     try imgui.SetCursorScreenPos(.{ ctx, x, y + try imgui.GetTextLineHeight(.{ctx}) + 2 });
-}
-
-/// The colors of a combo and of its list, as the combos of the MFT panel have them: a dark recessed frame, a light outline,
-/// and the amber of the panel for what is hovered and chosen.
-const combo_colors = [_]palette.ColorPair{
-    .{ .col = &imgui.Col_FrameBg, .val = panel_theme.frame_bg },
-    .{ .col = &imgui.Col_FrameBgHovered, .val = panel_theme.amber_faint },
-    .{ .col = &imgui.Col_FrameBgActive, .val = panel_theme.amber_soft },
-    .{ .col = &imgui.Col_Border, .val = panel_theme.frame_border },
-    .{ .col = &imgui.Col_Button, .val = palette.rgba(0x3A3A3EFF) },
-    .{ .col = &imgui.Col_ButtonHovered, .val = panel_theme.amber_soft },
-    .{ .col = &imgui.Col_ButtonActive, .val = panel_theme.amber },
-    .{ .col = &imgui.Col_Header, .val = palette.rgba(0x3A3A3EFF) },
-    .{ .col = &imgui.Col_HeaderHovered, .val = panel_theme.amber_faint },
-    .{ .col = &imgui.Col_HeaderActive, .val = panel_theme.amber_soft },
-    .{ .col = &imgui.Col_PopupBg, .val = panel_theme.panel_bg },
-    .{ .col = &imgui.Col_Text, .val = panel_theme.text },
-};
-const combo_var_count: c_int = 3;
-
-/// Pushes the style of the combos of the MFT panel. `popComboStyle` takes it off once the list is closed.
-fn pushComboStyle(ctx: imgui.ContextPtr) void {
-    palette.push(ctx, &combo_colors);
-    panel_theme.pushVar(ctx, imgui.StyleVar_FrameRounding, 3);
-    panel_theme.pushVar(ctx, imgui.StyleVar_FrameBorderSize, 1);
-    panel_theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 8, 4);
-}
-
-fn popComboStyle(ctx: imgui.ContextPtr) void {
-    var vars = combo_var_count;
-    imgui.api.PopStyleVar(ctx, &vars);
-    palette.pop(ctx, combo_colors.len);
 }
 
 /// Ends a plate, and remembers how tall its content was, for the next frame.
@@ -264,7 +232,7 @@ pub fn draw(
         const current_display = for (translations.getLanguages()) |lang| {
             if (std.mem.eql(u8, lang.code, current_lang)) break lang.display_name;
         } else current_lang;
-        pushComboStyle(ctx);
+        combo_style.push(ctx);
         if (try imgui.BeginCombo(.{ ctx, "##lang", current_display, null })) {
             defer imgui.EndCombo(.{ctx}) catch {};
             for (translations.getLanguages()) |lang| {
@@ -275,7 +243,7 @@ pub fn draw(
                 }
             }
         }
-        popComboStyle(ctx);
+        combo_style.pop(ctx);
         try imgui.PopItemWidth(.{ctx});
         if (!std.mem.eql(u8, self.temp_settings.language, translations.current_language)) {
             try lineUp(ctx, plate);
@@ -355,7 +323,7 @@ pub fn draw(
         if (reorder_off) try imgui.BeginDisabled(.{ctx});
         try imgui.PushItemWidth(.{ ctx, combo_width });
         const current_order = self.temp_settings.preferred_module_order;
-        pushComboStyle(ctx);
+        combo_style.push(ctx);
         if (try imgui.BeginCombo(.{ ctx, "##preforder", @tagName(current_order), null })) {
             defer imgui.EndCombo(.{ctx}) catch {};
             inline for (comptime std.enums.values(ModulesOrder)) |order| {
@@ -367,7 +335,7 @@ pub fn draw(
                 }
             }
         }
-        popComboStyle(ctx);
+        combo_style.pop(ctx);
         try imgui.PopItemWidth(.{ctx});
         if (reorder_off) try imgui.EndDisabled(.{ctx});
         try endPlate(ctx, 1, plate);
@@ -410,8 +378,8 @@ pub fn draw(
             defer imgui.PopItemWidth(.{ctx}) catch {};
             var combo_id_buf: [64:0]u8 = undefined;
             const combo_id = safePrint(&combo_id_buf, "##dfx_{s}", .{@tagName(module)});
-            pushComboStyle(ctx);
-            defer popComboStyle(ctx);
+            combo_style.push(ctx);
+            defer combo_style.pop(ctx);
             if (try imgui.BeginCombo(.{ ctx, combo_id, current_fx orelse tr(translations, .settings_none), null })) {
                 defer imgui.EndCombo(.{ctx}) catch {};
                 {

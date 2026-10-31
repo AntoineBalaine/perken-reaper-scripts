@@ -198,7 +198,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
 }
 
 /// What a button of the track list does while shift is held in the fx_ctrl mode, as `shiftFunction` of the MIDI events
-/// has it: the browsers of the plugins on the first six rows, and the settings on the last one. The other rows keep
+/// has it: the browsers of the plugins on the first six rows, the creation of a mapping on the seventh, and the settings on the last one. The other rows keep
 /// their track.
 pub fn shiftLabel(cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
     const key: TranslationKey = switch (cc) {
@@ -208,6 +208,7 @@ pub fn shiftLabel(cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
         .Tr_tr4 => .trsprt_Tr_tr4,
         .Tr_tr5 => .trsprt_Tr_tr1,
         .Tr_tr6 => .trsprt_Tr_tr5,
+        .Tr_tr7 => .mapping_create,
         .Tr_tr20 => .trsprt_Tr_tr20,
         else => return null,
     };
@@ -240,15 +241,6 @@ fn altText(mode: statemachine.Mode, cc: c1.CCs, shift_held: bool, translations: 
         .fx_sel => if (browserLabel(cc, translations)) |text| .{ .text = text, .color = ui_helpers.altColor(true), .on_top = true } else null,
         else => null,
     };
-}
-
-/// The label of a row of the transport mode that maps a module, which is "Map" and the name of the module. Only a module that
-/// has an FX on the track is mapped, so the other rows have none.
-fn mapRowLabel(buf: [:0]u8, state: *const State, cc: c1.CCs, translations: *TranslationStore) ?[:0]const u8 {
-    const module = statemachine.moduleOfTrackRow(cc) orelse return null;
-    if (state.fx_ctrl.track_state.fxIndexOf(module) == null) return null;
-    const name = shiftLabel(cc, translations) orelse return null;
-    return substituteFirst(buf, tr(translations, .trsprt_map_module), name);
 }
 
 pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
@@ -358,8 +350,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
                         .transport => null,
                         else => null,
                     };
-                    var map_buf: [96:0]u8 = undefined;
-                    const cc_label = if (cc_key) |key| tr(translations, key) else mapRowLabel(&map_buf, state, cc, translations);
+                    const cc_label = if (cc_key) |key| tr(translations, key) else null;
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 

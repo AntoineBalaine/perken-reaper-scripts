@@ -25,6 +25,7 @@ const ui_helpers = @import("ui_helpers.zig");
 const param_text = @import("param_text.zig");
 const mft_icons = @import("mft/mft_icons.zig");
 const led_meter = @import("components/led_meter.zig");
+const panel_theme = @import("panel_theme");
 const module_plate = @import("components/module_plate.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 
@@ -349,7 +350,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
     module_plate.startFrame();
-    if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf)) |input_rv| {
+    if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf, if (ui.midi_connected and ui.legacy_mode) tr(translations, .fx_ctrl_legacy_mode) else null)) |input_rv| {
         rv = input_rv;
     }
     try sectional(ctx);
@@ -376,9 +377,6 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     if (!ui.midi_connected) {
         try imgui.SameLine(.{ctx});
         try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_disconnected) });
-    } else if (ui.legacy_mode) {
-        try imgui.SameLine(.{ctx});
-        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_legacy_mode) });
     }
     return rv;
 }
@@ -394,75 +392,95 @@ const Plate = module_plate.Plate;
 // The slots of the modules: where each control is on the hardware, in pixels of a photograph of the console,
 // and in which column of the module. A slot is named after the control it holds.
 
-const input_slots = struct {
-    const Inpt_disp_on = Slot{ .kind = .button, .col = 0, .y = 378, .at_left = true };
-    const Inpt_disp_mode = Slot{ .kind = .button, .col = 1, .y = 378 };
-    const Inpt_Gain = Slot{ .kind = .knob, .col = 0, .y = 553 };
-    const Inpt_HiCut = Slot{ .kind = .knob, .col = 1, .y = 447 };
-    const Inpt_LoCut = Slot{ .kind = .knob, .col = 1, .y = 519 };
+pub const input_slots = struct {
+    pub const Inpt_disp_on = Slot{ .kind = .button, .col = 0, .y = 378, .at_left = true };
+    pub const Inpt_disp_mode = Slot{ .kind = .button, .col = 1, .y = 378 };
+    pub const Inpt_Gain = Slot{ .kind = .knob, .col = 0, .y = 553 };
+    pub const Inpt_HiCut = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    pub const Inpt_LoCut = Slot{ .kind = .knob, .col = 1, .y = 519 };
     // The three buttons sit a little left of the center of the second column.
-    const Inpt_filt_to_comp = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 572 };
-    const Inpt_phase_inv = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 596 };
-    const Inpt_preset = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 620 };
-    const all = [_]Slot{ Inpt_disp_on, Inpt_disp_mode, Inpt_Gain, Inpt_HiCut, Inpt_LoCut, Inpt_filt_to_comp, Inpt_phase_inv, Inpt_preset };
+    pub const Inpt_filt_to_comp = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 572 };
+    pub const Inpt_phase_inv = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 596 };
+    pub const Inpt_preset = Slot{ .kind = .button, .col = 1, .dx = -11, .y = 620 };
+    pub const all = [_]Slot{ Inpt_disp_on, Inpt_disp_mode, Inpt_Gain, Inpt_HiCut, Inpt_LoCut, Inpt_filt_to_comp, Inpt_phase_inv, Inpt_preset };
 };
 
-const shape_slots = struct {
+pub const shape_slots = struct {
     // The bypass buttons are in the top left corner of their plates.
-    const Shp_shape = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
-    const Shp_Gate = Slot{ .kind = .knob, .col = 0, .y = 483 };
-    const Shp_hard_gate = Slot{ .kind = .button_below, .col = 0, .y = 553 };
-    const Shp_GateRelease = Slot{ .kind = .knob, .col = 1, .y = 447 };
-    const Shp_sustain = Slot{ .kind = .knob, .col = 1, .y = 519 };
-    const Shp_Punch = Slot{ .kind = .knob, .col = 1, .y = 591 };
-    const all = [_]Slot{ Shp_shape, Shp_Gate, Shp_hard_gate, Shp_GateRelease, Shp_sustain, Shp_Punch };
+    pub const Shp_shape = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+    pub const Shp_Gate = Slot{ .kind = .knob, .col = 0, .y = 483 };
+    pub const Shp_hard_gate = Slot{ .kind = .button_below, .col = 0, .y = 553 };
+    pub const Shp_GateRelease = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    pub const Shp_sustain = Slot{ .kind = .knob, .col = 1, .y = 519 };
+    pub const Shp_Punch = Slot{ .kind = .knob, .col = 1, .y = 591 };
+    pub const all = [_]Slot{ Shp_shape, Shp_Gate, Shp_hard_gate, Shp_GateRelease, Shp_sustain, Shp_Punch };
 };
 
-const eq_slots = struct {
-    const Eq_eq = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+pub const eq_slots = struct {
+    pub const Eq_eq = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
     // The shape buttons sit a little higher than on the hardware, to stay clear of the label of the knob under them.
-    const Eq_lp_shape = Slot{ .kind = .button, .col = 0, .dx = -19, .y = 454 };
-    const Eq_LoFrq = Slot{ .kind = .knob, .col = 0, .y = 518 };
-    const Eq_LoGain = Slot{ .kind = .knob, .col = 0, .y = 590 };
-    const Eq_LoMidQ = Slot{ .kind = .knob, .col = 1, .y = 447 };
-    const Eq_LoMidFrq = Slot{ .kind = .knob, .col = 1, .y = 518 };
-    const Eq_LoMidGain = Slot{ .kind = .knob, .col = 1, .y = 590 };
-    const Eq_HiMidQ = Slot{ .kind = .knob, .col = 2, .y = 447 };
-    const Eq_HiMidFrq = Slot{ .kind = .knob, .col = 2, .y = 518 };
-    const Eq_HiMidGain = Slot{ .kind = .knob, .col = 2, .y = 590 };
-    const Eq_hp_shape = Slot{ .kind = .button, .col = 3, .dx = -20, .y = 454 };
-    const Eq_HiFrq = Slot{ .kind = .knob, .col = 3, .y = 518 };
-    const Eq_HiGain = Slot{ .kind = .knob, .col = 3, .y = 590 };
-    const all = [_]Slot{ Eq_eq, Eq_lp_shape, Eq_LoFrq, Eq_LoGain, Eq_LoMidQ, Eq_LoMidFrq, Eq_LoMidGain, Eq_HiMidQ, Eq_HiMidFrq, Eq_HiMidGain, Eq_hp_shape, Eq_HiFrq, Eq_HiGain };
+    pub const Eq_lp_shape = Slot{ .kind = .button, .col = 0, .dx = -19, .y = 454 };
+    pub const Eq_LoFrq = Slot{ .kind = .knob, .col = 0, .y = 518 };
+    pub const Eq_LoGain = Slot{ .kind = .knob, .col = 0, .y = 590 };
+    pub const Eq_LoMidQ = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    pub const Eq_LoMidFrq = Slot{ .kind = .knob, .col = 1, .y = 518 };
+    pub const Eq_LoMidGain = Slot{ .kind = .knob, .col = 1, .y = 590 };
+    pub const Eq_HiMidQ = Slot{ .kind = .knob, .col = 2, .y = 447 };
+    pub const Eq_HiMidFrq = Slot{ .kind = .knob, .col = 2, .y = 518 };
+    pub const Eq_HiMidGain = Slot{ .kind = .knob, .col = 2, .y = 590 };
+    pub const Eq_hp_shape = Slot{ .kind = .button, .col = 3, .dx = -20, .y = 454 };
+    pub const Eq_HiFrq = Slot{ .kind = .knob, .col = 3, .y = 518 };
+    pub const Eq_HiGain = Slot{ .kind = .knob, .col = 3, .y = 590 };
+    pub const all = [_]Slot{ Eq_eq, Eq_lp_shape, Eq_LoFrq, Eq_LoGain, Eq_LoMidQ, Eq_LoMidFrq, Eq_LoMidGain, Eq_HiMidQ, Eq_HiMidFrq, Eq_HiMidGain, Eq_hp_shape, Eq_HiFrq, Eq_HiGain };
 };
 
-const comp_slots = struct {
-    const Comp_comp = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
-    const Comp_Ratio = Slot{ .kind = .knob, .col = 0, .y = 483 };
-    const Comp_DryWet = Slot{ .kind = .knob, .col = 0, .y = 555 };
-    const Comp_Attack = Slot{ .kind = .knob, .col = 1, .y = 447 };
-    const Comp_Release = Slot{ .kind = .knob, .col = 1, .y = 519 };
-    const Comp_Thresh = Slot{ .kind = .knob, .col = 1, .y = 591 };
-    const all = [_]Slot{ Comp_comp, Comp_Ratio, Comp_DryWet, Comp_Attack, Comp_Release, Comp_Thresh };
+pub const comp_slots = struct {
+    pub const Comp_comp = Slot{ .kind = .button, .y = 0, .at_left = true, .at_top = true };
+    pub const Comp_Ratio = Slot{ .kind = .knob, .col = 0, .y = 483 };
+    pub const Comp_DryWet = Slot{ .kind = .knob, .col = 0, .y = 555 };
+    pub const Comp_Attack = Slot{ .kind = .knob, .col = 1, .y = 447 };
+    pub const Comp_Release = Slot{ .kind = .knob, .col = 1, .y = 519 };
+    pub const Comp_Thresh = Slot{ .kind = .knob, .col = 1, .y = 591 };
+    pub const all = [_]Slot{ Comp_comp, Comp_Ratio, Comp_DryWet, Comp_Attack, Comp_Release, Comp_Thresh };
 };
 
-const out_slots = struct {
-    const Tr_order = Slot{ .kind = .button, .col = 0, .y = 382, .at_left = true };
-    const Out_Drive = Slot{ .kind = .knob, .col = 0, .y = 447 };
-    const Out_DriveChar = Slot{ .kind = .knob, .col = 0, .y = 519 };
-    const Out_Pan = Slot{ .kind = .knob, .col = 0, .y = 591 };
+pub const out_slots = struct {
+    pub const Tr_order = Slot{ .kind = .button, .col = 0, .y = 382, .at_left = true };
+    pub const Out_Drive = Slot{ .kind = .knob, .col = 0, .y = 447 };
+    pub const Out_DriveChar = Slot{ .kind = .knob, .col = 0, .y = 519 };
+    pub const Out_Pan = Slot{ .kind = .knob, .col = 0, .y = 591 };
     // The sidechain button stands right after the label of the order button, which is the first slot.
-    const Tr_ext_sidechain = Slot{ .kind = .button, .y = 382, .follows = 0 };
+    pub const Tr_ext_sidechain = Slot{ .kind = .button, .y = 382, .follows = 0 };
     // Solo and mute are stacked just above the volume knob, with room between them and the knob's label, and the meter of the
     // output level fills the space that this leaves in the second column, between the sidechain button and them.
-    const Out_solo = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 503 };
-    const Out_mute = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 535 };
+    pub const Out_solo = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 503 };
+    pub const Out_mute = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 535 };
     // The volume knob is left aligned with the solo and mute buttons, which are the sixth slot.
-    const Out_Vol = Slot{ .kind = .knob, .col = 1, .y = 591, .align_left_to = 5 };
-    const all = [_]Slot{ Tr_order, Out_Drive, Out_DriveChar, Out_Pan, Tr_ext_sidechain, Out_solo, Out_mute, Out_Vol };
+    pub const Out_Vol = Slot{ .kind = .knob, .col = 1, .y = 591, .align_left_to = 5 };
+    pub const all = [_]Slot{ Tr_order, Out_Drive, Out_DriveChar, Out_Pan, Tr_ext_sidechain, Out_solo, Out_mute, Out_Vol };
 };
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, shift_held: bool, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+/// A red warning triangle at the right end of the title line of a plate, which shows `message` in a popup while the mouse is
+/// on it. It is drawn, because the icon font has no warning sign.
+fn warningIcon(ctx: imgui.ContextPtr, plate: Plate, message: [:0]const u8) !void {
+    const size = 16.0;
+    const x = plate.origin.x + plate.width - size;
+    const y = plate.start.y + 6;
+    const red: c_int = @bitCast(@as(u32, 0xE05050FF));
+    const dark: c_int = @bitCast(@as(u32, 0x1A1A1CFF));
+    try imgui.SetCursorScreenPos(.{ ctx, x, y });
+    _ = try imgui.InvisibleButton(.{ ctx, "##legacy_warning", size, size });
+    const hovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    const top = y + 1;
+    const bottom = y + size - 1;
+    try imgui.DrawList_AddTriangleFilled(.{ dl, x + size / 2, top, x + 1, bottom, x + size - 1, bottom, if (hovered) panel_theme.amber else red });
+    try imgui.DrawList_AddRectFilled(.{ dl, x + size / 2 - 1, y + 5, x + size / 2 + 1, y + 10, dark, 0 });
+    try imgui.DrawList_AddRectFilled(.{ dl, x + size / 2 - 1, y + 11.5, x + size / 2 + 1, y + 13.5, dark, 0 });
+    if (hovered) try imgui.SetTooltip(.{ ctx, message });
+}
+
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, shift_held: bool, translations: *TranslationStore, id_buf: *[64:0]u8, warning: ?[:0]const u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -644,6 +662,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
     }
 
+    if (warning) |message| try warningIcon(ctx, plate, message);
     try plate.end(ctx);
     return rv;
 }

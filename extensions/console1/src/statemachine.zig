@@ -76,22 +76,6 @@ pub const Mode = enum {
     suspended,
 };
 
-// Helper for valid transitions
-/// The module that a button of the track list stands for in the modes where the first six rows are the keys of the modules:
-/// the strip, the gate, the EQ, the compressor, the input and the output, in the order of the shifted rows of the FX control
-/// mode. It is null for the other buttons.
-pub fn moduleOfTrackRow(cc: c1.CCs) ?ModulesList {
-    return switch (cc) {
-        .Tr_tr1 => .STRIP,
-        .Tr_tr2 => .GATE,
-        .Tr_tr3 => .EQ,
-        .Tr_tr4 => .COMP,
-        .Tr_tr5 => .INPUT,
-        .Tr_tr6 => .OUTPT,
-        else => null,
-    };
-}
-
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport, .presets },
     .presets = &.{ .fx_ctrl, .suspended },
@@ -218,6 +202,8 @@ pub const FxSelectionState = struct {
     scroll_position_rel: usize = 0,
     sub_mode: FxSelSubMode = .browse_fx,
     scroll_changed: bool = false,
+    /// The browser was opened from the assignment of a module, to swap its plugin: it goes back to the assignment when it closes.
+    return_to_mapping: bool = false,
     /// How many menus of the browser are open, one inside the other. The first level is level 0.
     menu_depth: u8 = 0,
     /// The entry that was entered at each level, which leads to the level after it.
@@ -411,9 +397,82 @@ pub const AssignState = struct {
     }
 };
 
+/// The assignment of every module of the track at once: each module that has an FX has its own `AssignState`, with its
+/// parameters, its mapping and its preset, and one of them is the focused one. The focused module is the one whose control
+/// was touched last, and is the one that the actions that carry no control (the preset, MIDI learn) act on.
+pub const AssignSet = struct {
+    states: std.EnumArray(ModulesList, ?AssignState),
+    focus: ModulesList,
+
+    pub const empty: AssignSet = .{ .states = std.EnumArray(ModulesList, ?AssignState).initFill(null), .focus = .INPUT };
+
+    /// A set that has only this state, which is focused: the module that it maps is the one in its mapping.
+    pub fn single(state: AssignState) AssignSet {
+        var set: AssignSet = .empty;
+        const module = std.meta.activeTag(state.current_mappings);
+        set.states.set(module, state);
+        set.focus = module;
+        return set;
+    }
+
+    /// The state of the focused module, which a set always has.
+    pub fn active(self: *AssignSet) *AssignState {
+        return self.get(self.focus).?;
+    }
+
+    /// Same as `active`, through the pointer of a state that is not changed.
+    pub fn activeConst(self: *const AssignSet) *const AssignState {
+        return self.getConst(self.focus).?;
+    }
+
+    pub fn get(self: *AssignSet, module: ModulesList) ?*AssignState {
+        return if (self.states.getPtr(module).*) |*state| state else null;
+    }
+
+    pub fn getConst(self: *const AssignSet, module: ModulesList) ?*const AssignState {
+        return if (self.states.getPtrConst(module).*) |*state| state else null;
+    }
+
+    /// The module whose state owns a control. A channel strip is one state for every control, and the controls that no module
+    /// has are the strip's.
+    pub fn moduleOf(self: *const AssignSet, cc: c1.CCs) ?ModulesList {
+        if (self.getConst(.STRIP) != null) return .STRIP;
+        const physical = cc.toModule() orelse return null;
+        const module: ModulesList = @fromBackingInt(@intCast(@backingInt(physical)));
+        return if (self.getConst(module) != null) module else null;
+    }
+
+    /// The module whose FX is the one at this index of the chain of the track.
+    pub fn moduleOfFx(self: *const AssignSet, fx_index: c_int) ?ModulesList {
+        inline for (comptime std.enums.values(ModulesList)) |module| {
+            if (self.getConst(module)) |state| {
+                if (state.assign_fx_index) |index| if (index == fx_index) return module;
+            }
+        }
+        return null;
+    }
+
+    /// Focuses a module, and drops the control that was selected in the others, so that one control is selected at a time.
+    pub fn setFocus(self: *AssignSet, module: ModulesList) void {
+        std.debug.assert(self.getConst(module) != null);
+        self.focus = module;
+        inline for (comptime std.enums.values(ModulesList)) |other| {
+            if (other != module) {
+                if (self.get(other)) |state| state.selected_control = null;
+            }
+        }
+    }
+
+    pub fn deinit(self: *AssignSet) void {
+        inline for (comptime std.enums.values(ModulesList)) |module| {
+            if (self.get(module)) |state| state.deinit();
+        }
+    }
+};
+
 pub const MapSubMode = union(enum) {
     browse: BrowseState,
-    assign: AssignState,
+    assign: AssignSet,
 };
 
 pub const MappingPanelState = struct {

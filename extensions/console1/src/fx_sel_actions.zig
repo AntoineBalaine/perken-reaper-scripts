@@ -29,6 +29,8 @@ fn browserSource(globals: *Globals) fx_browser.Source {
         .track_templates = &fxp.track_templates,
         .plugins_by_type = &fxp.pluginsByType,
         .tags = &fxp.fx_tags,
+        .hidden_menus = if (globals.state.fx_sel.return_to_mapping) fx_browser.plugins_only_hidden else .{},
+        .recent = &globals.recent_plugins,
     };
 }
 
@@ -60,11 +62,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .plugin => |plugin| {
+            const current_module = globals.state.fx_sel.current_category;
             if (globals.state.current_tr_id == null) {
-                dispatch(globals, .{ .change_mode = .fx_ctrl });
+                leaveBrowser(globals, current_module);
                 return;
             }
-            const current_module = globals.state.fx_sel.current_category;
 
             if (current_module == .STRIP) {
                 handleStripPlugin(globals, plugin.name, plugin.mapping_name);
@@ -100,9 +102,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, insert_idx });
             if (new_fx_index < 0) {
                 log.err("Failed to add new FX: {s}", .{plugin.name});
-                dispatch(globals, .{ .change_mode = .fx_ctrl });
+                leaveBrowser(globals, current_module);
                 return;
             }
+
+            rememberRecent(globals, plugin.name);
 
             // Append C1 suffix
             {
@@ -111,7 +115,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }, 0) catch {
                     log.err("Failed to format FX name with suffix", .{});
                     _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
-                    dispatch(globals, .{ .change_mode = .fx_ctrl });
+                    leaveBrowser(globals, current_module);
                     return;
                 };
                 _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
@@ -168,13 +172,16 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 
             // Because FX parameter loading now happens in enter_assign action,
             // we enter mapping mode if needed, otherwise return to fx_ctrl
-            if (loaded_mapping == null) {
+            if (leaveToMapping(globals, current_module)) {
+                // The browser was opened from the assignment of this module: the assignment is back, on the new plugin.
+            } else if (loaded_mapping == null) {
                 dispatch(globals, .{ .change_mode = .mapping_panel });
             } else {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
             }
         },
         .close_browser => {
+            if (leaveToMapping(globals, globals.state.fx_sel.current_category)) return;
             dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .rescan => {
@@ -184,8 +191,10 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         .toggle_module_browser => |module| {
             if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
+                if (leaveToMapping(globals, module)) return;
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
             } else {
+                globals.state.fx_sel.return_to_mapping = false;
                 globals.state.fx_sel.resetMenus();
                 globals.state.fx_sel.sub_mode = .browse_fx;
                 globals.state.fx_sel.current_category = module;
@@ -309,6 +318,40 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
     }
 }
 
+/// Leaves the browser when nothing was inserted: back to the assignment when the browser was opened from it, and to the FX
+/// controls otherwise.
+fn leaveBrowser(globals: *Globals, module: ModulesList) void {
+    if (leaveToMapping(globals, module)) return;
+    dispatch(globals, .{ .change_mode = .fx_ctrl });
+}
+
+/// How many plugins the recent menu keeps.
+const recent_capacity = 20;
+
+/// Puts a plugin that was just chosen first in the recent menu, and drops it from where it was.
+fn rememberRecent(globals: *Globals, name: [:0]const u8) void {
+    const allocator = globals.arena_int.allocator();
+    var next: @import("fx_parser_types").FxList = .{};
+    // Because the names of the lists are read as strings that end in a zero, the copy keeps one.
+    const owned = allocator.dupeSentinel(u8, name, 0) catch return;
+    next.put(allocator, owned, {}) catch return;
+    for (globals.recent_plugins.keys()) |previous| {
+        if (std.mem.eql(u8, previous, name)) continue;
+        if (next.count() >= recent_capacity) break;
+        next.put(allocator, previous, {}) catch return;
+    }
+    globals.recent_plugins = next;
+}
+
+/// Goes back to the assignment of `module` when the browser was opened from it, and says whether it did.
+fn leaveToMapping(globals: *Globals, module: ModulesList) bool {
+    if (!globals.state.fx_sel.return_to_mapping) return false;
+    globals.state.fx_sel.return_to_mapping = false;
+    dispatch(globals, .{ .change_mode = .mapping_panel });
+    if (globals.state.current_mode == .mapping_panel) dispatch(globals, .{ .mapping_panel = .{ .enter_assign = module } });
+    return true;
+}
+
 fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]const u8) void {
     const io = Globals.hostIo();
     const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
@@ -348,15 +391,16 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
     const new_fx_index = pReaper.TrackFX_AddByName(.{ track, name, false, -1000 - reaper.TrackFX_GetCount(track) });
     if (new_fx_index < 0) {
         log.err("Failed to add channel strip FX: {s}", .{name});
-        dispatch(globals, .{ .change_mode = .fx_ctrl });
+        leaveBrowser(globals, .STRIP);
         return;
     }
+    rememberRecent(globals, name);
 
     {
         var name_buf: [512:0]u8 = undefined;
         const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-X)", .{name}, 0) catch {
             _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
-            dispatch(globals, .{ .change_mode = .fx_ctrl });
+            leaveBrowser(globals, .STRIP);
             return;
         };
         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
@@ -376,7 +420,9 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
     track_state.getLabels(track);
 
     const needs_mapping = (globals.map_store.get(io, name, .STRIP, &globals.mappings_list) == null);
-    if (needs_mapping) {
+    if (leaveToMapping(globals, .STRIP)) {
+        // The browser was opened from the assignment of the strip: the assignment is back, on the new plugin.
+    } else if (needs_mapping) {
         dispatch(globals, .{ .change_mode = .mapping_panel });
     } else {
         dispatch(globals, .{ .change_mode = .fx_ctrl });

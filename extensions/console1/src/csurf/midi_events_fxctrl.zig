@@ -41,6 +41,10 @@ pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
                 .Tr_tr4 => .COMP,
                 .Tr_tr5 => .INPUT,
                 .Tr_tr6 => .OUTPT,
+                .Tr_tr7 => {
+                    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+                    return true;
+                },
                 .Tr_tr20 => {
                     actions.dispatch(globals, .{ .settings = .open });
                     return true;

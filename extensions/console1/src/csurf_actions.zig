@@ -54,10 +54,14 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
             // we check for it before the normal parameter update logic.
             if (globals.state.current_mode == .mapping_panel and
                 std.meta.activeTag(globals.state.mapping_panel.mode) == .assign and
-                globals.state.mapping_panel.mode.assign.midi_learn_active)
+                globals.state.mapping_panel.mode.assign.activeConst().midi_learn_active)
             {
-                if (globals.state.mapping_panel.mode.assign.assign_fx_index) |expected_fx| {
-                    if (prm_chg.fx_index == @as(usize, @intCast(expected_fx))) {
+                // Because every module is assigned at once, the parameter belongs to the module whose FX was touched. A control
+                // that is already selected only takes the parameters of its own module.
+                const set = &globals.state.mapping_panel.mode.assign;
+                if (set.moduleOfFx(@intCast(prm_chg.fx_index))) |module| {
+                    if (set.activeConst().selected_control == null or module == set.focus) {
+                        set.setFocus(module);
                         actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
                     }
                 }
