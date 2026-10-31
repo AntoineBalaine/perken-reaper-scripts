@@ -19,11 +19,24 @@ const colors = [_]palette.ColorPair{
     .{ .col = &imgui.Col_PopupBg, .val = panel_theme.panel_bg },
     .{ .col = &imgui.Col_Text, .val = panel_theme.text },
 };
+/// A color with another opacity, which is `alpha` out of 255.
+pub fn withAlpha(color: c_int, alpha: u8) c_int {
+    const bits: u32 = @bitCast(color);
+    return @bitCast((bits & 0xFFFFFF00) | alpha);
+}
+
+/// The opacity of the outline and of the chevron of the combos that have no fill: lower than the text, so that the edges of
+/// the combo do not stand out as much as what is written in it.
+pub const outline_alpha: u8 = 0x58;
+pub const chevron_alpha: u8 = 0x90;
+
 /// The same colors with a frame that has no fill, for combos that sit on a surface whose color they must keep.
 const colors_transparent = blk: {
     var copy = colors;
     std.debug.assert(copy[0].col == &imgui.Col_FrameBg);
     copy[0].val = palette.rgba(0x00000000);
+    std.debug.assert(copy[3].col == &imgui.Col_Border);
+    copy[3].val = withAlpha(panel_theme.frame_border, outline_alpha);
     break :blk copy;
 };
 const var_count: c_int = 3;

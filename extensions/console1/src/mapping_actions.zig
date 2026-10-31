@@ -102,6 +102,24 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             if (globals.state.current_mode == .fx_sel) globals.state.fx_sel.return_to_mapping = true;
         },
 
+        .assign_toggle_single_fx => {
+            const track_state = &globals.state.fx_ctrl.track_state;
+            switch (track_state.mode) {
+                .channel_strip => |strip| {
+                    // Leaving the single plugin mode: the strip is removed, and the track is validated again, which puts the
+                    // plugins of the modules back as the preferences say.
+                    const track_id = globals.state.current_tr_id orelse return;
+                    const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                    _ = pReaper.TrackFX_Delete(.{ track, strip.fx_index });
+                    track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
+                    revalidateTrack(globals);
+                    mappingPanelActions(globals, .{ .enter_assign = firstModuleWithFx(&globals.state.fx_ctrl.track_state) });
+                },
+                // The browser of the strip opens, or closes when it is open: closing it validates the track again.
+                .multi_fx => dispatch(globals, .{ .mapping_panel = .{ .assign_swap_fx = .STRIP } }),
+            }
+        },
+
         .assign_open_fx_ui => |module| {
             const fx_index = globals.state.fx_ctrl.track_state.fxIndexOf(module) orelse return;
             const track_id = globals.state.current_tr_id orelse return;
@@ -490,11 +508,28 @@ fn focusControl(globals: *Globals, cc: c1.CCs) void {
 }
 
 /// The module that opens first: the channel strip when the track has one, and the first module that has an FX otherwise.
-fn firstModuleWithFx(track_state: *const TrackState) ModulesList {
+pub fn firstModuleWithFx(track_state: *const TrackState) ModulesList {
     inline for (comptime std.enums.values(ModulesList)) |module| {
         if (track_state.fxIndexOf(module) != null) return module;
     }
     return .INPUT;
+}
+
+/// Validates the track of the panel again, which finds the plugins of its modules, or its strip, and puts in the modules that are
+/// missing as the preferences say.
+pub fn revalidateTrack(globals: *Globals) void {
+    const track_id = globals.state.current_tr_id orelse return;
+    const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+    _ = globals.state.fx_ctrl.track_state.validateTrack(
+        track,
+        globals.preferences.default_fx,
+        &globals.map_store,
+        globals.preferences,
+        globals.arena_int.allocator(),
+        Globals.hostIo(),
+        &globals.mappings_list,
+    );
+    globals.state.fx_ctrl.track_state.getLabels(track);
 }
 
 /// Builds the assignment of a module of the track, which is its parameters, its mapping, its presets, and the names of the FX

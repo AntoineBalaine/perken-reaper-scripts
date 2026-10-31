@@ -265,3 +265,83 @@ test "the plugins that were chosen are remembered, the latest first and without 
     try testing.expectEqualStrings("JS: Transient Controller", recent[0]);
     try testing.expectEqualStrings("VST: ReaComp (Cockos)", recent[1]);
 }
+
+test "the single plugin mode is chosen from the mapping panel, which comes back on the channel strip" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    _ = setupFullChain(globals);
+    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+    try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) == null);
+
+    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_swap_fx = .STRIP } });
+    try testing.expectEqual(ModulesList.STRIP, globals.state.fx_sel.current_category);
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = "VST: ReaComp (Cockos)", .mapping_name = null } } });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+    try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) != null);
+    try testing.expectEqual(ModulesList.STRIP, globals.state.mapping_panel.mode.assign.focus);
+}
+
+test "the key of the single plugin mode leaves the channel strip, and the track has a plugin for each module again" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    _ = setupFullChain(globals);
+    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_swap_fx = .STRIP } });
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = "VST: ReaComp (Cockos)", .mapping_name = null } } });
+    try testing.expect(globals.state.fx_ctrl.track_state.mode == .channel_strip);
+    try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) != null);
+
+    actions.dispatch(globals, .{ .mapping_panel = .assign_toggle_single_fx });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_ctrl.track_state.mode == .multi_fx);
+    try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) == null);
+}
+
+test "closing the browser of the strip without a strip validates the track again, and the assignment shows the modules" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    const track = setupFullChain(globals);
+    actions.dispatch(globals, .{ .mapping_panel = .create_mapping });
+
+    // The key opens the browser of the strip, and pressed again it closes it, with the modules as they were.
+    actions.dispatch(globals, .{ .mapping_panel = .assign_toggle_single_fx });
+    try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
+    actions.dispatch(globals, .{ .mapping_panel = .assign_toggle_single_fx });
+    try testing.expectEqual(statemachine.Mode.mapping_panel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_ctrl.track_state.mode == .multi_fx);
+    try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) == null);
+    try testing.expectEqual(@as(c_int, 5), reaper.TrackFX_GetCount(track));
+}

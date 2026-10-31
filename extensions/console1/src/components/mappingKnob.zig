@@ -127,7 +127,7 @@ fn drawPreview(ctx: imgui.ContextPtr, text: [:0]const u8, dimmed: bool) !void {
     try imgui.PushClipRect(.{ ctx, x1 + 1, y1, x2 - chevron_room, y2, true });
     try imgui.DrawList_AddText(.{ dl, x1 + 4, (y1 + y2) / 2 - text_h / 2, if (dimmed) panel_theme.text_dim else panel_theme.text, text });
     try imgui.PopClipRect(.{ctx});
-    try drawChevron(dl, x2, y1, y2, panel_theme.text_dim);
+    try drawChevron(dl, x2, y1, y2, combo_style.withAlpha(panel_theme.text_dim, combo_style.chevron_alpha));
 }
 
 /// The room that the chevron takes at the right edge of a combo or of a button that opens something.

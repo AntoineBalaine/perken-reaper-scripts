@@ -4,6 +4,7 @@
 //! the controller moves a cursor in it, enters a menu and leaves it, so both need the same entries in the same order.
 const std = @import("std");
 const types = @import("fx_parser_types");
+const fuzzy = @import("fuzzy");
 
 /// How many menus can be inside one another. The folders of the FX chains are the only ones that have no fixed depth.
 pub const max_depth = 8;
@@ -56,6 +57,38 @@ pub fn rootMenuAt(source: Source, n: usize) ?RootMenu {
         if (source.hidden_menus.contains(menu)) continue;
         if (seen == n) return menu;
         seen += 1;
+    }
+    return null;
+}
+
+/// How many plugins a search keeps, the best first.
+pub const search_capacity = 100;
+
+/// Ranks the plugins of every type against what was typed, with the fuzzy finder of the other extensions. The letters of each
+/// word must be in the name in order, and the names that look the most intended come first. A hit is the ordinal of a plugin
+/// among the listed ones, which `pluginAt` turns into its name. It returns how many hits there are.
+pub fn search(source: Source, query: []const u8, hits: []fuzzy.Ranked) usize {
+    var count: usize = 0;
+    var ordinal: u32 = 0;
+    for (&source.plugins_by_type.values) |*list| {
+        for (list.keys()) |name| {
+            if (!isListed(name)) continue;
+            if (fuzzy.score(query, name)) |score| {
+                fuzzy.insertRanked(hits, &count, .{ .index = ordinal, .score = score, .len = @intCast(name.len) });
+            }
+            ordinal += 1;
+        }
+    }
+    return count;
+}
+
+/// The name of the plugin that has this ordinal among the listed plugins of every type.
+pub fn pluginAt(source: Source, ordinal: usize) ?[:0]const u8 {
+    var left = ordinal;
+    for (&source.plugins_by_type.values) |*list| {
+        const listed = listedCount(list);
+        if (left < listed) return listedName(list, left);
+        left -= listed;
     }
     return null;
 }
@@ -360,4 +393,37 @@ test "the recent menu lists the plugins that were chosen last" {
     try std.testing.expectEqual(@as(usize, 2), entryCount(source, level));
     var buf: [std.fs.max_path_bytes:0]u8 = undefined;
     try std.testing.expectEqualStrings("ReaComp", activate(source, level, 0, &buf).plugin);
+}
+
+test "the search finds plugins by letters in order, the best first, and the wrapper shells are not in it" {
+    const allocator = std.testing.allocator;
+    var chains: types.Directory = .{ .path = "/chains", .name = "chains", .subdirs = null, .files = null };
+    var templates: types.Directory = .{ .path = "/templates", .name = "templates", .subdirs = null, .files = null };
+    var by_type = types.FxByType.initFill(.{});
+    defer for (&by_type.values) |*list| list.deinit(allocator);
+    var tags: types.FxTags = .{ .category = .{}, .developer = .{} };
+    try by_type.getPtr(.VST).put(allocator, "ReaEQ (Cockos)", {});
+    try by_type.getPtr(.VST).put(allocator, "WaveShell1", {});
+    try by_type.getPtr(.VST).put(allocator, "ReaComp (Cockos)", {});
+    try by_type.getPtr(.JS).put(allocator, "Compressor Deluxe", {});
+    const source = testSource(allocator, &chains, &templates, &by_type, &tags, 0);
+
+    var hits: [search_capacity]fuzzy.Ranked = undefined;
+    const count = search(source, "comp", &hits);
+    try std.testing.expectEqual(@as(usize, 2), count);
+    // Both match, and each hit leads back to its name.
+    var seen_comp = false;
+    var seen_deluxe = false;
+    for (hits[0..count]) |hit| {
+        const name = pluginAt(source, hit.index).?;
+        if (std.mem.eql(u8, name, "ReaComp (Cockos)")) seen_comp = true;
+        if (std.mem.eql(u8, name, "Compressor Deluxe")) seen_deluxe = true;
+    }
+    try std.testing.expect(seen_comp and seen_deluxe);
+    // The name that starts with the word ranks above the one that has it inside.
+    try std.testing.expectEqualStrings("Compressor Deluxe", pluginAt(source, hits[0].index).?);
+
+    try std.testing.expectEqual(@as(usize, 0), search(source, "wave", &hits));
+    try std.testing.expectEqual(@as(usize, 1), search(source, "req", &hits));
+    try std.testing.expectEqual(@as(?[:0]const u8, null), pluginAt(source, 99));
 }

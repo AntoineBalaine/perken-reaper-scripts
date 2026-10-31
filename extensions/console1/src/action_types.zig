@@ -92,6 +92,9 @@ pub const MappingPanelAction = union(enum) {
     assign_swap_fx: ModulesList,
     /// Opens the window of the plugin of a module, or closes it when it is open.
     assign_open_fx_ui: ModulesList,
+    /// The key of the single plugin mode: on a track that has a channel strip, it removes the strip and goes back to a plugin for
+    /// each module; otherwise it opens the browser of the strip, or closes it when it is open.
+    assign_toggle_single_fx: void,
     assign_set_preset: ?StringPool.StringRef,
     /// Whether the mapping of a module stores the preset that is selected for it in its map file.
     assign_toggle_store_preset: ModulesList,

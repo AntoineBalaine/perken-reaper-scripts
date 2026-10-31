@@ -15,7 +15,7 @@ pub const TextPosition = enum {
 pub const default_radius = 8.5;
 
 /// The symbols that a round button can carry: those of a transport.
-pub const Icon = enum { play, stop, rec, cross };
+pub const Icon = enum { play, stop, rec, cross, single };
 
 /// Draws a symbol of the transport at the center of a button of the given radius. The symbol is dark on the dome,
 /// and red for the record button.
@@ -28,6 +28,13 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
         .play => try imgui.DrawList_AddTriangleFilled(.{ dl, cx - s * 0.6, cy - s, cx - s * 0.6, cy + s, cx + s * 1.1, cy, @as(c_int, @bitCast(dark)) }),
         .stop => try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.85, cy - s * 0.85, cx + s * 0.85, cy + s * 0.85, @as(c_int, @bitCast(dark)), 1 }),
         .rec => try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, s * 0.95, @as(c_int, @bitCast(red)), 0 }),
+        .single => {
+            // One tall box, which is one plugin for all the modules.
+            const half_w = s * 0.75;
+            const half_h = s * 1.05;
+            try imgui.DrawList_AddRect(.{ dl, cx - half_w, cy - half_h, cx + half_w, cy + half_h, @as(c_int, @bitCast(dark)), 1.5, null, 1.6 });
+            try imgui.DrawList_AddLine(.{ dl, cx - half_w, cy - half_h + s * 0.5, cx + half_w, cy - half_h + s * 0.5, @as(c_int, @bitCast(dark)), 1.2 });
+        },
         .cross => {
             // Two strokes that cross, in the dark of the other symbols.
             const reach = s * 0.85;

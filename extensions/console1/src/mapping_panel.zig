@@ -63,6 +63,13 @@ fn controls(
     // Because the plates are as tall as the tallest, as they are in the panel of the FX controls.
     module_plate.startFrame();
 
+    // A channel strip is one plugin: its modules are one card.
+    if (set.getConst(.STRIP) != null) {
+        if (try stripCard(ctx, set, translations)) |act| rv = act;
+        try fx_ctrl_panel.sectional(ctx);
+        return rv;
+    }
+
     inline for ([_]ModuleDef{ input_def, shape_def, eq_def, comp_def, output_def }) |def| {
         if (try modulePanel(ctx, def, set, translations)) |act| rv = act;
         try fx_ctrl_panel.sectional(ctx);
@@ -212,6 +219,8 @@ fn buttonBar(
         .columns = 1,
         .widest_label = "Ag",
         .title = "",
+        // Because the line of the title takes the height of its font, the bar has the font of the plates, and so their height.
+        .title_font = c1_theme.fonts.TAB,
         .min_width = bar_key_radius * 2,
     });
 
@@ -255,6 +264,22 @@ fn buttonBar(
             .rec,
         })) {
             rv = .{ .assign_toggle_midi_learn = {} };
+        }
+
+        // The key of the single plugin mode opens the browser of the channel strip, and it glows while the track has a strip.
+        if (try widgets.roundButton(.{
+            ctx,
+            "",
+            "##map_single",
+            if (set.getConst(.STRIP) != null) tr(translations, .mapping_multi_fx) else tr(translations, .mapping_single_fx),
+            bar_key_radius,
+            .right,
+            false,
+            if (set.getConst(.STRIP) != null) Knobs.led_orange else null,
+            set.getConst(.STRIP) != null,
+            .single,
+        })) {
+            rv = .{ .assign_toggle_single_fx = {} };
         }
 
         if (try widgets.roundButton(.{ ctx, "", "##map_close", tr(translations, .mapping_close), bar_key_radius, .right, false, null, null, .cross })) {
@@ -360,6 +385,9 @@ const Control = struct {
     label: ?[:0]const u8 = null,
     /// The control only exists on a channel strip.
     strip_only: bool = false,
+    /// The control is one of the track controls of the console, which are wired to the track and not mapped to a plugin: it is
+    /// drawn and disabled.
+    fixed: bool = false,
 };
 
 const ModuleDef = struct {
@@ -374,6 +402,12 @@ const ModuleDef = struct {
     /// The module has a bypass key at the top left of its plate.
     has_bypass: bool = false,
     column_gap: f64 = 0,
+    /// The columns of knobs after the first are moved to the right by half of the room that the plate has to the right of its
+    /// last column. The plate of the FX controls is as wide as the labels of its buttons are, which the mapping panel does not
+    /// have, and the knobs would otherwise stay at the left of an empty face.
+    spread: bool = false,
+    /// How much narrower the plate is here than the width that it has in the panel of the FX controls.
+    width_trim: f64 = 0,
 };
 
 const input_slots = fx_ctrl_panel.input_slots;
@@ -383,6 +417,8 @@ const input_def = ModuleDef{
     .slots = &input_slots.all,
     .columns = 2,
     .widest = "Input Gain",
+    .spread = true,
+    .width_trim = 10,
     .controls = &.{
         .{ .cc = .Inpt_Gain, .slot = input_slots.Inpt_Gain },
         .{ .cc = .Inpt_HiCut, .slot = input_slots.Inpt_HiCut },
@@ -457,15 +493,16 @@ const output_def = ModuleDef{
     .columns = 2,
     .column_gap = 24,
     .controls = &.{
-        // The order and the sidechain are the two controls that only a channel strip has.
+        // The pan, the solo, the mute and the volume are the track controls of the console: they are wired to the track, and are
+        // not mapped. The order and the sidechain are the two controls that only a channel strip has.
         .{ .cc = .Tr_order, .slot = out_slots.Tr_order, .label = "Order", .strip_only = true },
         .{ .cc = .Out_Drive, .slot = out_slots.Out_Drive },
         .{ .cc = .Out_DriveChar, .slot = out_slots.Out_DriveChar },
-        .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan },
+        .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan, .fixed = true },
         .{ .cc = .Tr_ext_sidechain, .slot = out_slots.Tr_ext_sidechain, .strip_only = true },
-        .{ .cc = .Out_solo, .slot = out_slots.Out_solo },
-        .{ .cc = .Out_mute, .slot = out_slots.Out_mute },
-        .{ .cc = .Out_Vol, .slot = out_slots.Out_Vol },
+        .{ .cc = .Out_solo, .slot = out_slots.Out_solo, .fixed = true },
+        .{ .cc = .Out_mute, .slot = out_slots.Out_mute, .fixed = true },
+        .{ .cc = .Out_Vol, .slot = out_slots.Out_Vol, .fixed = true },
     },
 };
 
@@ -559,11 +596,11 @@ fn fxHeader(
     const dl = try imgui.GetWindowDrawList(.{ctx});
     // Because the frame has no fill, as the combos of the panel, it shows the color of the surface that it is on.
     if (held or hovered) try imgui.DrawList_AddRectFilled(.{ dl, x, y, x + row_w, y + frame_h, if (held) panel_theme.amber_soft else panel_theme.amber_faint, 3 });
-    try imgui.DrawList_AddRect(.{ dl, x, y, x + row_w, y + frame_h, if (hovered) panel_theme.amber else panel_theme.frame_border, 3, null, 1 });
+    try imgui.DrawList_AddRect(.{ dl, x, y, x + row_w, y + frame_h, if (hovered) panel_theme.amber else combo_style.withAlpha(panel_theme.frame_border, combo_style.outline_alpha), 3, null, 1 });
     try imgui.PushClipRect(.{ ctx, x + 1, y, x + row_w - mappingKnob.chevron_width, y + frame_h, true });
     try imgui.DrawList_AddText(.{ dl, x + 6, y + 2, if (hovered) panel_theme.text else panel_theme.label, name });
     try imgui.PopClipRect(.{ctx});
-    try mappingKnob.drawChevron(dl, x + row_w, y, y + frame_h, if (hovered) panel_theme.amber else panel_theme.text_dim);
+    try mappingKnob.drawChevron(dl, x + row_w, y, y + frame_h, if (hovered) panel_theme.amber else combo_style.withAlpha(panel_theme.text_dim, combo_style.chevron_alpha));
 
     if (hovered) {
         // The name is read in full here, as it may be cut.
@@ -678,27 +715,40 @@ fn control(
     plate: Plate,
     comptime c: Control,
     owner: ?*const AssignState,
+    column_shift: f64,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
-    const disabled = owner == null;
+    // A control that is wired to the track has nothing mapped, and nothing to choose.
+    const mappable_owner: ?*const AssignState = if (c.fixed) null else owner;
+    const disabled = mappable_owner == null;
+    if (c.fixed and owner != null) try imgui.BeginDisabled(.{ctx});
+    defer if (c.fixed and owner != null) {
+        imgui.EndDisabled(.{ctx}) catch {};
+    };
 
-    const assigned: ?[:0]const u8 = if (owner) |assign_state|
+    const assigned: ?[:0]const u8 = if (mappable_owner) |assign_state|
         (if (getControlMapping(assign_state, c.cc)) |param|
             (if (param < assign_state.param_store.len()) assign_state.param_store.getName(@intCast(param)) else "?")
         else
             null)
     else
         null;
-    const selected = if (owner) |assign_state| assign_state.selected_control == c.cc else false;
+    const selected = if (mappable_owner) |assign_state| assign_state.selected_control == c.cc else false;
     const label = controlLabel(c, translations);
-    const param_store: ?*const statemachine.ParamStore = if (owner) |assign_state| &assign_state.param_store else null;
+    const param_store: ?*const statemachine.ParamStore = if (mappable_owner) |assign_state| &assign_state.param_store else null;
 
     const mVal = switch (c.slot.kind) {
         .knob => blk: {
             try plate.knob(ctx, c.slot);
+            if (c.slot.col >= 1 and column_shift > 0) {
+                var knob_x: f64 = undefined;
+                var knob_y: f64 = undefined;
+                try imgui.GetCursorScreenPos(.{ ctx, &knob_x, &knob_y });
+                try imgui.SetCursorScreenPos(.{ ctx, knob_x + column_shift, knob_y });
+            }
             const label_id = Knobs.LabelId{ .label = label, .id = @tagName(c.cc) };
-            const knob_value: f32 = if (owner) |assign_state| assign_state.knob_values[@backingInt(c.cc)] else 0.5;
+            const knob_value: f32 = if (mappable_owner) |assign_state| assign_state.knob_values[@backingInt(c.cc)] else 0.5;
             break :blk try mappingKnob.drawWidget(
                 ctx,
                 knob_value,
@@ -729,32 +779,18 @@ fn control(
     return rv;
 }
 
-/// The plate of a module, with the measures that it has in the panel of the FX controls, under the line of its plugin, and
-/// with the key that saves its mapping at the right of its title.
-fn modulePanel(
+/// Starts the plate of a module, with the measures that it has in the panel of the FX controls. A bare plate is a section of the
+/// card of a channel strip: it has no face and no title.
+fn beginModulePlate(
     ctx: imgui.ContextPtr,
     comptime def: ModuleDef,
-    set: *const AssignSet,
     translations: *TranslationStore,
-) !?mapping_actions.MappingPanelAction {
-    var rv: ?mapping_actions.MappingPanelAction = null;
-    const is_strip = set.getConst(.STRIP) != null;
-    const owner = ownerOf(set, def.module);
-
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (try fxHeader(ctx, def.module, set, translations)) |act| rv = act;
-
-    // A channel strip is one mapping, which is saved from the plate of the first module.
-    const has_save_key = !is_strip or def.module == .INPUT;
-    const title_w = try titleWidth(ctx, def.title);
-    // Because the key is at the right of the title, the plate is as wide as both.
-    const title_room = if (has_save_key) title_w + 2 + save_gap + 2 * try saveKeyWidth(ctx) + key_gap else 0;
-
+    bare: bool,
+    title_room: f64,
+) !Plate {
     const labels = comptime comboLabels(def);
     const bypass_pitch = button_radius * 2 + 4 + try mappingButton.comboWidth(ctx) + 8;
-    const plate = try Plate.begin(ctx, .{
+    return Plate.begin(ctx, .{
         .slots = def.slots,
         .columns = def.columns,
         .widest_label = try widestLabel(ctx, def, translations),
@@ -764,32 +800,115 @@ fn modulePanel(
         // of a module here is the size that it has there.
         .min_width = title_room,
         .column_gap = def.column_gap,
-        .title = def.title,
+        .width_trim = def.width_trim,
+        .title = if (bare) "" else def.title,
         .title_font = c1_theme.fonts.TAB,
+        .bare = bare,
     });
+}
 
-    if (has_save_key) {
-        const keyed_module: ModulesList = if (is_strip) .STRIP else def.module;
-        if (try saveKey(ctx, plate, def.title, title_w, owner != null, translations)) {
-            rv = .{ .assign_request_save = keyed_module };
-        }
-        if (try storeKey(ctx, plate, def.title, title_w, owner, translations)) {
-            rv = .{ .assign_toggle_store_preset = keyed_module };
-        }
-    }
-
-    // Because a module that has no FX has nothing to map, its controls are disabled.
+/// The controls of a module on its plate. A module that has no FX has nothing to map, and its controls are disabled.
+fn moduleBody(
+    ctx: imgui.ContextPtr,
+    comptime def: ModuleDef,
+    plate: Plate,
+    owner: ?*const AssignState,
+    is_strip: bool,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     if (owner == null) try imgui.BeginDisabled(.{ctx});
     defer if (owner == null) {
         imgui.EndDisabled(.{ctx}) catch {};
     };
+    // The room that is right of the last column of knobs, half of which the columns after the first move into.
+    const free_right = plate.width - (plate.x_shift + plate.knob_w + @as(f64, @floatFromInt(def.columns - 1)) * plate.pitch);
+    const column_shift: f64 = if (def.spread) @max(free_right / 2, 0) else 0;
     inline for (def.controls) |c| {
         if (!c.strip_only or is_strip) {
-            if (try control(ctx, plate, c, owner, translations)) |act| rv = act;
+            if (try control(ctx, plate, c, owner, column_shift, translations)) |act| rv = act;
         }
     }
+    return rv;
+}
+
+/// The plate of a module, under the line of its plugin, with the key that saves its mapping at the right of its title.
+fn modulePanel(
+    ctx: imgui.ContextPtr,
+    comptime def: ModuleDef,
+    set: *const AssignSet,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+    const owner = ownerOf(set, def.module);
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    if (try fxHeader(ctx, def.module, set, translations)) |act| rv = act;
+
+    const title_w = try titleWidth(ctx, def.title);
+    // Because the keys are at the right of the title, the plate is as wide as all of them.
+    const title_room = title_w + 2 + save_gap + 2 * try saveKeyWidth(ctx) + key_gap;
+    const plate = try beginModulePlate(ctx, def, translations, false, title_room);
+
+    if (try saveKey(ctx, plate, def.title, title_w, owner != null, translations)) {
+        rv = .{ .assign_request_save = def.module };
+    }
+    if (try storeKey(ctx, plate, def.title, title_w, owner, translations)) {
+        rv = .{ .assign_toggle_store_preset = def.module };
+    }
+
+    if (try moduleBody(ctx, def, plate, owner, false, translations)) |act| rv = act;
     face_widths[@backingInt(def.module)] = plate.width + module_plate.pad * 2;
     try plate.end(ctx);
+    return rv;
+}
+
+/// The size that the card of the channel strip had on the frame before.
+var strip_card: module_plate.CardSize = .{};
+const strip_title: [:0]const u8 = "CHANNEL STRIP";
+
+/// The channel strip is one plugin: its modules are one card, under the line of the plugin, with the layout that each has on
+/// its own plate, and a vertical delimiter between them. The key that saves the mapping, and the one that stores the state of
+/// the plugin, are at the right of the title of the card.
+fn stripCard(
+    ctx: imgui.ContextPtr,
+    set: *const AssignSet,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+    const owner = ownerOf(set, .INPUT);
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    if (try fxHeader(ctx, .INPUT, set, translations)) |act| rv = act;
+
+    var sections = try module_plate.beginSections(ctx, strip_card, strip_title, c1_theme.fonts.TAB);
+    defer module_plate.sections_open = false;
+
+    var title_plate: Plate = undefined;
+    title_plate.start = .{ .x = sections.x, .y = sections.y };
+    const title_w = try titleWidth(ctx, strip_title);
+    if (try saveKey(ctx, title_plate, strip_title, title_w, owner != null, translations)) {
+        rv = .{ .assign_request_save = .STRIP };
+    }
+    if (try storeKey(ctx, title_plate, strip_title, title_w, owner, translations)) {
+        rv = .{ .assign_toggle_store_preset = .STRIP };
+    }
+    // The keys moved the cursor: the sections start where the card says.
+    try imgui.SetCursorScreenPos(.{ ctx, sections.x + module_plate.pad, sections.y + module_plate.pad + sections.header_h });
+
+    const defs = [_]ModuleDef{ input_def, shape_def, eq_def, comp_def, output_def };
+    inline for (defs, 0..) |def, i| {
+        const plate = try beginModulePlate(ctx, def, translations, true, 0);
+        if (try moduleBody(ctx, def, plate, owner, true, translations)) |act| rv = act;
+        try plate.end(ctx);
+        try module_plate.afterSection(ctx, &sections, i + 1 == defs.len);
+    }
+    try module_plate.finishSections(ctx, sections, &strip_card);
+    face_widths[@backingInt(ModulesList.INPUT)] = strip_card.w;
     return rv;
 }
 

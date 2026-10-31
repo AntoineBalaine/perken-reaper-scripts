@@ -256,6 +256,7 @@ const ImguiMocks = struct {
     ColorEdit4: @TypeOf(imgui.api.ColorEdit4),
     // Knob value text editing functions
     InputText: @TypeOf(imgui.api.InputText),
+    InputTextWithHint: @TypeOf(imgui.api.InputTextWithHint),
     SetKeyboardFocusHere: @TypeOf(imgui.api.SetKeyboardFocusHere),
     IsKeyPressed: @TypeOf(imgui.api.IsKeyPressed),
     // The panel kit (reaziglib's panel_widgets)
@@ -660,6 +661,7 @@ pub const MockImGui = struct {
     const ColorEdit4 = &mockColorEdit4;
     // Knob value text editing
     const InputText = &mockInputText;
+    const InputTextWithHint = &mockInputTextWithHint;
     const SetKeyboardFocusHere = &mockSetKeyboardFocusHere;
     const IsKeyPressed = &mockIsKeyPressed;
     // The panel kit
@@ -1228,6 +1230,12 @@ fn mockSetKeyboardFocusHere(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) void {
 }
 
 fn mockInputText(_: imgui.ContextPtr, label: [*:0]const u8, _: [*]u8, _: c_int, _: ?*c_int, _: imgui.FunctionPtr) callconv(.c) bool {
+    trace(.input_text, std.mem.span(label));
+    const m = g_mock orelse return false;
+    return m.input_text_enter.contains(std.mem.span(label));
+}
+
+fn mockInputTextWithHint(_: imgui.ContextPtr, label: [*:0]const u8, _: [*:0]const u8, _: [*]u8, _: c_int, _: ?*c_int, _: imgui.FunctionPtr) callconv(.c) bool {
     trace(.input_text, std.mem.span(label));
     const m = g_mock orelse return false;
     return m.input_text_enter.contains(std.mem.span(label));

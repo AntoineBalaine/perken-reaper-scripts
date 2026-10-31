@@ -50,6 +50,9 @@ pub const Spec = struct {
     min_width: f64 = 0,
     /// A height of the controls under which the plate does not go, for a plate whose content is not made of slots.
     min_content_h: f64 = 0,
+    /// How much narrower the plate may be than the width that it remembers, which is the widest that it has been, perhaps in
+    /// another panel that has more on it. The content is never cut: it only takes the room that the memory had over it.
+    width_trim: f64 = 0,
     /// Room added between the columns, over the spacing of the style.
     column_gap: f64 = 0,
     /// The distance under which two columns do not come, for the label of a button that stands at the left of a
@@ -68,6 +71,9 @@ pub const Spec = struct {
     /// The other titles that the module can have: the plate is as wide as the widest of them and of the title,
     /// so that its width does not change when its title does.
     title_alternatives: []const [:0]const u8 = &.{},
+    /// The plate is one section of a card that is drawn around several of them: it has no face, no title and no padding, and the
+    /// controls start at the corner where it does.
+    bare: bool = false,
     /// What tells the memory of this plate from the others, when two plates share the same slots: the address of `slots` when it is zero.
     memory_key: usize = 0,
 };
@@ -77,6 +83,10 @@ var tallest: f64 = 0;
 var frame_tallest: f64 = 0;
 
 /// Must be called once at the start of each frame, before the plates of the modules.
+/// Set while the sections of a card are drawn, between `beginSections` and `finishSections`: the plates that are begun then are
+/// bare, without a face, a title or a padding, so that a panel can be drawn as one card without its plates knowing.
+pub var sections_open = false;
+
 pub fn startFrame() void {
     tallest = frame_tallest;
     frame_tallest = 0;
@@ -194,6 +204,8 @@ pub const Plate = struct {
     k: f64 = 0,
     /// The room kept free above the controls.
     reserve_top: f64 = 0,
+    /// The room between the border of the plate and its controls: the padding of the face, and none for a bare plate.
+    edge: f64 = pad,
     width: f64,
     /// The height of the plate: its title's room and its controls'.
     height: f64,
@@ -242,6 +254,7 @@ pub const Plate = struct {
         plate.reserve_top = spec.reserve_top;
         plate.x_shift = -left;
         plate.y_shift = if (spec.slots.len == 0) 0 else -top;
+        const bare = spec.bare or sections_open;
         var title_w: f64 = 0;
         var title_h: f64 = undefined;
         if (spec.title_font != null) try imgui.PushFont(.{ ctx, spec.title_font });
@@ -249,35 +262,40 @@ pub const Plate = struct {
         // The line of the title is there even when the title is empty, so that the controls of a module keep their
         // places when its title changes.
         try imgui.CalcTextSize(.{ ctx, if (spec.title.len > 0) spec.title else "Ag", &title_w, &title_h });
-        if (spec.title.len == 0) title_w = 0;
-        for (spec.title_alternatives) |alternative| {
-            var alternative_w: f64 = undefined;
-            var alternative_h: f64 = undefined;
-            try imgui.CalcTextSize(.{ ctx, alternative, &alternative_w, &alternative_h });
-            title_w = @max(title_w, alternative_w);
+        if (spec.title.len == 0 or bare) title_w = 0;
+        if (!bare) {
+            for (spec.title_alternatives) |alternative| {
+                var alternative_w: f64 = undefined;
+                var alternative_h: f64 = undefined;
+                try imgui.CalcTextSize(.{ ctx, alternative, &alternative_w, &alternative_h });
+                title_w = @max(title_w, alternative_w);
+            }
         }
         plate.width = @max(@max(right - left, spec.min_width), title_w);
         if (remembered) |m| {
-            plate.width = @max(plate.width, m.width);
-            m.width = plate.width;
+            plate.width = @max(plate.width, m.width - spec.width_trim);
+            m.width = @max(m.width, plate.width);
         }
 
         // The plates are all as tall as the tallest, which is measured with the rows as close as they come.
         if (!spec.independent) frame_tallest = @max(frame_tallest, natural);
         const content = if (spec.slots.len == 0) spec.min_content_h else @max(bottom - top + spec.reserve_top, spec.min_content_h);
         const controls_h = if (spec.independent) content else @max(content, tallest);
-        const header = title_h + 4;
+        const header = if (bare) 0 else title_h + 4;
+        plate.edge = if (bare) 0 else pad;
         plate.height = header + controls_h;
 
         try imgui.GetCursorScreenPos(.{ ctx, &plate.start.x, &plate.start.y });
-        try drawFace(ctx, plate.start.x, plate.start.y, plate.width + pad * 2, plate.height + pad * 2);
-        if (spec.title.len > 0) {
-            const dl = try imgui.GetWindowDrawList(.{ctx});
-            const title_y = plate.start.y + pad + 1;
-            try imgui.DrawList_AddText(.{ dl, plate.start.x + pad + 2, title_y + 1, panel_theme.text_engraved_shadow, spec.title });
-            try imgui.DrawList_AddText(.{ dl, plate.start.x + pad + 2, title_y, panel_theme.tab_text, spec.title });
+        if (!bare) {
+            try drawFace(ctx, plate.start.x, plate.start.y, plate.width + pad * 2, plate.height + pad * 2);
+            if (spec.title.len > 0) {
+                const dl = try imgui.GetWindowDrawList(.{ctx});
+                const title_y = plate.start.y + pad + 1;
+                try imgui.DrawList_AddText(.{ dl, plate.start.x + pad + 2, title_y + 1, panel_theme.text_engraved_shadow, spec.title });
+                try imgui.DrawList_AddText(.{ dl, plate.start.x + pad + 2, title_y, panel_theme.tab_text, spec.title });
+            }
         }
-        plate.origin = .{ .x = plate.start.x + pad, .y = plate.start.y + pad + header };
+        plate.origin = .{ .x = plate.start.x + plate.edge, .y = plate.start.y + plate.edge + header };
         return plate;
     }
 
@@ -335,17 +353,96 @@ pub const Plate = struct {
     /// Gives the module its room in the flow of the panel.
     pub fn end(self: Plate, ctx: imgui.ContextPtr) !void {
         try imgui.SetCursorScreenPos(.{ ctx, self.start.x, self.start.y });
-        try imgui.Dummy(.{ ctx, self.width + pad * 2, self.height + pad * 2 });
+        try imgui.Dummy(.{ ctx, self.width + self.edge * 2, self.height + self.edge * 2 });
     }
 };
 
 /// The face of a module: raised from the panel by a dark edge and a lit one.
-fn drawFace(ctx: imgui.ContextPtr, x: f64, y: f64, w: f64, h: f64) !void {
+pub fn drawFace(ctx: imgui.ContextPtr, x: f64, y: f64, w: f64, h: f64) !void {
     const dl = try imgui.GetWindowDrawList(.{ctx});
     try imgui.DrawList_AddRectFilled(.{ dl, x + 1, y + 3, x + w + 1, y + h + 3, @as(c_int, @bitCast(@as(u32, 0x00000066))), 8 });
     try imgui.DrawList_AddRectFilled(.{ dl, x, y, x + w, y + h, panel_theme.panel_bg, 8 });
     try imgui.DrawList_AddRect(.{ dl, x, y, x + w, y + h, panel_theme.panel_edge_dark, 8, null, 1.5 });
     try imgui.DrawList_AddLine(.{ dl, x + 8, y + 1.5, x + w - 8, y + 1.5, panel_theme.card_bevel_light, 1 });
+}
+
+/// Engraves a title at the top left of a face that starts at `x`, `y`, as the plates do, in the font that is given.
+pub fn drawTitle(ctx: imgui.ContextPtr, x: f64, y: f64, title: [:0]const u8, font: imgui.FontPtr) !void {
+    if (font != null) try imgui.PushFont(.{ ctx, font });
+    defer if (font != null) imgui.PopFont(.{ctx}) catch {};
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    const title_y = y + pad + 1;
+    try imgui.DrawList_AddText(.{ dl, x + pad + 2, title_y + 1, panel_theme.text_engraved_shadow, title });
+    try imgui.DrawList_AddText(.{ dl, x + pad + 2, title_y, panel_theme.tab_text, title });
+}
+
+/// The size that the face of a card of sections had on the frame before, which it is drawn with: the face is drawn before its
+/// sections, and its size is that of what is on it.
+pub const CardSize = struct { w: f64 = 0, h: f64 = 0 };
+
+/// A card that holds several modules side by side, each one a section, with a vertical delimiter between two of them.
+pub const Sections = struct {
+    x: f64,
+    y: f64,
+    /// The height of the line of the title, under which the sections start.
+    header_h: f64,
+    right: f64,
+    bottom: f64,
+};
+
+/// The room between two sections, which has the delimiter in its middle.
+pub const section_gap = 16.0;
+
+/// Starts a card at the cursor: its face, its title, and the plates that follow are its sections. `finishSections` must follow,
+/// and `afterSection` after each plate.
+pub fn beginSections(ctx: imgui.ContextPtr, size: CardSize, title: [:0]const u8, font: imgui.FontPtr) !Sections {
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    if (size.w > 0) try drawFace(ctx, x, y, size.w, size.h);
+    if (title.len > 0) try drawTitle(ctx, x, y, title, font);
+    if (font != null) try imgui.PushFont(.{ ctx, font });
+    var line_w: f64 = undefined;
+    var line_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, "Ag", &line_w, &line_h });
+    if (font != null) try imgui.PopFont(.{ctx});
+    const header_h = line_h + 4;
+    try imgui.SetCursorScreenPos(.{ ctx, x + pad, y + pad + header_h });
+    sections_open = true;
+    return .{ .x = x, .y = y, .header_h = header_h, .right = x, .bottom = y };
+}
+
+/// To call right after the plate of a section was ended: it notes how far the card goes, and, unless the section is the last
+/// one, leaves the room for the next and cuts the delimiter in it: a dark line, and a lit one next to it.
+pub fn afterSection(ctx: imgui.ContextPtr, sections: *Sections, last: bool) !void {
+    var min_x: f64 = undefined;
+    var min_y: f64 = undefined;
+    var max_x: f64 = undefined;
+    var max_y: f64 = undefined;
+    try imgui.GetItemRectMin(.{ ctx, &min_x, &min_y });
+    try imgui.GetItemRectMax(.{ ctx, &max_x, &max_y });
+    sections.right = max_x;
+    sections.bottom = max_y;
+    if (last) return;
+    try imgui.SameLine(.{ctx});
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_gap });
+    var next_x: f64 = undefined;
+    var next_y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &next_x, &next_y });
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    const gx = @round((max_x + next_x) / 2);
+    try imgui.DrawList_AddLine(.{ dl, gx, min_y, gx, max_y, panel_theme.card_bevel_dark, 1 });
+    try imgui.DrawList_AddLine(.{ dl, gx + 1, min_y, gx + 1, max_y, panel_theme.card_bevel_light, 1 });
+}
+
+/// Ends the card: the plates are no longer bare, its size is kept for the next frame, and what comes next starts after its face.
+pub fn finishSections(ctx: imgui.ContextPtr, sections: Sections, size: *CardSize) !void {
+    sections_open = false;
+    size.* = .{ .w = sections.right - sections.x + pad, .h = sections.bottom - sections.y + pad };
+    // Because what comes next on the same line is put at the top of the last item, the spacer is at the top of the card, and
+    // as tall as it, and not at the height where the last section starts.
+    try imgui.SetCursorScreenPos(.{ ctx, sections.right, sections.y });
+    try imgui.Dummy(.{ ctx, pad, size.h });
 }
 
 test "every declaration compiles" {

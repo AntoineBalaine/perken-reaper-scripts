@@ -341,6 +341,10 @@ fn drawCapIcon(ctx: imgui.ContextPtr, origin: Knobs.Position, max_width: ?f64, i
     mft_icons.draw(dl, icon, center_x, center_y, Knobs.knob_size * 0.2, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), ui_helpers.accentColor(), false, null);
 }
 
+/// The size that the card of the channel strip had on the frame before, which its face is drawn with.
+var strip_size: module_plate.CardSize = .{};
+const strip_title: [:0]const u8 = "CHANNEL STRIP";
+
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = ui.state.current_mode;
     const fx_state = &ui.state.fx_ctrl;
@@ -350,28 +354,54 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
     module_plate.startFrame();
-    if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf, if (ui.midi_connected and ui.legacy_mode) tr(translations, .fx_ctrl_legacy_mode) else null)) |input_rv| {
-        rv = input_rv;
-    }
-    try sectional(ctx);
-    // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, translations, &id_buf)) |gate_rv| {
-        rv = gate_rv;
-    }
-    try sectional(ctx);
-    // EQ Module
-    if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |eq_rv| {
-        rv = eq_rv;
-    }
-    try sectional(ctx);
-    // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
-        rv = comp_rv;
-    }
-    try sectional(ctx);
-    // Output Module
-    if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |output_rv| {
-        rv = output_rv;
+    const warning: ?[:0]const u8 = if (ui.midi_connected and ui.legacy_mode) tr(translations, .fx_ctrl_legacy_mode) else null;
+
+    // Because a channel strip is one plugin for all the modules, its modules are one card, with a vertical delimiter between two
+    // of them, as the mapping panel has it. The transport mode names the cards after what its controls do, and keeps five.
+    if (mode != .transport and fx_state.track_state.mode == .channel_strip) {
+        var sections = try module_plate.beginSections(ctx, strip_size, strip_title, c1_theme.fonts.TAB);
+        defer module_plate.sections_open = false;
+        // The warning is at the right end of the title of the card, as it is on the plate of the input otherwise.
+        if (warning) |message| {
+            if (strip_size.w > 0) try warningIconAt(ctx, sections.x + strip_size.w - module_plate.pad - 16, sections.y + module_plate.pad, message);
+        }
+        try imgui.SetCursorScreenPos(.{ ctx, sections.x + module_plate.pad, sections.y + module_plate.pad + sections.header_h });
+
+        if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf, warning)) |input_rv| rv = input_rv;
+        try module_plate.afterSection(ctx, &sections, false);
+        if (try gatePanel(ctx, mode, fx_state, translations, &id_buf)) |gate_rv| rv = gate_rv;
+        try module_plate.afterSection(ctx, &sections, false);
+        if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |eq_rv| rv = eq_rv;
+        try module_plate.afterSection(ctx, &sections, false);
+        if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| rv = comp_rv;
+        try module_plate.afterSection(ctx, &sections, false);
+        if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |output_rv| rv = output_rv;
+        try module_plate.afterSection(ctx, &sections, true);
+        try module_plate.finishSections(ctx, sections, &strip_size);
+    } else {
+        if (try inputPanel(ctx, mode, fx_state, transport, ui.shift_held, translations, &id_buf, warning)) |input_rv| {
+            rv = input_rv;
+        }
+        try sectional(ctx);
+        // Gate Module
+        if (try gatePanel(ctx, mode, fx_state, translations, &id_buf)) |gate_rv| {
+            rv = gate_rv;
+        }
+        try sectional(ctx);
+        // EQ Module
+        if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |eq_rv| {
+            rv = eq_rv;
+        }
+        try sectional(ctx);
+        // Compressor Module
+        if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
+            rv = comp_rv;
+        }
+        try sectional(ctx);
+        // Output Module
+        if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |output_rv| {
+            rv = output_rv;
+        }
     }
 
     if (!ui.midi_connected) {
@@ -463,9 +493,12 @@ pub const out_slots = struct {
 /// A red warning triangle at the right end of the title line of a plate, which shows `message` in a popup while the mouse is
 /// on it. It is drawn, because the icon font has no warning sign.
 fn warningIcon(ctx: imgui.ContextPtr, plate: Plate, message: [:0]const u8) !void {
+    try warningIconAt(ctx, plate.origin.x + plate.width - 16.0, plate.start.y + 6, message);
+}
+
+/// The warning triangle with its top left corner at `x`, `y`.
+fn warningIconAt(ctx: imgui.ContextPtr, x: f64, y: f64, message: [:0]const u8) !void {
     const size = 16.0;
-    const x = plate.origin.x + plate.width - size;
-    const y = plate.start.y + 6;
     const red: c_int = @bitCast(@as(u32, 0xE05050FF));
     const dark: c_int = @bitCast(@as(u32, 0x1A1A1CFF));
     try imgui.SetCursorScreenPos(.{ ctx, x, y });
@@ -662,7 +695,10 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
     }
 
-    if (warning) |message| try warningIcon(ctx, plate, message);
+    // In a card of sections, the warning is drawn by the card.
+    if (warning) |message| {
+        if (!module_plate.sections_open) try warningIcon(ctx, plate, message);
+    }
     try plate.end(ctx);
     return rv;
 }

@@ -15,6 +15,7 @@ const utils = @import("utils");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("mappings.zig");
 const fx_browser = @import("fx_browser.zig");
+const mapping_actions = @import("mapping_actions.zig");
 const translate = @import("translations.zig").tr;
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
@@ -347,8 +348,15 @@ fn rememberRecent(globals: *Globals, name: [:0]const u8) void {
 fn leaveToMapping(globals: *Globals, module: ModulesList) bool {
     if (!globals.state.fx_sel.return_to_mapping) return false;
     globals.state.fx_sel.return_to_mapping = false;
+    var target = module;
+    // Because a strip that was not chosen leaves the plugins of the modules on the track, the track is validated again, and the
+    // assignment opens on the first module.
+    if (module == .STRIP and globals.state.fx_ctrl.track_state.mode != .channel_strip) {
+        mapping_actions.revalidateTrack(globals);
+        target = mapping_actions.firstModuleWithFx(&globals.state.fx_ctrl.track_state);
+    }
     dispatch(globals, .{ .change_mode = .mapping_panel });
-    if (globals.state.current_mode == .mapping_panel) dispatch(globals, .{ .mapping_panel = .{ .enter_assign = module } });
+    if (globals.state.current_mode == .mapping_panel) dispatch(globals, .{ .mapping_panel = .{ .enter_assign = target } });
     return true;
 }
 

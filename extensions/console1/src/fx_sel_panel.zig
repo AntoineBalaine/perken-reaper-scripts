@@ -12,11 +12,34 @@ const FxSelectionState = @import("statemachine.zig").FxSelectionState;
 const StringPool = @import("string_pool").StringPool;
 const MappingsModuleMap = @import("mappings_list.zig").ModuleMap;
 const fx_browser = @import("fx_browser.zig");
+const fuzzy = @import("fuzzy");
 const c1_theme = @import("theme/c1_theme.zig");
 const panel_theme = @import("panel_theme");
 const card_kit = @import("components/panel_card.zig");
 
 pub const NAME: [:0]const u8 = "Fx Browser";
+
+/// What was typed in the search of the browser. It is kept in this library, as it is only read here, so that it does not
+/// depend on the layout of the state that the host shares.
+var search_buffer: [96:0]u8 = std.mem.zeroes([96:0]u8);
+/// The result of the search that the keys are on, which Enter inserts, and what the text was when it was set.
+var search_cursor: usize = 0;
+var search_text_hash: u64 = 0;
+/// The list has to scroll to the cursor, which is so after a key moved it.
+var search_scroll = false;
+
+/// Whether the search had the keyboard on the frame before: Escape deactivates the field in the frame that it is pressed in, so it is
+/// the frame before that says whether the key was meant for the field.
+var search_was_active = false;
+
+/// The text of the search, for the tests.
+pub fn testSearchBuffer() *[96:0]u8 {
+    return &search_buffer;
+}
+
+/// When the browser was drawn last, and for which module.
+var search_last_ms: u64 = 0;
+var search_last_module: ?@import("statemachine.zig").ModulesList = null;
 
 /// Bundles the state needed to visually highlight the currently-selected
 /// module slot. External consumers that do not use module-slot selection
@@ -240,6 +263,57 @@ pub fn ModulePopup(
             try imgui.SameLine(.{ctx});
         }
         try card_kit.drawEngraved(ctx, @tagName(module));
+
+        // The search is next to the name of the window. Only the main browser has it, because the choice of the default plugin
+        // of a module is among the plugins that have a mapping, and a search among all of them would not be one of those.
+        // Escape closes the browser, unless the search has the keyboard: then it only clears what was typed, and the next Escape closes.
+        var escape_closes = false;
+        const search_text: []const u8 = blk: {
+            if (!display_menus) break :blk "";
+            // Because a browser that was not drawn for a moment, or that is for another module, has just been opened, the search
+            // starts empty and has the keyboard, so that what is typed goes in it right away.
+            const now = ui.state.fx_ctrl.now_ms;
+            const just_opened = now -| search_last_ms > 400 or search_last_module != module;
+            search_last_ms = now;
+            search_last_module = module;
+            if (just_opened) search_buffer[0] = 0;
+            if (sub_mode != .browse_fx) {
+                // Inside the mappings of a plugin, Escape steps back, as the cancel of the controller does.
+                if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) rv = .back;
+                break :blk "";
+            }
+
+            try imgui.SameLine(.{ctx});
+            const had_text = search_buffer[0] != 0;
+            if (just_opened) try imgui.SetKeyboardFocusHere(.{ctx});
+            try imgui.SetNextItemWidth(.{ ctx, 220 });
+            // Because the text is only written back to the buffer when the field says that it changed, the field has no flag that makes it
+            // say so only on Enter: the results follow each letter, and Enter is read from the keyboard.
+            _ = try imgui.InputText(.{ ctx, "##fx_search", @as([*]u8, @ptrCast(&search_buffer)), search_buffer.len, null, null });
+            const active = try imgui.IsItemActive(.{ctx});
+            // The hint is written in the empty field, in the dim of the panel.
+            if (search_buffer[0] == 0 and !active) {
+                var x1: f64 = undefined;
+                var y1: f64 = undefined;
+                var x2: f64 = undefined;
+                var y2: f64 = undefined;
+                try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
+                try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
+                const hint = tr(translations, .fx_sel_search);
+                var hint_w: f64 = undefined;
+                var hint_h: f64 = undefined;
+                try imgui.CalcTextSize(.{ ctx, hint, &hint_w, &hint_h });
+                const dl = try imgui.GetWindowDrawList(.{ctx});
+                try imgui.DrawList_AddText(.{ dl, x1 + 8, (y1 + y2) / 2 - hint_h / 2, panel_theme.text_dim, hint });
+            }
+            if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) {
+                // The field had the keyboard when the key was pressed, and had text: Escape clears it, and the menus are back.
+                if (had_text and (active or search_was_active)) search_buffer[0] = 0 else escape_closes = true;
+            }
+            search_was_active = active;
+            break :blk std.mem.trim(u8, std.mem.sliceTo(&search_buffer, 0), " \t");
+        };
+        const searching = search_text.len > 0;
         var crumb_buf: [512:0]u8 = undefined;
         const subtitle: [:0]const u8 = switch (sub_mode) {
             .browse_fx => breadcrumb(&crumb_buf, source, path, translations),
@@ -271,7 +345,54 @@ pub fn ModulePopup(
         const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
         const room = @max(available_h, 120);
 
-        switch (sub_mode) {
+        if (searching) {
+            // While there is a search, it takes the place of the cards: the plugins of every type that match it, the best first. The
+            // first one is the one that Enter inserts.
+            var hits: [fx_browser.search_capacity]fuzzy.Ranked = undefined;
+            const count = fx_browser.search(source, search_text, &hits);
+
+            // The cursor starts on the best result each time that the text changes, and the keys move it: the arrows by one result,
+            // and the page keys by a page of them. Enter inserts the plugin that it is on.
+            const hash = std.hash.Wyhash.hash(0, search_text);
+            if (hash != search_text_hash) {
+                search_text_hash = hash;
+                search_cursor = 0;
+                search_scroll = true;
+            }
+            const page: usize = @max(1, @as(usize, @intFromFloat(@max(room - overhead, 0) / @max(row_height, 1))) -| 1);
+            if (count > 0) {
+                if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) {
+                    search_cursor = @min(search_cursor + 1, count - 1);
+                    search_scroll = true;
+                }
+                if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) {
+                    search_cursor -|= 1;
+                    search_scroll = true;
+                }
+                if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageDown })) {
+                    search_cursor = @min(search_cursor + page, count - 1);
+                    search_scroll = true;
+                }
+                if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageUp })) {
+                    search_cursor -|= page;
+                    search_scroll = true;
+                }
+            }
+            search_cursor = @min(search_cursor, count -| 1);
+
+            const card = try card_kit.beginCard(ctx, "##fx_card_search", "Results", @max(room - overhead, row_height * 3));
+            if (card.visible) {
+                for (hits[0..count], 0..) |hit, i| {
+                    const name = fx_browser.pluginAt(source, hit.index) orelse continue;
+                    if (try card_kit.row(ctx, name, false, i == search_cursor, &search_scroll)) list.rv = .{ .plugin = .{ .name = name, .mapping_name = null } };
+                }
+            }
+            try card_kit.endCard(ctx, card.plate);
+            const enter = try imgui.IsKeyPressed(.{ ctx, imgui.Key_Enter }) or try imgui.IsKeyPressed(.{ ctx, imgui.Key_KeypadEnter });
+            if (enter and count > 0) {
+                if (fx_browser.pluginAt(source, hits[search_cursor].index)) |name| list.rv = .{ .plugin = .{ .name = name, .mapping_name = null } };
+            }
+        } else switch (sub_mode) {
             .browse_fx => {
                 switch (level) {
                     .root => if (display_menus) {
@@ -308,6 +429,7 @@ pub fn ModulePopup(
                 try card_kit.endCard(ctx, card.plate);
             },
         }
+        if (escape_closes) rv = .close_browser;
         if (list.rv) |chosen| rv = chosen;
     }
     if (!open) rv = .close_browser;
