@@ -47,10 +47,27 @@ var prev_mode: vim.Mode = .off;
 /// arrange view, because those keys would otherwise be swallowed silently.
 pub var window_focused = false;
 
+const ext_section = "reavim";
+const ext_hidden_key = "whichkey_hidden";
+
+/// Whether the saved decision to hide the window was already read.
+var hidden_loaded = false;
+
+/// Reads the hidden/shown decision the toggle action saved in a past session.
+fn loadHidden() void {
+    if (hidden_loaded) return;
+    hidden_loaded = true;
+    const raw = Reaper.GetExtState(ext_section, ext_hidden_key);
+    if (@intFromPtr(raw) == 0) return;
+    hidden = std.mem.eql(u8, std.mem.span(raw), "1");
+}
+
 /// Show/hide the feedback window (bindable action). No-op without ReaImGui.
+/// The decision is saved, so that it survives a restart of REAPER.
 pub fn toggleVisible() bool {
     if (imgui_state != .present) return false;
     hidden = !hidden;
+    Reaper.SetExtState(ext_section, ext_hidden_key, if (hidden) "1" else "0", true);
     return !hidden;
 }
 
@@ -389,6 +406,11 @@ fn onTimer() callconv(.c) void {
     ensureImguiChecked();
     if (imgui_state != .present) return;
 
+    // The first tick only adopts the mode, so that a window hidden in the last
+    // session stays hidden when vim starts up in a mode other than off.
+    const first_tick = !hidden_loaded;
+    loadHidden();
+    if (first_tick) prev_mode = vim.mode();
     if (vim.mode() != .off and prev_mode == .off) hidden = false;
     prev_mode = vim.mode();
 

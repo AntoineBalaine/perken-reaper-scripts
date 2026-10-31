@@ -19,6 +19,16 @@ pub const std_options = std.Options{
     },
 };
 
+// The toggle decision is saved, so that it survives a restart of REAPER.
+const ext_section = "console1_mft";
+const ext_visible_key = "panel_visible";
+
+fn loadPanelVisible() void {
+    const raw = reaper.GetExtState(ext_section, ext_visible_key);
+    if (@intFromPtr(raw) == 0) return;
+    MftGlobals.get().mft.panel_visible = !std.mem.eql(u8, std.mem.span(raw), "0");
+}
+
 // Command id of the "MFT: Toggle UI" custom action, so it can be bound to a key.
 var toggle_ui_cmd_id: c_int = undefined;
 
@@ -27,6 +37,7 @@ fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, valhw: c_i
     if (command == toggle_ui_cmd_id) {
         const g = MftGlobals.get();
         g.mft.panel_visible = !g.mft.panel_visible;
+        reaper.SetExtState(ext_section, ext_visible_key, if (g.mft.panel_visible) "1" else "0", true);
         return true;
     }
     return false;
@@ -73,6 +84,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.mft_reg)));
 
     registerActions();
+    loadPanelVisible();
     mft_imgui.register();
 
     return 1;
