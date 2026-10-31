@@ -444,7 +444,7 @@ pub fn getScreenWidgetRect(ctx: imgui.ContextPtr, widget_pos: Position, widget_r
 
 /// The value of a knob in a small dark box with an orange outline, whose bottom edge is at `bottom`. It
 /// is drawn over everything else in the window.
-fn drawValuePopup(ctx: imgui.ContextPtr, center_x: f64, bottom: f64, text: [:0]const u8) !void {
+pub fn drawValuePopup(ctx: imgui.ContextPtr, center_x: f64, bottom: f64, text: [:0]const u8) !void {
     const dl = try imgui.GetForegroundDrawList(.{ctx});
     var size: Size = .{ .w = undefined, .h = undefined };
     try imgui.CalcTextSize(.{ ctx, text, &size.w, &size.h });

@@ -104,7 +104,7 @@ test "getLabels populates pool from REAPER param names" {
     track_state.getLabels(media_track);
 
     // Verify mapped CCs have REAPER param names
-    try testing.expectEqualStrings("Input Gain (dB)", track_state.label_pool.getPrmLabel(.Inpt_Gain));
+    try testing.expectEqualStrings("Input Gain", track_state.label_pool.getPrmLabel(.Inpt_Gain));
     try testing.expectEqualStrings("0.0 dB", track_state.label_pool.getFmtValue(.Inpt_Gain));
 
     try testing.expectEqualStrings("Attack (ms)", track_state.label_pool.getPrmLabel(.Comp_Attack));

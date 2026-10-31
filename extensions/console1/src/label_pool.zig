@@ -70,7 +70,17 @@ pub fn getFmtValue(self: *const Self, cc: CCs) [:0]const u8 {
     return std.mem.span(@as([*:0]const u8, @ptrCast(&self.buffer[start])));
 }
 
-pub fn setPrmLabel(self: *Self, cc: CCs, label: []const u8) void {
+/// The label without a unit in parentheses at its end, such as the "(dB)" of "Volume (dB)", which the value of the knob
+/// already says.
+fn withoutDbUnit(label: []const u8) []const u8 {
+    const trimmed = std.mem.trimEnd(u8, label, " ");
+    if (std.ascii.endsWithIgnoreCase(trimmed, "(db)")) return std.mem.trimEnd(u8, trimmed[0 .. trimmed.len - 4], " ");
+    return label;
+}
+
+pub fn setPrmLabel(self: *Self, cc: CCs, label_text: []const u8) void {
+    // Only the input gain is shown without its unit.
+    const label = if (cc == .Inpt_Gain) withoutDbUnit(label_text) else label_text;
     const idx = indexOf(cc) orelse return;
     const start = @as(usize, idx) * ENTRY_SIZE;
     const dest = self.buffer[start..][0..SLOT_SIZE];
@@ -163,4 +173,16 @@ test "non-assignable CC returns empty string" {
     pool.fillDefaults(null);
     try testing.expectEqualStrings("", pool.getPrmLabel(.Tr_tr1));
     try testing.expectEqualStrings("", pool.getFmtValue(.Tr_tr1));
+}
+
+test "the label of the input gain is shown without its unit, and the others keep theirs" {
+    var pool: Self = .{};
+    pool.setPrmLabel(.Inpt_Gain, "Volume (dB)");
+    try std.testing.expectEqualStrings("Volume", pool.getPrmLabel(.Inpt_Gain));
+    pool.setPrmLabel(.Inpt_Gain, "Gain (db)  ");
+    try std.testing.expectEqualStrings("Gain", pool.getPrmLabel(.Inpt_Gain));
+    pool.setPrmLabel(.Inpt_Gain, "Input");
+    try std.testing.expectEqualStrings("Input", pool.getPrmLabel(.Inpt_Gain));
+    pool.setPrmLabel(.Eq_HiGain, "High Gain (dB)");
+    try std.testing.expectEqualStrings("High Gain (dB)", pool.getPrmLabel(.Eq_HiGain));
 }

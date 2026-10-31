@@ -148,11 +148,41 @@ fn reductionDb(track: MediaTrack, fx_index: c_int) ?f64 {
     return @abs(value);
 }
 
-/// Reads how far the gate and the compressor of the selected track pull the signal down, for the meters of the panel. A
-/// module whose plugin does not report it has no meter. The channel strip has one plugin for all of them, which is read
-/// for the compressor only, as the unit's meter does.
-pub fn readReductionMeters(globals: *Globals) void {
+/// Which track and which plugins the meters of reduction are about. When it changes, the plugins are asked once whether they
+/// report a reduction, even if the DAW is stopped, because the card has to know whether it keeps room for a meter.
+fn reductionKey(globals: *Globals) u64 {
     const fx_ctrl = &globals.state.fx_ctrl;
+    var gate_index: i64 = -1;
+    var comp_index: i64 = -1;
+    var kind: i64 = 0;
+    switch (fx_ctrl.track_state.mode) {
+        .multi_fx => |locations| {
+            if (locations.get(.GATE)) |gate| gate_index = gate.fx_index;
+            if (locations.get(.COMP)) |comp| comp_index = comp.fx_index;
+        },
+        .channel_strip => |strip| {
+            kind = 1;
+            comp_index = strip.fx_index;
+        },
+    }
+    const track: i64 = globals.state.current_tr_id orelse -1;
+    return std.hash.Wyhash.hash(0, std.mem.asBytes(&[_]i64{ track, kind, gate_index, comp_index }));
+}
+
+/// Reads how far the gate and the compressor of the selected track pull the signal down, for the meters of the panel. A
+/// module whose plugin does not report it has no meter. The channel strip has one plugin for all of them, which is read for
+/// the compressor only, as the unit's meter does. REAPER is asked only while the DAW plays, since nothing moves otherwise,
+/// and once when the track or its plugins change, to know which plugins report.
+fn readReductionMeters(globals: *Globals, playing: bool) void {
+    const fx_ctrl = &globals.state.fx_ctrl;
+    const key = reductionKey(globals);
+    if (!playing and key == fx_ctrl.reduction_key) {
+        // The meters that exist rest at no reduction.
+        if (fx_ctrl.gate_reduction_db != null) fx_ctrl.gate_reduction_db = 0;
+        if (fx_ctrl.comp_reduction_db != null) fx_ctrl.comp_reduction_db = 0;
+        return;
+    }
+    fx_ctrl.reduction_key = key;
     fx_ctrl.gate_reduction_db = null;
     fx_ctrl.comp_reduction_db = null;
     const tr = getTrack(globals.state.current_tr_id) orelse return;
@@ -163,6 +193,35 @@ pub fn readReductionMeters(globals: *Globals) void {
         },
         .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index),
     }
+}
+
+/// How fast the output meter falls, in dB for each frame.
+const out_level_fall_db = 1.5;
+
+/// Reads the level of the output of the selected track, for the meter of the panel, which falls slowly after a peak. REAPER is
+/// asked only while the DAW plays; the meter falls to its floor when it does not.
+fn readOutputLevels(globals: *Globals, playing: bool) void {
+    const fx_ctrl = &globals.state.fx_ctrl;
+    const floor = FxCtrlState.out_level_floor_db;
+    const tr = getTrack(globals.state.current_tr_id);
+    for (&fx_ctrl.out_level_db, 0..) |*level, channel| {
+        var measured = floor;
+        if (playing) {
+            if (tr) |track| {
+                const peak = reaper.Track_GetPeakInfo(track, @intCast(channel));
+                if (peak > 0.000001) measured = 20.0 * std.math.log10(peak);
+            }
+        }
+        level.* = @max(measured, level.* - out_level_fall_db, floor);
+    }
+}
+
+/// Reads what the meters of the panel show, which REAPER is asked only while the DAW plays.
+pub fn readMeters(globals: *Globals) void {
+    const playing = globals.playState and !globals.pauseState;
+    globals.state.fx_ctrl.meters_playing = playing;
+    readReductionMeters(globals, playing);
+    readOutputLevels(globals, playing);
 }
 
 /// Sets one of the toggles of the selected track in the state that the panel draws.

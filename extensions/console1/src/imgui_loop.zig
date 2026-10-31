@@ -142,9 +142,9 @@ fn onTimer() callconv(.c) void {
         .ConfigStyle = &styles.ConfigStyle,
     };
 
-    // The meters of the gate and of the compressor are read here, because the UI library cannot call REAPER.
+    // The meters are read here, because the UI library cannot call REAPER.
     switch (globals.state.current_mode) {
-        .fx_ctrl, .fx_sel, .mapping_panel => midi_events_fxctrl.readReductionMeters(globals),
+        .fx_ctrl, .fx_sel, .mapping_panel, .transport => midi_events_fxctrl.readMeters(globals),
         else => {},
     }
 

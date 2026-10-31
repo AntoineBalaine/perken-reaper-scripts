@@ -84,11 +84,12 @@ fn meterPlateWidth(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, mode: Mo
     return 2 * (button.default_radius * 2 + 4 + w + 8);
 }
 
-/// Draws a meter of reduction in the right half of the card, level with the bypass button, with its gauge above it.
-fn drawReductionMeter(ctx: imgui.ContextPtr, plate: Plate, slot: Slot, mode: Mode, reduction_db: ?f64) !void {
+/// Draws a meter of reduction in the right half of the card, level with the bypass button, with its gauge above it. While the
+/// DAW plays, its value shows when the mouse is over it.
+fn drawReductionMeter(ctx: imgui.ContextPtr, plate: Plate, slot: Slot, mode: Mode, reduction_db: ?f64, playing: bool) !void {
     if (!showsPlugins(mode)) return;
     const reduction = reduction_db orelse return;
-    try led_meter.draw(ctx, plate.origin.x + plate.width, plate.center(slot).y, plate.width / 2, reduction);
+    try led_meter.draw(ctx, plate.origin.x + plate.width, plate.center(slot).y, plate.width / 2, reduction, playing);
 }
 
 fn paramLabel(fx_state: *const FxCtrlState, cc: c1.CCs) [:0]const u8 {
@@ -445,9 +446,10 @@ const out_slots = struct {
     const Out_Pan = Slot{ .kind = .knob, .col = 0, .y = 591 };
     // The sidechain button stands right after the label of the order button, which is the first slot.
     const Tr_ext_sidechain = Slot{ .kind = .button, .y = 382, .follows = 0 };
-    // Solo and mute are stacked above the volume knob, where the second column is free, so that their labels have room.
-    const Out_solo = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 450 };
-    const Out_mute = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 482 };
+    // Solo and mute are stacked just above the volume knob, with room between them and the knob's label, and the meter of the
+    // output level fills the space that this leaves in the second column, between the sidechain button and them.
+    const Out_solo = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 503 };
+    const Out_mute = Slot{ .kind = .button, .col = 1, .dx = -27, .y = 535 };
     // The volume knob is left aligned with the solo and mute buttons, which are the sixth slot.
     const Out_Vol = Slot{ .kind = .knob, .col = 1, .y = 591, .align_left_to = 5 };
     const all = [_]Slot{ Tr_order, Out_Drive, Out_DriveChar, Out_Pan, Tr_ext_sidechain, Out_solo, Out_mute, Out_Vol };
@@ -655,7 +657,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
     if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
-    try drawReductionMeter(ctx, plate, shape_slots.Shp_shape, mode, fx_state.gate_reduction_db);
+    try drawReductionMeter(ctx, plate, shape_slots.Shp_shape, mode, fx_state.gate_reduction_db, fx_state.meters_playing);
 
     // First column
     {
@@ -1111,7 +1113,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
     if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;
     }
-    try drawReductionMeter(ctx, plate, comp_slots.Comp_comp, mode, fx_state.comp_reduction_db);
+    try drawReductionMeter(ctx, plate, comp_slots.Comp_comp, mode, fx_state.comp_reduction_db, fx_state.meters_playing);
 
     // First column
     {
@@ -1509,6 +1511,17 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 rv = toWidgetInput(knob_res, .Out_Vol, vol_val, fx_state);
             }
         }
+    }
+
+    // The meter of the output level is in the second column, between the sidechain button and the solo button, against the
+    // right edge of the card.
+    {
+        const sidechain = plate.center(out_slots.Tr_ext_sidechain);
+        const solo = plate.center(out_slots.Out_solo);
+        const button_radius = button.default_radius;
+        const levels = fx_state.out_level_db;
+        const meter_width = try led_meter.levelWidth(ctx);
+        try led_meter.drawLevel(ctx, plate.origin.x + plate.width - meter_width, sidechain.y + button_radius + 6, solo.y - button_radius - 6, levels[0], levels[1]);
     }
 
     try plate.end(ctx);

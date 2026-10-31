@@ -271,6 +271,7 @@ const ImguiMocks = struct {
     GetMousePos: @TypeOf(imgui.api.GetMousePos),
     GetMouseWheel: @TypeOf(imgui.api.GetMouseWheel),
     GetTextLineHeight: @TypeOf(imgui.api.GetTextLineHeight),
+    GetFontSize: @TypeOf(imgui.api.GetFontSize),
     IsItemActivated: @TypeOf(imgui.api.IsItemActivated),
     IsItemClicked: @TypeOf(imgui.api.IsItemClicked),
     PopTextWrapPos: @TypeOf(imgui.api.PopTextWrapPos),
@@ -674,6 +675,7 @@ pub const MockImGui = struct {
     const GetMousePos = &mockGetMousePos;
     const GetMouseWheel = &mockGetMouseWheel;
     const GetTextLineHeight = &mockGetTextLineHeight;
+    const GetFontSize = &mockGetFontSize;
     const IsItemActivated = &mockIsItemActivated;
     const IsItemClicked = &mockIsItemClicked;
     const PopTextWrapPos = &mockPopTextWrapPos;
@@ -750,6 +752,10 @@ fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
 fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
     x.* = 0.0;
     y.* = 0.0;
+}
+
+fn mockGetFontSize(_: imgui.ContextPtr) callconv(.c) f64 {
+    return 13.0;
 }
 
 fn mockGetTextLineHeight(_: imgui.ContextPtr) callconv(.c) f64 {

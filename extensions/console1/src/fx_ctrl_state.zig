@@ -88,6 +88,14 @@ now_ms: u64 = 0,
 /// null, and its module has no meter.
 gate_reduction_db: ?f64 = null,
 comp_reduction_db: ?f64 = null,
+/// The level of the output of the selected track in dB, for the left and the right channel, as the meter of the panel shows
+/// it. The host reads it while the DAW plays, and it falls to the floor when the DAW does not.
+out_level_db: [2]f64 = .{ out_level_floor_db, out_level_floor_db },
+/// Whether the DAW was playing when the meters were last read. The meters show their value under the mouse only then.
+meters_playing: bool = false,
+/// Which track and which plugins the meters of reduction were last asked about, so that they are asked again, once, when
+/// that changes while the DAW is stopped.
+reduction_key: u64 = 0,
 /// Whether shift is held on the controller, which the host sets before each frame, as it does `now_ms`.
 shift_held: bool = false,
 
@@ -162,6 +170,9 @@ pub fn getSubContainerIdx(self: *@This(), subidx: u8, container_idx: c_int, medi
 /// if container_idx is provided, then load the chain into it.
 /// validate track
 /// NOTE: track validation is meant to fail silently.
+/// The level that the output meter has when there is no signal.
+pub const out_level_floor_db: f64 = -120;
+
 /// How long the value of a knob stays on the panel after the controller turned it, in milliseconds.
 pub const value_popup_ms = 500;
 
