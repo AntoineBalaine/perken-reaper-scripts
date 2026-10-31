@@ -47,6 +47,8 @@ var measured_height: [plate_count]f64 = @splat(0);
 const plate_count = 4;
 
 const button_radius = button.default_radius;
+/// The radius of the keys that have a symbol and no label, which is a little more than the keys that have one.
+const icon_key_radius = 11.0;
 /// The width of the combos of the plates.
 const combo_width = 230.0;
 /// The modules in the order of the columns of the default plugins, and how many of them stand in a column.
@@ -267,9 +269,10 @@ pub fn draw(
 
         // The buttons that close the page are under the plate, in a row.
         var id_buf: [128:0]u8 = undefined;
-        if (try widgets.roundButton(.{ ctx, save_label, safePrint(&id_buf, "{s}##stngs_sv", .{save_label}), null, null, .right })) rv = .close_save;
+        // Save and cancel are keys with a symbol, a floppy disk and a cross, and what they do is in their tooltip.
+        if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_sv", .{save_label}), save_label, icon_key_radius, .right, false, null, null, .save })) rv = .close_save;
         try imgui.SameLine(.{ctx});
-        if (try widgets.roundButton(.{ ctx, cancel_label, safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), null, null, .right })) rv = .close_cancel;
+        if (try widgets.roundButton(.{ ctx, "", safePrint(&id_buf, "{s}##stngs_x", .{cancel_label}), cancel_label, icon_key_radius, .right, false, null, null, .cross })) rv = .close_cancel;
         try imgui.SameLine(.{ctx});
         if (try widgets.roundButton(.{ ctx, install_label, safePrint(&id_buf, "{s}##stngs_ip", .{install_label}), null, null, .right })) rv = .install_presets;
 

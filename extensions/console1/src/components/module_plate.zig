@@ -50,6 +50,10 @@ pub const Spec = struct {
     min_width: f64 = 0,
     /// A height of the controls under which the plate does not go, for a plate whose content is not made of slots.
     min_content_h: f64 = 0,
+    /// Room that only this plate needs, over the width that it has otherwise. The memory of the widths does not keep it, so that
+    /// another panel that draws the same plate does not get it: the mapping panel needs the room of the keys that are at the right of
+    /// a title, and the FX controls do not.
+    extra_width: f64 = 0,
     /// How much narrower the plate may be than the width that it remembers, which is the widest that it has been, perhaps in
     /// another panel that has more on it. The content is never cut: it only takes the room that the memory had over it.
     width_trim: f64 = 0,
@@ -276,6 +280,7 @@ pub const Plate = struct {
             plate.width = @max(plate.width, m.width - spec.width_trim);
             m.width = @max(m.width, plate.width);
         }
+        plate.width = @max(plate.width, spec.extra_width);
 
         // The plates are all as tall as the tallest, which is measured with the rows as close as they come.
         if (!spec.independent) frame_tallest = @max(frame_tallest, natural);

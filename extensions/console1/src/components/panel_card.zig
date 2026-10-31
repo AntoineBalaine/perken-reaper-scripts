@@ -28,6 +28,27 @@ pub fn drawEngraved(ctx: imgui.ContextPtr, text: [:0]const u8) !void {
     try imgui.Dummy(.{ ctx, w, h });
 }
 
+/// Draws the heading of a screen as `drawEngraved` does, in the larger font that is as tall as the key that goes back, which is
+/// next to it. It falls back on the font of the names of the modules when the larger one was not loaded.
+pub fn drawEngravedTitle(ctx: imgui.ContextPtr, text: [:0]const u8) !void {
+    const font = c1_theme.fonts.TITLE orelse c1_theme.fonts.TAB;
+    try imgui.PushFont(.{ ctx, font });
+    defer imgui.PopFont(.{ctx}) catch {};
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, text, &w, &h });
+    // Because the key that goes back is as tall as a frame, the heading is centered on that height.
+    const frame_h = try imgui.GetFrameHeight(.{ctx});
+    const top = y + @max(0, (frame_h - h) / 2);
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    try imgui.DrawList_AddText(.{ dl, x + 1, top + 1, panel_theme.text_engraved_shadow, text });
+    try imgui.DrawList_AddText(.{ dl, x, top, panel_theme.tab_text, text });
+    try imgui.Dummy(.{ ctx, w, @max(h, frame_h) });
+}
+
 /// Marks the row that was just drawn as the one that the cursor of the controller is on: the amber wash that the mouse gives
 /// the row under it, a little stronger.
 pub fn drawCursor(ctx: imgui.ContextPtr) !void {

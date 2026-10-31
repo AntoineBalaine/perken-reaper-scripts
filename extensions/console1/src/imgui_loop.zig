@@ -167,6 +167,7 @@ fn onTimer() callconv(.c) void {
         .main_font = c1_theme.fonts.MAIN,
         .icon_font = c1_theme.fonts.ICON_FONT_SMALL,
         .tab_font = c1_theme.fonts.TAB,
+        .title_font = c1_theme.fonts.TITLE,
         .fx_plugins_by_type = &fx_parser.pluginsByType,
         .fx_recent = &globals.recent_plugins,
         .fx_chains = &fx_parser.fx_chains,

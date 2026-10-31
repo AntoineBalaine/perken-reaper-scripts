@@ -14,6 +14,9 @@ const card_kit = @import("components/panel_card.zig");
 const widgets = @import("components/widgets.zig");
 const panel_theme = @import("panel_theme");
 
+/// The radius of the keys that have a symbol and no label.
+const icon_key_radius = 11.0;
+
 /// The height under the card that the line of the message and the key that cancels keep.
 const footer_height = 44.0;
 
@@ -68,7 +71,7 @@ pub fn drawPresetsPanel(
         if (try imgui.ArrowButton(.{ ctx, "##presets_back", imgui.Dir_Left })) rv = .cancel;
         try imgui.SameLine(.{ctx});
     }
-    try card_kit.drawEngraved(ctx, tr(translations, switch (state.purpose) {
+    try card_kit.drawEngravedTitle(ctx, tr(translations, switch (state.purpose) {
         .load => .presets_title_load,
         .save => .presets_title_save,
     }));
@@ -78,7 +81,7 @@ pub fn drawPresetsPanel(
     try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
     const overhead = try card_kit.cardOverhead(ctx);
     const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
-    const key_height = 2 * 8.5 + 8;
+    const key_height = 2 * icon_key_radius + 8;
     const room = @max(available_h - footer_height, 120) - overhead;
 
     var title_buf: [256:0]u8 = undefined;
@@ -119,7 +122,10 @@ pub fn drawPresetsPanel(
                 try imgui.PopItemWidth(.{ctx});
                 if (entered) rv = .confirm;
                 try imgui.Spacing(.{ctx});
-                if (try widgets.roundButton(.{ ctx, tr(translations, .preset_save), "##presets_save", null, null, .right })) rv = .confirm;
+                // Save and cancel are keys with a symbol, a floppy disk and a cross, in the card, and their tooltips say what they do.
+                if (try widgets.roundButton(.{ ctx, "", "##presets_save", tr(translations, .preset_save), icon_key_radius, .right, false, null, null, .save })) rv = .confirm;
+                try imgui.SameLine(.{ctx});
+                if (try widgets.roundButton(.{ ctx, "", "##presets_cancel_name", tr(translations, .preset_cancel), icon_key_radius, .right, false, null, null, .cross })) rv = .cancel;
             }
             try card_kit.endCard(ctx, card.plate);
         },
@@ -148,7 +154,8 @@ pub fn drawPresetsPanel(
         }) });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
-    if (state.stage != .overwrite) {
+    // Where the name is typed, the key that cancels is in the card.
+    if (state.stage != .overwrite and state.stage != .name) {
         if (try widgets.roundButton(.{ ctx, tr(translations, .preset_cancel), "##presets_cancel", null, null, .right })) rv = .cancel;
     }
     return rv;

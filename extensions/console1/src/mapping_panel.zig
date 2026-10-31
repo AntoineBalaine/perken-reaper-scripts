@@ -19,6 +19,7 @@ const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 const mappingKnob = @import("components/mappingKnob.zig");
 const palette = @import("ui_palette");
+const vr_widgets = @import("panel_widgets");
 const Knobs = @import("knob");
 const panel_theme = @import("panel_theme");
 const widgets = @import("components/widgets.zig");
@@ -184,6 +185,8 @@ fn formControls(
     try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y });
     const min_content_h = entry_rows * line_h + (entry_rows - 1) * spacing_y;
 
+    // The plates of the modules start under the line of their plugin: the card leaves the same room, so that they are level.
+    try imgui.Dummy(.{ ctx, 1, line_h + 4 });
     if (try assignmentsCard(ctx, &entries, count, translations, min_content_h, line_h, spacing_y)) |action| rv = action;
 
     return rv;
@@ -385,10 +388,25 @@ const Control = struct {
     label: ?[:0]const u8 = null,
     /// The control only exists on a channel strip.
     strip_only: bool = false,
+    /// Which view of its module the control is in: the controls of a module that has two views, of which the toggle chooses one, are in
+    /// the main view or in the one of the filters, and the others are in both.
+    view: View = .always,
     /// The control is one of the track controls of the console, which are wired to the track and not mapped to a plugin: it is
     /// drawn and disabled.
     fixed: bool = false,
 };
+
+const View = enum { always, main, filters };
+
+/// Whether the compressor shows its filters, which the key at the bottom left of its plate chooses, instead of its knobs. It is only
+/// in the mapping panel, and only for the mapping: the filters are what the filters to compressor key of the FX controls sends to the
+/// compressor, which has no knob of its own for them.
+var comp_filters_view = false;
+
+/// The view of the compressor, for the tests.
+pub fn testSetFiltersView(on: bool) void {
+    comp_filters_view = on;
+}
 
 const ModuleDef = struct {
     module: ModulesList,
@@ -408,6 +426,8 @@ const ModuleDef = struct {
     spread: bool = false,
     /// How much narrower the plate is here than the width that it has in the panel of the FX controls.
     width_trim: f64 = 0,
+    /// The plate has a toggle at its bottom left that swaps its knobs for the ones of the filters.
+    filters_toggle: bool = false,
 };
 
 const input_slots = fx_ctrl_panel.input_slots;
@@ -475,13 +495,17 @@ const comp_def = ModuleDef{
     .slots = &comp_slots.all,
     .columns = 2,
     .has_bypass = true,
+    .filters_toggle = true,
     .controls = &.{
         .{ .cc = .Comp_comp, .slot = comp_slots.Comp_comp },
-        .{ .cc = .Comp_Ratio, .slot = comp_slots.Comp_Ratio },
-        .{ .cc = .Comp_DryWet, .slot = comp_slots.Comp_DryWet },
-        .{ .cc = .Comp_Attack, .slot = comp_slots.Comp_Attack },
-        .{ .cc = .Comp_Release, .slot = comp_slots.Comp_Release },
-        .{ .cc = .Comp_Thresh, .slot = comp_slots.Comp_Thresh },
+        .{ .cc = .Comp_Ratio, .slot = comp_slots.Comp_Ratio, .view = .main },
+        .{ .cc = .Comp_DryWet, .slot = comp_slots.Comp_DryWet, .view = .main },
+        .{ .cc = .Comp_Attack, .slot = comp_slots.Comp_Attack, .view = .main },
+        .{ .cc = .Comp_Release, .slot = comp_slots.Comp_Release, .view = .main },
+        .{ .cc = .Comp_Thresh, .slot = comp_slots.Comp_Thresh, .view = .main },
+        // The filters take the places of the first two knobs of the second column, which are the rows of the filters of the input.
+        .{ .cc = .Comp_HiCut, .slot = comp_slots.Comp_Attack, .view = .filters },
+        .{ .cc = .Comp_LoCut, .slot = comp_slots.Comp_Release, .view = .filters },
     },
 };
 
@@ -779,6 +803,19 @@ fn control(
     return rv;
 }
 
+/// The toggle at the bottom left of the plate of the compressor, which is the one of the VR-09 panel: a rocker that slides and lights
+/// up. It is in the column of the first knob, on the row of the last one, where there is room. It has no label: its name is in its
+/// tooltip.
+fn filtersToggle(ctx: imgui.ContextPtr, plate: Plate, translations: *TranslationStore) !void {
+    const column = plate.center(comp_slots.Comp_Ratio);
+    const row = plate.center(comp_slots.Comp_Thresh);
+    // The rocker is 30 wide and its frame is 20 high.
+    try imgui.SetCursorScreenPos(.{ ctx, column.x - 15, row.y - 10 });
+    var panel: vr_widgets.Panel = .{ .ctx = ctx };
+    _ = vr_widgets.toggle(&panel, "", &comp_filters_view);
+    if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) try imgui.SetTooltip(.{ ctx, tr(translations, .mapping_comp_filters) });
+}
+
 /// Starts the plate of a module, with the measures that it has in the panel of the FX controls. A bare plate is a section of the
 /// card of a channel strip: it has no face and no title.
 fn beginModulePlate(
@@ -797,8 +834,9 @@ fn beginModulePlate(
         .labels = &labels,
         .min_pitch = if (def.has_bypass) bypass_pitch else 0,
         // Because the memory of a plate is keyed on its table of slots, which the panel of the FX controls has too, the plate
-        // of a module here is the size that it has there.
-        .min_width = title_room,
+        // of a module here is the size that it has there. The room of the keys at the right of the title is only for this panel,
+        // and does not go in that memory.
+        .extra_width = title_room,
         .column_gap = def.column_gap,
         .width_trim = def.width_trim,
         .title = if (bare) "" else def.title,
@@ -825,10 +863,16 @@ fn moduleBody(
     const free_right = plate.width - (plate.x_shift + plate.knob_w + @as(f64, @floatFromInt(def.columns - 1)) * plate.pitch);
     const column_shift: f64 = if (def.spread) @max(free_right / 2, 0) else 0;
     inline for (def.controls) |c| {
-        if (!c.strip_only or is_strip) {
+        const in_view = switch (c.view) {
+            .always => true,
+            .main => !comp_filters_view,
+            .filters => comp_filters_view,
+        };
+        if (in_view and (!c.strip_only or is_strip)) {
             if (try control(ctx, plate, c, owner, column_shift, translations)) |act| rv = act;
         }
     }
+    if (def.filters_toggle) try filtersToggle(ctx, plate, translations);
     return rv;
 }
 

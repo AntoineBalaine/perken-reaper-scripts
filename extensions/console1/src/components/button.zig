@@ -15,7 +15,7 @@ pub const TextPosition = enum {
 pub const default_radius = 8.5;
 
 /// The symbols that a round button can carry: those of a transport.
-pub const Icon = enum { play, stop, rec, cross, single };
+pub const Icon = enum { play, stop, rec, cross, single, save };
 
 /// Draws a symbol of the transport at the center of a button of the given radius. The symbol is dark on the dome,
 /// and red for the record button.
@@ -28,6 +28,13 @@ fn drawIcon(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, icon: Icon, di
         .play => try imgui.DrawList_AddTriangleFilled(.{ dl, cx - s * 0.6, cy - s, cx - s * 0.6, cy + s, cx + s * 1.1, cy, @as(c_int, @bitCast(dark)) }),
         .stop => try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.85, cy - s * 0.85, cx + s * 0.85, cy + s * 0.85, @as(c_int, @bitCast(dark)), 1 }),
         .rec => try imgui.DrawList_AddCircleFilled(.{ dl, cx, cy, s * 0.95, @as(c_int, @bitCast(red)), 0 }),
+        .save => {
+            // A floppy disk: a dark body, the shutter at its top and the label at its bottom, in the white of the keys.
+            const pale: u32 = if (disabled) 0x88888877 else 0xE6E6E6FF;
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 1.05, cy - s * 1.05, cx + s * 1.05, cy + s * 1.05, @as(c_int, @bitCast(dark)), 1.5 });
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.55, cy - s * 1.05, cx + s * 0.45, cy - s * 0.3, @as(c_int, @bitCast(pale)), 0 });
+            try imgui.DrawList_AddRectFilled(.{ dl, cx - s * 0.7, cy + s * 0.1, cx + s * 0.7, cy + s * 1.05, @as(c_int, @bitCast(pale)), 0 });
+        },
         .single => {
             // One tall box, which is one plugin for all the modules.
             const half_w = s * 0.75;

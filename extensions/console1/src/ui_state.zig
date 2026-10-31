@@ -37,6 +37,8 @@ pub const UiState = struct {
     main_font: imgui.FontPtr,
     icon_font: imgui.FontPtr,
     tab_font: imgui.FontPtr,
+    /// The font of the heading of a screen, which is null when it was not loaded.
+    title_font: imgui.FontPtr = null,
     // FX browser data — pointers into fx_parser module globals.
     fx_plugins_by_type: *fx_types.FxByType,
     /// The plugins that were chosen last in the browser, the latest first.

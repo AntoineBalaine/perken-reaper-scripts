@@ -403,6 +403,105 @@ test "the FX controls of a channel strip are drawn as one card, and every module
     try testing.expect(!@import("../components/module_plate.zig").sections_open);
 }
 
+test "the screen where a preset is named has its save and cancel keys inside the card, with their symbols" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.presets);
+    builder.state.presets.purpose = .save;
+    builder.state.presets.stage = .name;
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.invisible_button, "##presets_save"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##presets_cancel_name"));
+    // The key that cancels is not under the card, as it is on the other screens.
+    try testing.expect(!mock.containsWidget(.invisible_button, "##presets_cancel"));
+}
+
+test "the room that only one panel needs for a plate is not kept in the width that the other panels get" {
+    const module_plate = @import("../components/module_plate.zig");
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    const slots = [_]module_plate.Slot{.{ .kind = .knob, .col = 0, .y = 500 }};
+    const wide = try module_plate.Plate.begin(null, .{ .slots = &slots, .columns = 1, .widest_label = "Gain", .extra_width = 900 });
+    try testing.expect(wide.width >= 900);
+    const plain = try module_plate.Plate.begin(null, .{ .slots = &slots, .columns = 1, .widest_label = "Gain" });
+    try testing.expect(plain.width < 900);
+}
+
+test "the toggle of the compressor swaps its knobs for its filters, and only in the mapping panel" {
+    const mapping_panel = @import("../mapping_panel.zig");
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    mapping_panel.testSetFiltersView(false);
+    defer mapping_panel.testSetFiltersView(false);
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    // The knobs are there, with the toggle, and the filters are not.
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.invisible_button, "##toggle"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Ratio"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Thresh"));
+    try testing.expect(!mock.containsWidget(.begin_combo, "##combo_Comp_HiCut"));
+
+    // With the toggle on, the filters take the place of the knobs. The key of the bypass stays.
+    mock.resetTrace();
+    mapping_panel.testSetFiltersView(true);
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_HiCut"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_LoCut"));
+    try testing.expect(!mock.containsWidget(.begin_combo, "##combo_Comp_Ratio"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_comp"));
+}
+
+test "the FX controls have no toggle for the filters of the compressor" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_ctrl);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(!mock.containsWidget(.invisible_button, "##toggle"));
+}
+
 test "roundButton component renders with mock imgui" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();
