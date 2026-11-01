@@ -71,8 +71,8 @@ fn rootMenuName(menu: fx_browser.RootMenu, translations: *TranslationStore) [:0]
         .fx_chains => tr(translations, .fx_sel_fx_chains),
         .track_templates => tr(translations, .fx_sel_track_templates),
         .all_plugins => tr(translations, .fx_sel_all_plugins),
-        .tags_category => "category",
-        .tags_developer => "developer",
+        .tags_category => tr(translations, .fx_sel_tags_category),
+        .tags_developer => tr(translations, .fx_sel_tags_developer),
         .container => tr(translations, .fx_sel_container),
         .video_processor => tr(translations, .fx_sel_video_processor),
         .recent => tr(translations, .fx_sel_recent),
@@ -380,7 +380,7 @@ pub fn ModulePopup(
             }
             search_cursor = @min(search_cursor, count -| 1);
 
-            const card = try card_kit.beginCard(ctx, "##fx_card_search", "Results", @max(room - overhead, row_height * 3));
+            const card = try card_kit.beginCard(ctx, "##fx_card_search", tr(translations, .fx_sel_results), @max(room - overhead, row_height * 3));
             if (card.visible) {
                 for (hits[0..count], 0..) |hit, i| {
                     const name = fx_browser.pluginAt(source, hit.index) orelse continue;
@@ -400,22 +400,22 @@ pub fn ModulePopup(
                         const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.rootMenuCount(source))) + 4;
                         const mapped_height = @max(room - menus_height - overhead * 2, row_height * 3);
 
-                        const mapped_card = try card_kit.beginCard(ctx, "##fx_card_mapped", "Mapped plugins", mapped_height);
+                        const mapped_card = try card_kit.beginCard(ctx, "##fx_card_mapped", tr(translations, .fx_sel_mapped_plugins), mapped_height);
                         if (mapped_card.visible) try drawMappedRows(ctx, &list);
                         try card_kit.endCard(ctx, mapped_card.plate);
 
-                        const menus_card = try card_kit.beginCard(ctx, "##fx_card_menus", "Browse", menus_height);
+                        const menus_card = try card_kit.beginCard(ctx, "##fx_card_menus", tr(translations, .fx_sel_browse), menus_height);
                         if (menus_card.visible) try drawMenuRows(ctx, &list);
                         try card_kit.endCard(ctx, menus_card.plate);
                     } else {
-                        const card = try card_kit.beginCard(ctx, "##fx_card_mapped", "Mapped plugins", @max(room - overhead, row_height * 3));
+                        const card = try card_kit.beginCard(ctx, "##fx_card_mapped", tr(translations, .fx_sel_mapped_plugins), @max(room - overhead, row_height * 3));
                         if (card.visible) try drawMappedRows(ctx, &list);
                         try card_kit.endCard(ctx, card.plate);
                     },
                     else => {
                         // A menu that is open has a card of its own, labelled with its name.
                         var title_buf: [128:0]u8 = undefined;
-                        const title: [:0]const u8 = if (path.len > 0) lastName(&title_buf, source, path, translations) else "Plugins";
+                        const title: [:0]const u8 = if (path.len > 0) lastName(&title_buf, source, path, translations) else tr(translations, .fx_sel_plugins);
                         const card = try card_kit.beginCard(ctx, "##fx_card_level", title, @max(room - overhead, row_height * 3));
                         if (card.visible) try drawLevelRows(ctx, &list);
                         try card_kit.endCard(ctx, card.plate);
@@ -424,7 +424,7 @@ pub fn ModulePopup(
             },
             .select_mapping => |sel| {
                 list.cursor = if (highlight) |hl| hl.current_index else null;
-                const card = try card_kit.beginCard(ctx, "##fx_card_mappings", "Mappings", @max(room - overhead, row_height * 3));
+                const card = try card_kit.beginCard(ctx, "##fx_card_mappings", tr(translations, .fx_sel_mappings), @max(room - overhead, row_height * 3));
                 if (card.visible) try drawMappingRows(ctx, &list, sel);
                 try card_kit.endCard(ctx, card.plate);
             },

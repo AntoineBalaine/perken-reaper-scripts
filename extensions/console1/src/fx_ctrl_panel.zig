@@ -117,28 +117,28 @@ fn bypassPitch(ctx: imgui.ContextPtr, fx_state: *const FxCtrlState, cc: c1.CCs, 
 const ModuleCard = enum { input, shape, eq, comp, output };
 
 /// Every title that a card can have, in any mode.
-fn moduleTitles(card: ModuleCard) [2][:0]const u8 {
-    return .{ moduleTitle(.fx_ctrl, card), moduleTitle(.transport, card) };
+fn moduleTitles(card: ModuleCard, translations: *TranslationStore) [2][:0]const u8 {
+    return .{ moduleTitle(.fx_ctrl, card, translations), moduleTitle(.transport, card, translations) };
 }
 
 /// The title of the card of a module. The controls of the cards are those of the modules of the channel strip,
 /// except in the transport mode, where the same controls move the transport: the cards are then named after
-/// what their controls do.
-fn moduleTitle(mode: Mode, card: ModuleCard) [:0]const u8 {
+/// what their controls do. The titles are translations, and the card that has no title in the transport mode has none.
+fn moduleTitle(mode: Mode, card: ModuleCard, translations: *TranslationStore) [:0]const u8 {
     return switch (mode) {
         .transport => switch (card) {
-            .input => "PLAYBACK",
+            .input => tr(translations, .trsprt_card_playback),
             .shape => "",
-            .eq => "NAVIGATION",
-            .comp => "MARKERS",
-            .output => "VIEW",
+            .eq => tr(translations, .trsprt_card_navigation),
+            .comp => tr(translations, .trsprt_card_markers),
+            .output => tr(translations, .trsprt_card_view),
         },
         else => switch (card) {
-            .input => "INPUT",
-            .shape => "SHAPE",
-            .eq => "EQUALIZER",
-            .comp => "COMPRESSOR",
-            .output => "OUTPUT",
+            .input => tr(translations, .fx_ctrl_card_input),
+            .shape => tr(translations, .fx_ctrl_card_shape),
+            .eq => tr(translations, .fx_ctrl_card_eq),
+            .comp => tr(translations, .fx_ctrl_card_comp),
+            .output => tr(translations, .fx_ctrl_card_output),
         },
     };
 }
@@ -343,7 +343,6 @@ fn drawCapIcon(ctx: imgui.ContextPtr, origin: Knobs.Position, max_width: ?f64, i
 
 /// The size that the card of the channel strip had on the frame before, which its face is drawn with.
 var strip_size: module_plate.CardSize = .{};
-const strip_title: [:0]const u8 = "CHANNEL STRIP";
 
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = ui.state.current_mode;
@@ -366,7 +365,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     // Because a channel strip is one plugin for all the modules, its modules are one card, with a vertical delimiter between two
     // of them, as the mapping panel has it. The transport mode names the cards after what its controls do, and keeps five.
     if (mode != .transport and fx_state.track_state.mode == .channel_strip) {
-        var sections = try module_plate.beginSections(ctx, strip_size, strip_title, c1_theme.fonts.TAB);
+        var sections = try module_plate.beginSections(ctx, strip_size, tr(translations, .fx_ctrl_card_strip), c1_theme.fonts.TAB);
         defer module_plate.sections_open = false;
         // The warning is at the right end of the title of the card, as it is on the plate of the input otherwise.
         if (warning) |message| {
@@ -529,7 +528,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     var preset_with_alt_buf: [96:0]u8 = undefined;
     const preset_with_alt = std.mem.printSentinel(&preset_with_alt_buf, "{s}  {s}", .{ tr(translations, .fx_ctrl_Inpt_preset), tr(translations, .preset_save) }, 0) catch tr(translations, .fx_ctrl_Inpt_preset);
     const labels = [_][:0]const u8{ try widestOf(ctx, &.{disp_on_fx_label}), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_disp_mode), tr(translations, .trsprt_Inpt_disp_mode) }), "", "", "", try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_filt_to_comp), tr(translations, .trsprt_Tr_tr17) }), try widestOf(ctx, &.{ tr(translations, .fx_ctrl_Inpt_phase_inv), tr(translations, .trsprt_Tr_tr18) }), try widestOf(ctx, &.{ preset_with_alt, tr(translations, .trsprt_Tr_tr19) }) };
-    const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input), .title_alternatives = &moduleTitles(.input), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
+    const plate = try Plate.begin(ctx, .{ .slots = &input_slots.all, .title = moduleTitle(mode, .input, translations), .title_alternatives = &moduleTitles(.input, translations), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = "Input Gain", .labels = &labels });
 
     const disp_on_key: ?TranslationKey = switch (mode) {
         .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_disp_on,
@@ -717,7 +716,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         paramLabel(fx_state, .Shp_sustain),
         paramLabel(fx_state, .Shp_Punch),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape), .title_alternatives = &moduleTitles(.shape), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
+    const plate = try Plate.begin(ctx, .{ .slots = &shape_slots.all, .title = moduleTitle(mode, .shape, translations), .title_alternatives = &moduleTitles(.shape, translations), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = shape_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Shp_shape, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Shp_shape, fx_state.gate_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, shape_slots.Shp_shape, .Shp_shape, fx_state, mode, .right, translations)) |action| {
         rv = action;
@@ -865,7 +864,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         tr(translations, .trsprt_Eq_LoMidGain),
         tr(translations, .trsprt_Eq_HiGain),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq), .title_alternatives = &moduleTitles(.eq), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq, mode, translations) });
+    const plate = try Plate.begin(ctx, .{ .slots = &eq_slots.all, .title = moduleTitle(mode, .eq, translations), .title_alternatives = &moduleTitles(.eq, translations), .title_font = c1_theme.fonts.TAB, .columns = 4, .widest_label = eq_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Eq_eq, mode, translations) });
 
     if (try renderMappableButton(ctx, plate, eq_slots.Eq_eq, .Eq_eq, fx_state, mode, .right, translations)) |action| {
         rv = action;
@@ -1173,7 +1172,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
         paramLabel(fx_state, .Comp_Thresh),
         tr(translations, .trsprt_Eq_HiMidGain),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp), .title_alternatives = &moduleTitles(.comp), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
+    const plate = try Plate.begin(ctx, .{ .slots = &comp_slots.all, .title = moduleTitle(mode, .comp, translations), .title_alternatives = &moduleTitles(.comp, translations), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = comp_widest, .min_pitch = try bypassPitch(ctx, fx_state, .Comp_comp, mode, translations), .reserve_top = meterReserve(fx_state, mode), .min_width = try meterPlateWidth(ctx, fx_state, mode, .Comp_comp, fx_state.comp_reduction_db) });
 
     if (try renderMappableButton(ctx, plate, comp_slots.Comp_comp, .Comp_comp, fx_state, mode, .right, translations)) |action| {
         rv = action;
@@ -1344,7 +1343,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         tr(translations, .fx_ctrl_Out_Vol),
         tr(translations, .trsprt_Out_Vol),
     });
-    const plate = try Plate.begin(ctx, .{ .slots = &out_slots.all, .title = moduleTitle(mode, .output), .title_alternatives = &moduleTitles(.output), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = out_widest, .column_gap = 24, .labels = &[_][:0]const u8{
+    const plate = try Plate.begin(ctx, .{ .slots = &out_slots.all, .title = moduleTitle(mode, .output, translations), .title_alternatives = &moduleTitles(.output, translations), .title_font = c1_theme.fonts.TAB, .columns = 2, .widest_label = out_widest, .column_gap = 24, .labels = &[_][:0]const u8{
         try widestOf(ctx, &.{ strip_order, tr(translations, .fx_ctrl_Tr_order_eq_s_c), tr(translations, .fx_ctrl_Tr_order_s_c_eq), tr(translations, .fx_ctrl_Tr_order_s_eq_c) }),
         "",
         "",

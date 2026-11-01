@@ -58,9 +58,6 @@ const default_fx_order = [_]ModulesList{ .INPUT, .GATE, .EQ, .COMP, .OUTPT, .STR
 const default_fx_rows = 3;
 /// The space between the two columns of the default plugins.
 const default_fx_column_gap = 16.0;
-/// The label of the setting that has no entry in the language packs.
-const auto_reorder_label: [:0]const u8 = "Auto-reorder modules to canonical order";
-const preferred_order_label: [:0]const u8 = "Preferred module order";
 
 /// The width that a toggle takes: its round button, and its label at the right.
 fn toggleWidth(ctx: imgui.ContextPtr, label: [:0]const u8) !f64 {
@@ -239,7 +236,7 @@ pub fn draw(
             tr(translations, .settings_mode_is_modifier),
         };
         try imgui.BeginGroup(.{ctx});
-        const plate = try beginPlate(ctx, "GENERAL", try widestToggle(ctx, &labels, combo_width), try estimateHeight(ctx, labels.len, 1) + 24);
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_general), try widestToggle(ctx, &labels, combo_width), try estimateHeight(ctx, labels.len, 1) + 24);
 
         try labelAbove(ctx, plate.origin.x, language_label);
         try imgui.PushItemWidth(.{ ctx, combo_width });
@@ -330,9 +327,9 @@ pub fn draw(
             tr(translations, .settings_focus_page_tracks),
             tr(translations, .settings_auto_insert_modules),
             tr(translations, .settings_auto_insert_bypassed),
-            auto_reorder_label,
+            tr(translations, .settings_auto_reorder_modules),
         };
-        const plate = try beginPlate(ctx, "TRACKS", try widestToggle(ctx, &labels, combo_width), try estimateHeight(ctx, labels.len, 1));
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_tracks), try widestToggle(ctx, &labels, combo_width), try estimateHeight(ctx, labels.len, 1));
 
         try lineUp(ctx, plate);
         try boolSetting(self, ctx, labels[0], "mnlrtng", .manual_routing, false, &rv);
@@ -347,7 +344,7 @@ pub fn draw(
         try boolSetting(self, ctx, labels[4], "autoreord", .auto_reorder_modules, false, &rv);
 
         try imgui.Spacing(.{ctx});
-        try labelAbove(ctx, plate.origin.x, preferred_order_label);
+        try labelAbove(ctx, plate.origin.x, tr(translations, .settings_preferred_order));
         const reorder_off = !self.temp_settings.auto_reorder_modules;
         if (reorder_off) try imgui.BeginDisabled(.{ctx});
         try imgui.PushItemWidth(.{ ctx, combo_width });
@@ -376,7 +373,7 @@ pub fn draw(
         const sensitivity_label = tr(translations, .settings_knob_sensitivity);
         const fine_label = tr(translations, .settings_knob_fine);
         const knobs_width = (try toggleWidth(ctx, sensitivity_label) - button_radius * 2 - 4) + (try toggleWidth(ctx, fine_label) - button_radius * 2 - 4) + 16;
-        const plate = try beginPlate(ctx, "KNOBS", knobs_width, Knobs.knob_size * 1.5);
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_knobs), knobs_width, Knobs.knob_size * 1.5);
 
         try lineUp(ctx, plate);
         try knobSetting(self, ctx, .sensitivity, sensitivity_label, 0.1, 10.0, &rv);
@@ -388,7 +385,7 @@ pub fn draw(
     // The plugins that a new track gets for each module.
     try betweenPlates(ctx);
     {
-        const plate = try beginPlate(ctx, "DEFAULT FX", combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows));
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_default_fx), combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows));
         // The modules go down a column, and the next column takes over after `default_fx_rows` of them.
         inline for (default_fx_order, 0..) |module, index| {
             const column_x = plate.origin.x + @as(f64, @floatFromInt(index / default_fx_rows)) * (combo_width + default_fx_column_gap);

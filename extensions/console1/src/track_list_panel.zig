@@ -307,7 +307,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, shift_held:
         .slots = &.{},
         .columns = 1,
         .widest_label = "Ag",
-        .title = "TRACKS",
+        .title = tr(translations, .track_list_tracks),
         .title_font = c1_theme.fonts.TAB,
         .min_width = page_w + column_gap + selectable_width * 2 + 10,
         .min_content_h = rows * max_label_height + (rows - 1) * spacing_y,

@@ -350,7 +350,7 @@ fn assignmentsCard(
         .slots = &.{},
         .columns = 1,
         .widest_label = "Ag",
-        .title = "ASSIGNMENTS",
+        .title = tr(translations, .mapping_assignments),
         .title_font = c1_theme.fonts.TAB,
         .min_width = @as(f64, @floatFromInt(column_count)) * entry_w + @as(f64, @floatFromInt(column_count - 1)) * column_gap,
         .min_content_h = min_content_h,
@@ -385,8 +385,8 @@ const mappingButton = @import("components/mappingButton.zig");
 const Control = struct {
     cc: c1.CCs,
     slot: Slot,
-    /// The label of the control when it is not the translation that the panel of the FX controls has for it.
-    label: ?[:0]const u8 = null,
+    /// The translation of the label of the control when it is not the one that the panel of the FX controls has for it.
+    label_key: ?TranslationKey = null,
     /// The control only exists on a channel strip.
     strip_only: bool = false,
     /// Which view of its module the control is in: the controls of a module that has two views, of which the toggle chooses one, are in
@@ -411,7 +411,10 @@ pub fn testSetFiltersView(on: bool) void {
 
 const ModuleDef = struct {
     module: ModulesList,
-    title: [:0]const u8,
+    /// What names the keys of the plate, which does not change with the language, as its title does.
+    id: [:0]const u8,
+    /// The translation of the title of the plate.
+    title_key: TranslationKey,
     /// All the slots of the module in the panel of the FX controls, so that the plate has the same measures.
     slots: []const Slot,
     columns: u8,
@@ -434,7 +437,8 @@ const ModuleDef = struct {
 const input_slots = fx_ctrl_panel.input_slots;
 const input_def = ModuleDef{
     .module = .INPUT,
-    .title = "INPUT",
+    .id = "INPUT",
+    .title_key = .fx_ctrl_card_input,
     .slots = &input_slots.all,
     .columns = 2,
     .widest = "Input Gain",
@@ -450,7 +454,8 @@ const input_def = ModuleDef{
 const shape_slots = fx_ctrl_panel.shape_slots;
 const shape_def = ModuleDef{
     .module = .GATE,
-    .title = "SHAPE",
+    .id = "SHAPE",
+    .title_key = .fx_ctrl_card_shape,
     .slots = &shape_slots.all,
     .columns = 2,
     .widest = "Release",
@@ -468,7 +473,8 @@ const shape_def = ModuleDef{
 const eq_slots = fx_ctrl_panel.eq_slots;
 const eq_def = ModuleDef{
     .module = .EQ,
-    .title = "EQUALIZER",
+    .id = "EQUALIZER",
+    .title_key = .fx_ctrl_card_eq,
     .slots = &eq_slots.all,
     .columns = 4,
     .has_bypass = true,
@@ -492,7 +498,8 @@ const eq_def = ModuleDef{
 const comp_slots = fx_ctrl_panel.comp_slots;
 const comp_def = ModuleDef{
     .module = .COMP,
-    .title = "COMPRESSOR",
+    .id = "COMPRESSOR",
+    .title_key = .fx_ctrl_card_comp,
     .slots = &comp_slots.all,
     .columns = 2,
     .has_bypass = true,
@@ -513,14 +520,15 @@ const comp_def = ModuleDef{
 const out_slots = fx_ctrl_panel.out_slots;
 const output_def = ModuleDef{
     .module = .OUTPT,
-    .title = "OUTPUT",
+    .id = "OUTPUT",
+    .title_key = .fx_ctrl_card_output,
     .slots = &out_slots.all,
     .columns = 2,
     .column_gap = 24,
     .controls = &.{
         // The pan, the solo, the mute and the volume are the track controls of the console: they are wired to the track, and are
         // not mapped. The order and the sidechain are the two controls that only a channel strip has.
-        .{ .cc = .Tr_order, .slot = out_slots.Tr_order, .label = "Order", .strip_only = true },
+        .{ .cc = .Tr_order, .slot = out_slots.Tr_order, .label_key = .mapping_order, .strip_only = true },
         .{ .cc = .Out_Drive, .slot = out_slots.Out_Drive },
         .{ .cc = .Out_DriveChar, .slot = out_slots.Out_DriveChar },
         .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan, .fixed = true },
@@ -532,7 +540,7 @@ const output_def = ModuleDef{
 };
 
 fn controlLabel(comptime c: Control, translations: *TranslationStore) [:0]const u8 {
-    return c.label orelse tr(translations, @field(TranslationKey, "fx_ctrl_" ++ @tagName(c.cc)));
+    return tr(translations, c.label_key orelse @field(TranslationKey, "fx_ctrl_" ++ @tagName(c.cc)));
 }
 
 /// The labels of the slots of a module for its plate: the keys that are mapped have the width of their combo, and the other slots none.
@@ -680,18 +688,18 @@ fn titleKeyHeight(ctx: imgui.ContextPtr) !f64 {
 }
 
 /// The key that saves the mapping of a module, at the right of the title of its plate. It returns whether it was pressed.
-fn saveKey(ctx: imgui.ContextPtr, plate: Plate, comptime title: [:0]const u8, title_w: f64, enabled: bool, translations: *TranslationStore) !bool {
+fn saveKey(ctx: imgui.ContextPtr, plate: Plate, comptime id: [:0]const u8, title_w: f64, enabled: bool, translations: *TranslationStore) !bool {
     const key_w = try saveKeyWidth(ctx);
-    return iconKey(ctx, "##save_" ++ title, titleKeyX(plate, title_w, key_w, 0), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.save), enabled, false, tr(translations, .mapping_save));
+    return iconKey(ctx, "##save_" ++ id, titleKeyX(plate, title_w, key_w, 0), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.save), enabled, false, tr(translations, .mapping_save));
 }
 
 /// The key next to the save key that says whether the mapping stores the state of the plugin in its map file, as it is when
 /// the mapping is saved. It is a pin that glows when it is on. It returns whether it was pressed.
-fn storeKey(ctx: imgui.ContextPtr, plate: Plate, comptime title: [:0]const u8, title_w: f64, owner: ?*const AssignState, translations: *TranslationStore) !bool {
+fn storeKey(ctx: imgui.ContextPtr, plate: Plate, comptime id: [:0]const u8, title_w: f64, owner: ?*const AssignState, translations: *TranslationStore) !bool {
     const key_w = try saveKeyWidth(ctx);
     const state = owner orelse return false;
     const enabled = true;
-    return iconKey(ctx, "##store_" ++ title, titleKeyX(plate, title_w, key_w, 1), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.pin), enabled, state.store_preset_data, tr(translations, .mapping_store_preset));
+    return iconKey(ctx, "##store_" ++ id, titleKeyX(plate, title_w, key_w, 1), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.pin), enabled, state.store_preset_data, tr(translations, .mapping_store_preset));
 }
 
 /// A control of a module, at its slot of the plate: a knob or a key, with the combo of its parameter where the label is. A
@@ -801,7 +809,7 @@ fn beginModulePlate(
         .extra_width = title_room,
         .column_gap = def.column_gap,
         .width_trim = def.width_trim,
-        .title = if (bare) "" else def.title,
+        .title = if (bare) "" else tr(translations, def.title_key),
         .title_font = c1_theme.fonts.TAB,
         .bare = bare,
     });
@@ -853,15 +861,15 @@ fn modulePanel(
 
     if (try fxHeader(ctx, def.module, set, translations)) |act| rv = act;
 
-    const title_w = try titleWidth(ctx, def.title);
+    const title_w = try titleWidth(ctx, tr(translations, def.title_key));
     // Because the keys are at the right of the title, the plate is as wide as all of them.
     const title_room = title_w + 2 + save_gap + 2 * try saveKeyWidth(ctx) + key_gap;
     const plate = try beginModulePlate(ctx, def, translations, false, title_room);
 
-    if (try saveKey(ctx, plate, def.title, title_w, owner != null, translations)) {
+    if (try saveKey(ctx, plate, def.id, title_w, owner != null, translations)) {
         rv = .{ .assign_request_save = def.module };
     }
-    if (try storeKey(ctx, plate, def.title, title_w, owner, translations)) {
+    if (try storeKey(ctx, plate, def.id, title_w, owner, translations)) {
         rv = .{ .assign_toggle_store_preset = def.module };
     }
 
@@ -873,7 +881,8 @@ fn modulePanel(
 
 /// The size that the card of the channel strip had on the frame before.
 var strip_card: module_plate.CardSize = .{};
-const strip_title: [:0]const u8 = "CHANNEL STRIP";
+/// What names the keys of the card of the channel strip, which does not change with the language, as its title does.
+const strip_id: [:0]const u8 = "CHANNEL STRIP";
 
 /// The channel strip is one plugin: its modules are one card, under the line of the plugin, with the layout that each has on
 /// its own plate, and a vertical delimiter between them. The key that saves the mapping, and the one that stores the state of
@@ -891,16 +900,16 @@ fn stripCard(
 
     if (try fxHeader(ctx, .INPUT, set, translations)) |act| rv = act;
 
-    var sections = try module_plate.beginSections(ctx, strip_card, strip_title, c1_theme.fonts.TAB);
+    var sections = try module_plate.beginSections(ctx, strip_card, tr(translations, .fx_ctrl_card_strip), c1_theme.fonts.TAB);
     defer module_plate.sections_open = false;
 
     var title_plate: Plate = undefined;
     title_plate.start = .{ .x = sections.x, .y = sections.y };
-    const title_w = try titleWidth(ctx, strip_title);
-    if (try saveKey(ctx, title_plate, strip_title, title_w, owner != null, translations)) {
+    const title_w = try titleWidth(ctx, tr(translations, .fx_ctrl_card_strip));
+    if (try saveKey(ctx, title_plate, strip_id, title_w, owner != null, translations)) {
         rv = .{ .assign_request_save = .STRIP };
     }
-    if (try storeKey(ctx, title_plate, strip_title, title_w, owner, translations)) {
+    if (try storeKey(ctx, title_plate, strip_id, title_w, owner, translations)) {
         rv = .{ .assign_toggle_store_preset = .STRIP };
     }
     // The keys moved the cursor: the sections start where the card says.
