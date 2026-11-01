@@ -142,9 +142,11 @@ fn onTimer() callconv(.c) void {
         .ConfigStyle = &styles.ConfigStyle,
     };
 
-    // The meters are read here, because the UI library cannot call REAPER.
+    // The meters are read here, because the UI library cannot call REAPER. Because the mapping panel draws no meter, and the
+    // transport mode draws the meter of the output only, they are the only ones that are read for the modes that have fewer.
     switch (globals.state.current_mode) {
-        .fx_ctrl, .fx_sel, .mapping_panel, .transport => midi_events_fxctrl.readMeters(globals),
+        .fx_ctrl, .fx_sel => midi_events_fxctrl.readMeters(globals),
+        .transport => midi_events_fxctrl.readOutputMeter(globals),
         else => {},
     }
 

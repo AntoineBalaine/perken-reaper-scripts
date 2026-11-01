@@ -220,6 +220,12 @@ fn readOutputLevels(globals: *Globals, playing: bool) void {
     }
 }
 
+/// Reads the level of the output alone, for the modes that draw the meter of the output and no meter of reduction.
+pub fn readOutputMeter(globals: *Globals) void {
+    const playing = globals.playState and !globals.pauseState;
+    readOutputLevels(globals, playing);
+}
+
 /// Reads what the meters of the panel show, which REAPER is asked only while the DAW plays.
 pub fn readMeters(globals: *Globals) void {
     const playing = globals.playState and !globals.pauseState;
@@ -327,15 +333,9 @@ pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) vo
                 }
                 return;
             }
-            if (getTrack(globals.state.current_tr_id)) |tr| {
-                switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.routeSideChain(
-                        tr,
-                        @fromBackingInt(@intCast(val)),
-                        globals.preferences.manual_routing,
-                    ),
-                    else => {},
-                }
+            switch (val) {
+                0x0, 0x3f, 0x7f => actions.dispatch(globals, .{ .fx_ctrl = .{ .set_sidechain = @fromBackingInt(@intCast(val)) } }),
+                else => {},
             }
         },
         .Tr_order => {

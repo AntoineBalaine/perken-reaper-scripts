@@ -60,8 +60,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 .Out_mute => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const muted = reaper.CSurf_OnMuteChange(media_track, -1);
-                        reaper.CSurf_SetSurfaceMute(media_track, muted, csurf.surface());
+                        const muted = pReaper.CSurf_OnMuteChange(.{ media_track, -1 });
+                        pReaper.CSurf_SetSurfaceMute(.{ media_track, muted, csurf.surface() });
                         MidiEvts.setTrackToggle(globals, .Out_mute, muted);
                         // Send MIDI feedback
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
@@ -70,8 +70,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 .Out_solo => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const soloed = reaper.CSurf_OnSoloChange(media_track, -1);
-                        reaper.CSurf_SetSurfaceSolo(media_track, soloed, csurf.surface());
+                        const soloed = pReaper.CSurf_OnSoloChange(.{ media_track, -1 });
+                        pReaper.CSurf_SetSurfaceSolo(.{ media_track, soloed, csurf.surface() });
                         MidiEvts.setTrackToggle(globals, .Out_solo, soloed);
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
@@ -110,11 +110,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                         handlePanelParamInput(globals, input);
                         return;
                     }
-                    if (globals.state.current_tr_id) |tr_id| {
-                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const routing: SCRouting = @fromBackingInt(@intCast(@as(u8, @intFromFloat(input.value))));
-                        globals.state.fx_ctrl.routeSideChain(media_track, routing, globals.preferences.manual_routing);
-                    }
+                    const routing: SCRouting = @fromBackingInt(@intCast(@as(u8, @intFromFloat(input.value))));
+                    actions.dispatch(globals, .{ .fx_ctrl = .{ .set_sidechain = routing } });
                 },
                 .Tr_order => {
                     if (globals.state.fx_ctrl.track_state.mode == .channel_strip) {
@@ -186,6 +183,12 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
         },
         .set_volume => |norm_val| {
             MidiEvts.setUIVal(.Out_Vol, norm_val, &globals.state.fx_ctrl);
+        },
+        .set_sidechain => |routing| {
+            if (globals.state.current_tr_id) |tr_id| {
+                const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                globals.state.fx_ctrl.routeSideChain(media_track, routing, globals.preferences.manual_routing);
+            }
         },
         .set_pan => |pan_val| {
             const norm_val = utils.panToNormalized(pan_val);
