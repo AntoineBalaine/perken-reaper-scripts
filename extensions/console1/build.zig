@@ -245,9 +245,6 @@ fn addMftTarget(
     });
     const c_mod = cBindings(b, target, optimize, wdl_dep, reaper_sdk_dep);
     lib.root_module.addImport("c", c_mod);
-    // The way a surface finds its MIDI devices again is the one of the Console One surface, which this extension shares no other code with.
-    const device_names_mod = b.createModule(.{ .root_source_file = b.path("src/csurf/midi_device_names.zig") });
-    lib.root_module.addImport("midi_device_names", device_names_mod);
 
     const client_install: *std.Build.Step.InstallArtifact = if (is_macos) blk: {
         reaziglib.addMacosSdk(b, lib);
@@ -325,7 +322,6 @@ fn addMftTarget(
         .optimize = optimize,
     }) });
     mft_test.root_module.addImport("c", c_mod);
-    mft_test.root_module.addImport("midi_device_names", device_names_mod);
     const mft_test_options = b.addOptions();
     mft_test_options.addOption(bool, "test", true);
     mft_test_options.addOption(bool, "headless", false);

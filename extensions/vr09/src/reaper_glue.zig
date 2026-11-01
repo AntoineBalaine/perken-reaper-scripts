@@ -10,6 +10,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
+const reaper_helpers = @import("reaper_helpers");
 const clap = @import("clap.zig");
 const c = clap.c;
 const audio = @import("audio.zig");
@@ -145,15 +146,7 @@ pub fn addressable(dir: Direction, index: usize) bool {
 /// such a device is a valid target for a track.
 pub fn deviceName(dir: Direction, index: usize, buf: []u8) ?[]const u8 {
     if (buf.len < 2) return null;
-    @memset(buf, 0);
-    const ptr: [*]c_char = @ptrCast(buf.ptr);
-    _ = switch (dir) {
-        .output => Reaper.GetMIDIOutputName(@intCast(index), ptr, @intCast(buf.len - 1)),
-        .input => Reaper.GetMIDIInputName(@intCast(index), ptr, @intCast(buf.len - 1)),
-    };
-    const name = std.mem.sliceTo(buf, 0);
-    if (name.len == 0) return null;
-    return name;
+    return reaper_helpers.deviceName(buf, dir == .input, @intCast(index), true);
 }
 
 /// The first device a track can use whose name looks like a VR-09 (VR-09,

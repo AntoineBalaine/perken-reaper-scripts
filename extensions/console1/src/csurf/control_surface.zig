@@ -13,7 +13,8 @@ const getGlobals = @import("../console1_extension.zig").getGlobals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
-const device_names = @import("midi_device_names.zig");
+const device_names = @import("midi_device_names");
+const reaper_helpers = @import("reaper_helpers");
 const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
 const log = std.log.scoped(.csurf);
 
@@ -41,12 +42,7 @@ const ReaperDevices = struct {
 
     /// The name of a device, or null when the number has none: the numbers that REAPER keeps for devices that are not there.
     pub fn name(self: ReaperDevices, dev: c_int, buf: []u8) ?[]const u8 {
-        @memset(buf, 0);
-        const found = if (self.input)
-            reaper.GetMIDIInputName(dev, @ptrCast(buf.ptr), @intCast(buf.len))
-        else
-            reaper.GetMIDIOutputName(dev, @ptrCast(buf.ptr), @intCast(buf.len));
-        return if (found) std.mem.sliceTo(buf, 0) else null;
+        return reaper_helpers.deviceName(buf, self.input, dev, false);
     }
 };
 
@@ -128,9 +124,7 @@ fn closeMidi() void {
 /// The name that REAPER gives a MIDI device, for the log, which says which device each surface opened.
 fn deviceName(buf: *[128:0]u8, input: bool, dev: c_int) []const u8 {
     if (builtin.is_test) return "";
-    @memset(buf, 0);
-    const found = if (input) reaper.GetMIDIInputName(dev, @ptrCast(buf), buf.len) else reaper.GetMIDIOutputName(dev, @ptrCast(buf), buf.len);
-    return if (found) std.mem.sliceTo(buf, 0) else "?";
+    return reaper_helpers.deviceName(buf[0..], input, dev, false) orelse "?";
 }
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {

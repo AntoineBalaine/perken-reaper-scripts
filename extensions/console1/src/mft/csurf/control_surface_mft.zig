@@ -8,6 +8,7 @@ const c = @import("c");
 const constants = @import("../constants_mft.zig");
 const midi_events = @import("midi_events_mft.zig");
 const device_names = @import("midi_device_names");
+const reaper_helpers = @import("reaper_helpers");
 const midi_out = @import("../midi_out_mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
 const log = std.log.scoped(.csurf_mft);
@@ -28,12 +29,7 @@ const ReaperDevices = struct {
 
     /// The name of a device, or null when the number has none: the numbers that REAPER keeps for devices that are not there.
     pub fn name(self: ReaperDevices, dev: c_int, buf: []u8) ?[]const u8 {
-        @memset(buf, 0);
-        const found = if (self.input)
-            reaper.GetMIDIInputName(dev, @ptrCast(buf.ptr), @intCast(buf.len))
-        else
-            reaper.GetMIDIOutputName(dev, @ptrCast(buf.ptr), @intCast(buf.len));
-        return if (found) std.mem.sliceTo(buf, 0) else null;
+        return reaper_helpers.deviceName(buf, self.input, dev, false);
     }
 };
 
