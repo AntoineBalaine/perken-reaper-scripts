@@ -18,3 +18,5 @@
   # Perken Console1
 
   Control surface for the Softube Console1 MKII. Linux and macOS only.
+
+  Install the package "Console1 Data" as well: the extension writes a few default maps by itself, and has neither the other maps nor the language packs.

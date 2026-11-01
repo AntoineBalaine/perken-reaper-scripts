@@ -19,7 +19,7 @@ scripts came first and are still distributed, both live side by side.
 | `main/`, `midi/`, `media_explorer/`, `realearn/` | Standalone ReaScripts (drum actions, routing, chord voicings and note selection, media explorer helpers, Realearn mappings) | Kept as Lua; some have compiled counterparts, see below |
 | `imgui/` | Reusable ReaImGui Lua components (`knobs`, `shortcut_list`) | Kept as Lua |
 | `deprecated/` | Old scripts that are no longer maintained | Frozen |
-| `reapack/` | The ReaPack package descriptions (`.ext` files) of the compiled extensions | Active |
+| `reapack/` | The ReaPack package descriptions (`.ext` files) of the compiled extensions. The data package of Console1 is beside its files, in `extensions/console1/Console1 Data.data` | Active |
 | `index.xml` | The ReaPack index that publishes the compiled extensions | Generated |
 | `.github/workflows/` | One workflow per extension | Active |
 
@@ -185,6 +185,19 @@ descriptions, and the commit is pushed. Because the index must not point at
 assets that do not exist yet, the tag and its release come first, and the
 index second.
 
+The binaries are not enough for Console1. The extension writes only eight
+default maps by itself, and the other maps (about 210) and the language packs
+are files of the repository, so Console1 has a second package, a data package:
+`extensions/console1/Console1 Data.data`. Its files are not release assets: the
+index points at them in the repository, at the commit that `reapack-index` ran
+on. ReaPack installs a data file at `Data/` followed by the path of its
+`@provides` line, and the indexer reads that path relative to the folder of the
+description, so the description is beside `Perken/` and installs
+`Data/Perken/Console1/maps` and `Data/Perken/Console1/langPacks`. For this
+reason `.reapack-index.conf` lists the folders of `extensions/` that it ignores
+one by one, since an ignored folder cannot have an exception. The MFT has no
+data package: its factory maps are embedded in its binary.
+
 ## What the extensions keep in REAPER's resource folder
 
 Paths are relative to REAPER's resource folder (`Options > Show REAPER
@@ -198,8 +211,8 @@ resource path`).
 | `Data/Perken/reavim.ini` | reavim-ext | Whether vim mode is on |
 | `Data/Perken/perken-utilities.ini` | the user | Optional settings; `[rename] terminal`, `editor` and `close_terminal` configure the terminal used by batch rename and the fzf action search |
 | `Data/Perken/rename/`, `Data/Perken/actions/` | perken-utilities | Scratch files exchanged with the terminal while a batch rename or an fzf search runs |
-| `Data/Perken/Console1/` | console1 | Preferences and the plugin parameter maps |
-| `Data/Perken/MFT/` | mft | The MIDI Fighter Twister maps |
+| `Data/Perken/Console1/` | console1, and the ReaPack data package | Preferences, the plugin parameter maps (`maps/`) and the language packs (`langPacks/`) |
+| `Data/Perken/MFT/` | mft | The MIDI Fighter Twister maps. The factory ones are embedded in the binary and written on the first run |
 
 ## Platforms
 
