@@ -19,7 +19,8 @@ scripts came first and are still distributed, both live side by side.
 | `main/`, `midi/`, `media_explorer/`, `realearn/` | Standalone ReaScripts (drum actions, routing, chord voicings and note selection, media explorer helpers, Realearn mappings) | Kept as Lua; some have compiled counterparts, see below |
 | `imgui/` | Reusable ReaImGui Lua components (`knobs`, `shortcut_list`) | Kept as Lua |
 | `deprecated/` | Old scripts that are no longer maintained | Frozen |
-| `index.xml` | The ReaPack index that publishes the Lua scripts | Generated |
+| `reapack/` | The ReaPack package descriptions (`.ext` files) of the compiled extensions | Active |
+| `index.xml` | The ReaPack index that publishes the compiled extensions | Generated |
 | `.github/workflows/` | One workflow per extension | Active |
 
 ## The compiled extensions
@@ -143,9 +144,13 @@ The scripts in `main/`, `midi/` and the other folders came first, as
 individual ReaScripts. Later they were folded into reavim as custom actions,
 and the custom actions are what was ported. The table follows the file and
 action names; it was not checked script by script for identical behaviour.
-All of the Lua scripts remain in the repository. They also stay on ReaPack,
-except `reavim.lua`, which `reavim-ext` replaces and which is marked
-`@noindex`.
+All of the Lua scripts remain in the repository, and none of them is on
+ReaPack any more. Only six of them ever carried a ReaPack header (`Knobs.lua`,
+`shortcutManager.lua`, `pasteRhythmToPitches.lua`,
+`MFT_map_selected_fx_in_visible_fx_chain.lua`, `synth_map_midiFighter.lua` and
+`reavim.lua`), and each of them is now marked `@noindex`. Because the other
+scripts have no header, and `extensions/` is ignored by `.reapack-index.conf`,
+the index lists the compiled extensions only.
 
 | Folder | Compiled counterpart | State |
 |---|---|---|
@@ -160,6 +165,25 @@ except `reavim.lua`, which `reavim-ext` replaces and which is marked
 | `realearn/` (`lua_mapper`, `synth_map`) | None | Not ported; MIDI Fighter Twister support is the compiled `mft` extension |
 | `reavim/` | `reavim-ext` | Ported; the Lua version is `@noindex` and no longer on ReaPack |
 | `deprecated/` | None | Frozen |
+
+## How the extensions reach ReaPack
+
+ReaPack installs bare files and cannot unpack a zip, so each release of an
+extension carries its binaries as individual files, named
+`<binary>-<platform>.<extension>`, besides the archives for a manual install.
+The description of each package is a file of `reapack/`, whose `@provides`
+lines point at those assets by the tag of the release (`console1-v$version`,
+`mft-v$version`, `perken-utilities-v$version`, `reavim-ext-v$version`,
+`vr09-v$version`), so the `@version` of a description must be the version of
+the tag.
+
+The binaries are published only when a tag is pushed: the release step of
+each workflow runs on its tag, and any other run only keeps the files as
+workflow artifacts. The index is not published by a workflow. After a release
+exists, `reapack-index --rebuild --commit` regenerates `index.xml` from the
+descriptions, and the commit is pushed. Because the index must not point at
+assets that do not exist yet, the tag and its release come first, and the
+index second.
 
 ## What the extensions keep in REAPER's resource folder
 
