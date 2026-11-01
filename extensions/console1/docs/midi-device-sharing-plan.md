@@ -24,16 +24,16 @@ The two surfaces share about 175 lines that are copies: `ReaperDevices`, the key
 - The VR-09 plugin saves no device number in a config string, so it does not use `midi_device_names`. It only uses the shared name lookup.
 - Because the surfaces and VR-09 want different answers for a device that REAPER reports as closed, the shared lookup takes that choice as an argument.
 - Because the two surfaces log under different scopes and each keeps its own device keys, the shared module is a function of a comptime scope that returns a type (step 3). Each surface instantiates it with its own scope, so the logs keep their scopes, and the state that the callbacks of REAPER reach without a context pointer is distinct per surface.
-- The `c` module stays in `console1/build.zig`, and the dialog stays in console1 (step 4), because the module mixes the WDL and SWELL types with the C++ wrappers and the dialog ids of console1, and reaziglib has no WDL dependency.
+- The `c` module stays in `console1/build.zig`, and the dialog stays duplicated in both surfaces (step 4), because the two copies differ and the `c` module mixes the WDL and SWELL types with the C++ wrappers and the dialog ids of console1.
 
 ## To do
 
-- [ ] Step 0: create and move every file of the plan in one command.
-- [ ] Step 1: add `deviceName` to `reaper_helpers.zig`, with its test, and use it in the four places.
-- [ ] Step 2: register `midi_device_names` in reaziglib and delete the hand-made module of `console1/build.zig`.
-- [ ] Step 3: fill `midi_device_config.zig` and use it in both surfaces.
-- [ ] Step 4: fill `midi_device_dialog.zig` and use it in both surfaces.
-- [ ] Final check: search for the leftover calls, and open both configuration windows in REAPER.
+- [x] Step 0: create and move every file of the plan in one command.
+- [x] Step 1: add `deviceName` to `reaper_helpers.zig`, with its test, and use it in the four places.
+- [x] Step 2: register `midi_device_names` in reaziglib and delete the hand-made module of `console1/build.zig`.
+- [x] Step 3: fill `midi_device_config.zig` and use it in both surfaces.
+- [x] Step 4: decided to leave the dialog duplicated.
+- [ ] Final check: open both configuration windows in REAPER.
 
 Every step ends with a commit that builds and passes its tests, with the prefix `reaziglib:` for steps 1 to 3 and `console1:` for step 4. Before each commit we run `zig fmt` on every file that we edited.
 
@@ -44,7 +44,6 @@ One bash command does all of this before any edit, from `extensions/`:
 ```
 git mv console1/src/csurf/midi_device_names.zig reaziglib/src/midi_device_names.zig
 create reaziglib/src/midi_device_config.zig        (empty, header comment only)
-create console1/src/csurf/midi_device_dialog.zig   (empty, header comment only)
 ```
 
 Because an empty file that nothing imports does not compile into anything, the build stays green until the steps fill them. The edits of step 2 must follow the move at once, since the move breaks the two imports of the old path.
@@ -185,41 +184,13 @@ test "the keys of the devices follow the four numbers of the config, and an olde
 
 The part of the existing test that is about the numbers calls `parseParms`, which stays in the surfaces until step 4, so it stays in `control_surface.zig` until then.
 
-## Step 4: the dialog
+## Step 4: the dialog stays duplicated
 
-`console1/src/csurf/midi_device_dialog.zig` imports `c` (the module of `cBindings`, which stays in console1), `reaper`, `midi_device_names` and `midi_device_config`. Because `dlgProc` is a C callback and cannot take a parameter, the file exposes a function of the type that step 3 makes, so that each surface gets a callback that reaches the state of its own surface:
-
-```
-pub fn Dialog(comptime Devices: type) type            // Devices is a MidiDeviceConfig(scope)
-    return struct
-        pub fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.c) c.WDL_DLGRET
-            // reads and writes Devices.surface and Devices.dialog, and calls Devices.resolveDevice
-        pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND
-
-pub fn parseParms(str: [*c]const c_char, parms: *[4]i32) void
-fn sendDlgItemMessage(...) c.LRESULT
-fn makeIntResource(x: anytype) [*c]const u8
-```
-
-Each surface keeps `createFunc`, `init` and its registration, and sets `.ShowConfig = &Dialog(devices).configFunc`, where `devices` is the constant of step 3. The bodies of `dlgProc` and `configFunc` come from `control_surface.zig` (lines 576 and 689), where the commented-out `WDL_UTF8_HookComboBox` note stays. Before the move we diff the two copies of every function, and if they differ in more than the names that the state changes, we stop and report the difference, because the plan assumes they are the same.
-
-`control_surface.zig` imports the file by relative path. Because `control_surface_mft.zig` lives in `src/mft/csurf/` and cannot import files outside `src/mft`, `addMftTarget` in `console1/build.zig` makes a named module for it, as the build did before for `midi_device_names`:
-
-```
-const dialog_mod = b.createModule(.{ .root_source_file = b.path("src/csurf/midi_device_dialog.zig") })
-dialog_mod.addImport("c", c_mod)
-reaziglib.addSharedModules(reazig_dep, dialog_mod)      // gives it reaper, midi_device_names and midi_device_config
-lib.root_module.addImport("midi_device_dialog", dialog_mod)
-mft_test.root_module.addImport("midi_device_dialog", dialog_mod)
-```
-
-The `c` module stays where it is, in `console1/build.zig`, and reaziglib gets no WDL or SWELL dependency. The tests of `midi_device_dialog.zig` are the part of the config test about `parseParms` and the test `parseParms`, and the file is added to the test block at the end of `console1/src/console1_extension.zig`.
-
-The alternative, to move the dialog into reaziglib, is not part of this plan. It would need a `c` module in reaziglib with WDL and SWELL, and the dialog template and its ids (`resource.rc` and `resource.h`) would stay in console1. It becomes worth doing when a surface outside console1 needs the same dialog.
+The two `dlgProc` functions, `sendDlgItemMessage`, `makeIntResource`, `parseParms` and `configFunc` stay in both surfaces, because the two copies are not the same. The Console 1 dialog fills the hidden `IDC_EDIT1` and `IDC_EDIT2` with `parms[0]` and `parms[1]`, reads them back when it saves, and clamps the size to 1 to 256, so that a config with a size of 0 is saved with a size of 1. The MFT dialog does not touch those fields and always saves an offset of 0 and a size of 9. Sharing the dialog would need a flag for those fields, and we decided that this is not worth the change. The `c` module stays in `console1/build.zig`, and reaziglib gets no WDL or SWELL dependency.
 
 ## How we check
 
 - We use the Zig 0.17.0 toolchain, because the `zig` alias is 0.14.1 and fails.
 - After each step we run `zig build -Dtest=true` in `console1`, the `zig build test` step of `reaziglib`, the test step of `vr09`, and the `mft_test` step. Because `zig build test` of console1 is broken at HEAD, we note in the commit message which steps we ran and which we could not.
-- The dialog can only be exercised by opening the configuration window of each surface in REAPER. After step 4 we do that by hand for both surfaces: the selected devices must be the ones of the saved config, and pressing OK with a device that is unplugged must keep its key.
+- The dialog can only be exercised by opening the configuration window of each surface in REAPER. After step 3 we do that by hand for both surfaces: the selected devices must be the ones of the saved config, and pressing OK with a device that is unplugged must keep its key.
 - At the end we search for `GetMIDIInputName` and `GetMIDIOutputName` in the sources of the three extensions. Only `reaziglib`, the generated bindings, and `console1/src/pReaper.zig` should remain.
