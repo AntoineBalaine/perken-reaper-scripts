@@ -8,7 +8,8 @@ const c = @import("c");
 const constants = @import("../constants_mft.zig");
 const midi_events = @import("midi_events_mft.zig");
 const device_names = @import("midi_device_names");
-const reaper_helpers = @import("reaper_helpers");
+const config = @import("midi_device_config");
+const devices = config.MidiDeviceConfig(.csurf_mft);
 const midi_out = @import("../midi_out_mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
 const log = std.log.scoped(.csurf_mft);
@@ -18,64 +19,6 @@ const CSURF_EXT_SETLASTTOUCHEDTRACK: c_int = 0x0001000C;
 
 pub var ignore_notifications = false;
 pub var my_csurf: c.C_ControlSurface = undefined;
-
-/// The MIDI devices of REAPER, in the form that `midi_device_names.find` reads.
-const ReaperDevices = struct {
-    input: bool,
-
-    pub fn count(self: ReaperDevices) c_int {
-        return if (self.input) reaper.GetNumMIDIInputs() else reaper.GetNumMIDIOutputs();
-    }
-
-    /// The name of a device, or null when the number has none: the numbers that REAPER keeps for devices that are not there.
-    pub fn name(self: ReaperDevices, dev: c_int, buf: []u8) ?[]const u8 {
-        return reaper_helpers.deviceName(buf, self.input, dev, false);
-    }
-};
-
-/// The keys of the devices that the surface is set to, which are kept in its config string. They stay the same when a device is not
-/// there, so that it is found again when it is plugged in.
-var in_key_buf: [device_names.max_key]u8 = undefined;
-var in_key_len: usize = 0;
-var out_key_buf: [device_names.max_key]u8 = undefined;
-var out_key_len: usize = 0;
-
-/// What the open dialog was given and did not find among the devices: what it saves keeps it, so that opening it and pressing OK does
-/// not forget a device that is not plugged in today.
-var dialog_in_key_buf: [device_names.max_key]u8 = undefined;
-var dialog_in_key_len: usize = 0;
-var dialog_out_key_buf: [device_names.max_key]u8 = undefined;
-var dialog_out_key_len: usize = 0;
-
-fn setKey(buf: *[device_names.max_key]u8, len: *usize, key: []const u8) void {
-    len.* = @min(key.len, buf.len);
-    @memcpy(buf[0..len.*], key[0..len.*]);
-}
-
-/// The number of the device that a surface is set to now. A config that has the key of the device finds it among the devices that are
-/// there, whatever its number is, and none when it is not there; a config that has only a number, which is one that an older version
-/// saved, has that number.
-fn resolveDevice(input: bool, id: c_int, key: ?[]const u8) c_int {
-    const wanted = key orelse return id;
-    const found = device_names.find(ReaperDevices{ .input = input }, wanted);
-    if (found) |dev| {
-        log.info("midi {s} {s}: is the device {d}", .{ if (input) "in" else "out", wanted, dev });
-        return dev;
-    }
-    log.warn("midi {s} {s}: is not there", .{ if (input) "in" else "out", wanted });
-    return -1;
-}
-
-/// The key of the device that has this number, or null for none.
-fn keyOfDevice(input: bool, dev: c_int, buf: *[512]u8) ?[]const u8 {
-    if (dev < 0) return null;
-    const name = (ReaperDevices{ .input = input }).name(dev, buf) orelse return null;
-    return device_names.key(name);
-}
-
-fn parseDeviceKeys(str: [*c]const c_char, keys: *device_names.Keys) void {
-    device_names.parseKeys(std.mem.span(@as([*:0]const u8, @ptrCast(str))), keys);
-}
 
 /// The surface that holds the MIDI devices that the globals have. Because REAPER makes the surface of new settings before it deletes the
 /// one of the old, the one that is deleted must not let go of the devices of the next.
@@ -153,8 +96,8 @@ export fn zGetConfigString() callconv(.c) [*]const u8 {
     _ = std.mem.printSentinel(&config_buf, "0 0 {d} {d} {s} {s}", .{
         globals.m_midi_in_dev orelse -1,
         globals.m_midi_out_dev orelse -1,
-        device_names.encode(&in_word_buf, in_key_buf[0..in_key_len]),
-        device_names.encode(&out_word_buf, out_key_buf[0..out_key_len]),
+        device_names.encode(&in_word_buf, devices.surface.in.get()),
+        device_names.encode(&out_word_buf, devices.surface.out.get()),
     }, 0) catch {
         return "0 0 0 0";
     };
@@ -282,11 +225,11 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
             // Because the numbers of the config are of the session that saved it, the devices that are selected are the ones that its
             // keys find now.
             var keys: device_names.Keys = .{};
-            parseDeviceKeys(@ptrFromInt(@as(usize, @intCast(lParam))), &keys);
-            parms[2] = resolveDevice(true, parms[2], keys.in);
-            parms[3] = resolveDevice(false, parms[3], keys.out);
-            setKey(&dialog_in_key_buf, &dialog_in_key_len, if (parms[2] < 0) keys.in orelse "" else "");
-            setKey(&dialog_out_key_buf, &dialog_out_key_len, if (parms[3] < 0) keys.out orelse "" else "");
+            config.parseDeviceKeys(@ptrFromInt(@as(usize, @intCast(lParam))), &keys);
+            parms[2] = devices.resolveDevice(true, parms[2], keys.in);
+            parms[3] = devices.resolveDevice(false, parms[3], keys.out);
+            devices.dialog.in.set(if (parms[2] < 0) keys.in orelse "" else "");
+            devices.dialog.out.set(if (parms[3] < 0) keys.out orelse "" else "");
             c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1), c.SW_HIDE);
             c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1_LBL), c.SW_HIDE);
             c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2), c.SW_HIDE);
@@ -342,9 +285,9 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
                 var name_buf: [512]u8 = undefined;
                 var in_word_buf: [3 * device_names.max_key]u8 = undefined;
                 var out_word_buf: [3 * device_names.max_key]u8 = undefined;
-                const in_key = keyOfDevice(true, @intCast(indev), &name_buf) orelse (if (indev < 0) dialog_in_key_buf[0..dialog_in_key_len] else "");
+                const in_key = config.keyOfDevice(true, @intCast(indev), &name_buf) orelse (if (indev < 0) devices.dialog.in.get() else "");
                 const in_word = device_names.encode(&in_word_buf, in_key);
-                const out_key = keyOfDevice(false, @intCast(outdev), &name_buf) orelse (if (outdev < 0) dialog_out_key_buf[0..dialog_out_key_len] else "");
+                const out_key = config.keyOfDevice(false, @intCast(outdev), &name_buf) orelse (if (outdev < 0) devices.dialog.out.get() else "");
                 const out_word = device_names.encode(&out_word_buf, out_key);
                 _ = std.mem.printSentinel(&tmp, "{d} {d} {d} {d} {s} {s}", .{ offs, size, indev, outdev, in_word, out_word }, 0) catch return 0;
                 _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
@@ -387,17 +330,15 @@ fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, err
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
     var keys: device_names.Keys = .{};
-    parseDeviceKeys(configString, &keys);
+    config.parseDeviceKeys(configString, &keys);
     // Because the numbers of the devices are not the same from one session to the next, the surface looks for the devices that its
     // config names, and takes the numbers of the config only when it names none.
-    const in_dev = resolveDevice(true, parms[2], keys.in);
-    const out_dev = resolveDevice(false, parms[3], keys.out);
+    const in_dev = devices.resolveDevice(true, parms[2], keys.in);
+    const out_dev = devices.resolveDevice(false, parms[3], keys.out);
     const my_surface = init(in_dev, out_dev, errStats);
     // The surface keeps the key of each device that it has now, and of the others the key that its config named, so that a device that
     // is not plugged in today is found when it is.
-    var name_buf: [512]u8 = undefined;
-    if (keyOfDevice(true, in_dev, &name_buf)) |key| setKey(&in_key_buf, &in_key_len, key) else setKey(&in_key_buf, &in_key_len, keys.in orelse "");
-    if (keyOfDevice(false, out_dev, &name_buf)) |key| setKey(&out_key_buf, &out_key_len, key) else setKey(&out_key_buf, &out_key_len, keys.out orelse "");
+    devices.rememberKeys(in_dev, out_dev, keys);
     return my_surface;
 }
 

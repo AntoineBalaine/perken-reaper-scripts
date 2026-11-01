@@ -169,9 +169,17 @@ pub fn build(b: *std.Build) void {
     reaper_helpers_mod.addImport("reaper", reaper_mod);
 
     // midi_device_names (no deps)
-    _ = b.addModule("midi_device_names", .{
+    const midi_device_names_mod = b.addModule("midi_device_names", .{
         .root_source_file = b.path("src/midi_device_names.zig"),
     });
+
+    // midi_device_config depends on reaper, reaper_helpers, midi_device_names
+    const midi_device_config_mod = b.addModule("midi_device_config", .{
+        .root_source_file = b.path("src/midi_device_config.zig"),
+    });
+    midi_device_config_mod.addImport("reaper", reaper_mod);
+    midi_device_config_mod.addImport("reaper_helpers", reaper_helpers_mod);
+    midi_device_config_mod.addImport("midi_device_names", midi_device_names_mod);
 
     // swell (depends on reaper)
     const swell_mod = b.addModule("swell", .{
@@ -209,6 +217,7 @@ pub fn build(b: *std.Build) void {
         "src/models/reaper_mock.zig",
         "src/reaper_helpers.zig",
         "src/midi_device_names.zig",
+        "src/midi_device_config.zig",
         "src/fuzzy.zig",
         "src/panel/theme.zig",
         "src/panel/fonts.zig",
@@ -217,6 +226,8 @@ pub fn build(b: *std.Build) void {
     };
     const test_imports = [_]struct { name: []const u8, mod: *std.Build.Module }{
         .{ .name = "reaper", .mod = reaper_mod },
+        .{ .name = "reaper_helpers", .mod = reaper_helpers_mod },
+        .{ .name = "midi_device_names", .mod = midi_device_names_mod },
         .{ .name = "utils", .mod = utils_mod },
         .{ .name = "string_pool", .mod = string_pool_mod },
         .{ .name = "ini", .mod = ini.module("ini") },
@@ -491,6 +502,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "reaper_theme",
         "reaper_helpers",
         "midi_device_names",
+        "midi_device_config",
         "host_io",
     };
     for (module_names) |name| {
