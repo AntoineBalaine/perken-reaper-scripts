@@ -1,3 +1,49 @@
-Console1 parameter maps for the airwindows JSFX ports by chmaha.
+Console1 parameter maps for the JSFX ports by chmaha, from two repositories.
 
 Source: https://github.com/chmaha/airwindows-JSFX-ports
+Source: https://github.com/chmaha/DSP-Ports-JSFX
+
+The DSP-Ports maps are the four named "... port) by chmaha": Compressor
+(x42-darc), Gate (ZamGateX2), EQ (x42-fil4) and Lumina Channel Strip. Those
+plugins shipped with REAPER 7.83 and were removed again in 7.84, so users now
+need them from ReaPack.
+
+
+NEEDS CHECKING: parameter indices of the DSP-Ports maps
+-------------------------------------------------------
+
+The four DSP-Ports maps were written by reading the slider declarations in the
+JSFX sources rather than by reading parameter indices out of REAPER, on the
+assumption that a JSFX slider N is parameter index N-1. The index listings in
+the older maps here agree with that, but it has not been verified against a
+running REAPER.
+
+To check: open any one of the four, look at what the mapping panel reports for
+a control, and compare with the index listing in the comments at the bottom of
+that map's .ini. If the assumption is wrong it is wrong by a constant offset,
+so all four are wrong in the same way and each is a one-line-per-entry fix.
+
+Two judgement calls in those maps are also worth a second opinion, and both are
+commented where they occur:
+
+- EQ (x42-fil4): Eq_hp_shape and Eq_lp_shape are on the Low Shelf Enable and
+  High Shelf Enable rather than on the filter resonances, because on the
+  hardware those buttons switch the LF and HF bands between shelf and bell.
+- Gate (ZamGateX2): Shp_sustain is on Max Gate Close, as the nearest
+  continuous analogue to how far the gate closes, and Shp_hard_gate is on the
+  Gate/Duck mode switch because it is a button on the hardware.
+
+
+Dry/wet and bypass
+------------------
+
+Several maps here point Comp_DryWet or Comp_comp at a plugin's own mix or
+bypass slider. REAPER also exposes its own per-FX wet and bypass controls,
+which every FX has whether or not the plugin provides them, and which would be
+the better target. They cannot be written into these files as they stand:
+mapping values are parsed as plain integers, and REAPER's wet and bypass have
+no fixed index — they are resolved per FX instance through
+TrackFX_GetParamFromIdent with ":wet" or ":bypass". Supporting them needs that
+resolution step in the loader, after which a map could say Comp_DryWet=:wet.
+Until then an unparseable value reads as unmapped, so writing it now would
+silently do nothing.
