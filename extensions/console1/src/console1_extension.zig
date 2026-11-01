@@ -89,7 +89,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 test {
     _ = @import("tests/zlowcheck.zig");
     _ = @import("tests/shift_test.zig");
-    _ = @import("csurf/midi_device_names.zig");
     _ = @import("gui_lib.zig");
     _ = @import("tests/csurf_lifecycle_test.zig");
     _ = @import("tests/presets_test.zig");

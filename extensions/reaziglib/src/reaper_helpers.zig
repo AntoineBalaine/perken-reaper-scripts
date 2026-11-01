@@ -545,7 +545,89 @@ pub fn getUserInput(title: [*:0]const u8, caption: [*:0]const u8, buf: []u8) ?[]
     return std.mem.trim(u8, std.mem.sliceTo(buf, 0), " \t\r\n");
 }
 
+// ---- MIDI devices -----------------------------------------------------------
+
+/// Copies the name that REAPER gives a MIDI device into `buf` and returns it, or returns null when the device has no name.
+/// Because REAPER answers false for a device that is closed but still has a name (a JACK port, for one), `closed_counts` tells
+/// what a false answer means. A surface that wants the devices that are there passes false, and a caller that wants every valid
+/// target passes true. In both cases an empty name is a device without a name.
+pub fn deviceName(buf: []u8, input: bool, dev: c_int, closed_counts: bool) ?[]const u8 {
+    std.debug.assert(buf.len >= 2);
+    @memset(buf, 0);
+    const ptr: [*]c_char = @ptrCast(buf.ptr);
+    const size: c_int = @intCast(buf.len - 1);
+    const found = if (input) Reaper.GetMIDIInputName(dev, ptr, size) else Reaper.GetMIDIOutputName(dev, ptr, size);
+    if (!found and !closed_counts) return null;
+    const name = std.mem.sliceTo(buf, 0);
+    return if (name.len == 0) null else name;
+}
+
 // ---- tests ------------------------------------------------------------------
+
+/// The devices that the fake REAPER of the tests has: one that is open, one that is closed and has a name, and one number that
+/// has nothing.
+const FakeDevice = struct { name: []const u8, open: bool };
+const fake_devices = [_]FakeDevice{
+    .{ .name = "Console 1", .open = true },
+    .{ .name = "JACK port", .open = false },
+    .{ .name = "", .open = false },
+};
+
+fn fakeDeviceName(prefix: []const u8, dev: c_int, nameout: [*]c_char, nameout_sz: c_int) bool {
+    const device = fake_devices[@intCast(dev)];
+    const out: [*]u8 = @ptrCast(nameout);
+    var text: [64]u8 = undefined;
+    const name = if (device.name.len == 0) "" else std.fmt.bufPrint(&text, "{s}{s}", .{ prefix, device.name }) catch unreachable;
+    const length = @min(name.len, @as(usize, @intCast(nameout_sz)));
+    @memcpy(out[0..length], name[0..length]);
+    out[length] = 0;
+    return device.open;
+}
+
+fn fakeInputName(dev: c_int, nameout: [*]c_char, nameout_sz: c_int) callconv(.c) bool {
+    return fakeDeviceName("", dev, nameout, nameout_sz);
+}
+
+fn fakeOutputName(dev: c_int, nameout: [*]c_char, nameout_sz: c_int) callconv(.c) bool {
+    return fakeDeviceName("out ", dev, nameout, nameout_sz);
+}
+
+test "deviceName reads an open device, from the input or from the output" {
+    const saved_input = Reaper.GetMIDIInputName;
+    const saved_output = Reaper.GetMIDIOutputName;
+    defer {
+        @constCast(&Reaper.GetMIDIInputName).* = @constCast(&saved_input).*;
+        @constCast(&Reaper.GetMIDIOutputName).* = @constCast(&saved_output).*;
+    }
+    @constCast(&Reaper.GetMIDIInputName).* = @constCast(&fakeInputName);
+    @constCast(&Reaper.GetMIDIOutputName).* = @constCast(&fakeOutputName);
+
+    var buf: [64]u8 = undefined;
+    for ([_]bool{ false, true }) |closed_counts| {
+        try std.testing.expectEqualStrings("Console 1", deviceName(&buf, true, 0, closed_counts).?);
+        try std.testing.expectEqualStrings("out Console 1", deviceName(&buf, false, 0, closed_counts).?);
+    }
+}
+
+test "deviceName gives a closed device that has a name only when a closed device counts" {
+    const saved_input = Reaper.GetMIDIInputName;
+    defer @constCast(&Reaper.GetMIDIInputName).* = @constCast(&saved_input).*;
+    @constCast(&Reaper.GetMIDIInputName).* = @constCast(&fakeInputName);
+
+    var buf: [64]u8 = undefined;
+    try std.testing.expect(deviceName(&buf, true, 1, false) == null);
+    try std.testing.expectEqualStrings("JACK port", deviceName(&buf, true, 1, true).?);
+}
+
+test "deviceName gives null for a number that has no name, whatever a closed device counts for" {
+    const saved_input = Reaper.GetMIDIInputName;
+    defer @constCast(&Reaper.GetMIDIInputName).* = @constCast(&saved_input).*;
+    @constCast(&Reaper.GetMIDIInputName).* = @constCast(&fakeInputName);
+
+    var buf: [64]u8 = undefined;
+    try std.testing.expect(deviceName(&buf, true, 2, false) == null);
+    try std.testing.expect(deviceName(&buf, true, 2, true) == null);
+}
 
 test "mergeBigItems merges overlapping and contained spans" {
     const items = [_]ItemPosition{

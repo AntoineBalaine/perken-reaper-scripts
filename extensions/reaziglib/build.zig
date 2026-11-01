@@ -168,6 +168,11 @@ pub fn build(b: *std.Build) void {
     });
     reaper_helpers_mod.addImport("reaper", reaper_mod);
 
+    // midi_device_names (no deps)
+    _ = b.addModule("midi_device_names", .{
+        .root_source_file = b.path("src/midi_device_names.zig"),
+    });
+
     // swell (depends on reaper)
     const swell_mod = b.addModule("swell", .{
         .root_source_file = b.path("src/swell.zig"),
@@ -203,6 +208,7 @@ pub fn build(b: *std.Build) void {
         "src/swell.zig",
         "src/models/reaper_mock.zig",
         "src/reaper_helpers.zig",
+        "src/midi_device_names.zig",
         "src/fuzzy.zig",
         "src/panel/theme.zig",
         "src/panel/fonts.zig",
@@ -484,6 +490,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "swell",
         "reaper_theme",
         "reaper_helpers",
+        "midi_device_names",
         "host_io",
     };
     for (module_names) |name| {
