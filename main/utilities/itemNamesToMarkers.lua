@@ -1,4 +1,5 @@
 --[[
+@noindex
 create markers at every item on the selected track
 and rename them to the file name of the item
 

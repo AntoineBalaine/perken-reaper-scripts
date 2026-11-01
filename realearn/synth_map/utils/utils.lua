@@ -1,3 +1,6 @@
+--[[
+@noindex
+]]
 
 local utils = {}
 ---@alias ItemPosition {left: number, right: number}
