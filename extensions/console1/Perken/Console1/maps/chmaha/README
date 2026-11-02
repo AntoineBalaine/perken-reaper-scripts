@@ -85,3 +85,21 @@ for each control, as in
 
 A name is at most 31 bytes, and a map can name 16 controls. Lumina uses it to
 shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs.
+
+
+Gain reduction
+--------------
+
+The meter of the compressor reads the gain reduction of the plugin. A plugin that
+reports it to the host (ReaComp does) is asked for "GainReduction_dB", and a JS
+plugin cannot be asked that, so a map can say in which parameter the plugin keeps
+the reduction, in dB:
+
+    Comp_GR=47
+
+The gate of a plugin that has a module for each section has Shp_GR in the same way.
+They are no controls: they only tell the meter where to read. A map that has none
+leaves the question to the plugin, and so does an index that the plugin has no
+parameter for, which is the case of an older version of it. Lumina Channel Strip
+has the parameter, Comp GR (dB), from version 1.1.
+
