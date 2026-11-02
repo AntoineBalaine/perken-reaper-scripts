@@ -26,9 +26,9 @@ so all four are wrong in the same way and each is a one-line-per-entry fix.
 Two judgement calls in those maps are also worth a second opinion, and both are
 commented where they occur:
 
-- EQ (x42-fil4): Eq_hp_shape and Eq_lp_shape are on the Low Shelf Enable and
-  High Shelf Enable rather than on the filter resonances, because on the
-  hardware those buttons switch the LF and HF bands between shelf and bell.
+- EQ (x42-fil4): Eq_hp_shape and Eq_lp_shape are on the High Shelf Enable and
+  Low Shelf Enable, in that order, rather than on the filter resonances, because
+  on the hardware those buttons switch the HF and LF bands between shelf and bell.
 - Gate (ZamGateX2): Shp_sustain is on Max Gate Close, as the nearest
   continuous analogue to how far the gate closes, and Shp_hard_gate is on the
   Gate/Duck mode switch because it is a button on the hardware.
