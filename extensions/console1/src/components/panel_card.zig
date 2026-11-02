@@ -7,6 +7,7 @@ const imgui = @import("reaper_imgui");
 const panel_theme = @import("panel_theme");
 const module_plate = @import("module_plate.zig");
 const c1_theme = @import("../theme/c1_theme.zig");
+const combo_style = @import("combo_style.zig");
 
 /// The space that a card takes around its rows besides what the plate gives it: the padding of the face on its two sides.
 const face_padding = 12.0;
@@ -94,43 +95,56 @@ pub fn row(ctx: imgui.ContextPtr, label: [:0]const u8, is_menu: bool, is_cursor:
     return clicked;
 }
 
-/// Where the pieces of the tag of a row go, from the right edge of the row.
+/// Where the button of a row goes, from the right edge of the row.
 pub const TagLayout = struct {
-    /// The left edge of the check, which is drawn before the text when the row is checked.
-    check_x: f64,
+    /// The left and the right edges of the button, which is also the area that answers a click as the button does.
+    min_x: f64,
+    max_x: f64,
     text_x: f64,
-    /// The left edge of the area that answers a click as the tag does: the check and the text.
-    hit_min_x: f64,
 };
 
-/// The width of the check mark that comes before the tag.
-const check_width = 10.0;
 const tag_margin = 8.0;
-const tag_gap = 4.0;
+const tag_padding_x = 8.0;
+/// The room that the button leaves above and under it in the row, so that it does not touch the rows next to it.
+const tag_inset_y = 2.0;
+const tag_rounding = 3.0;
 
-/// Places the tag of a row at its right edge. Because the check comes before the text, a checked row has a wider area that
-/// answers as the tag, so that a click on the check changes the default as well.
-pub fn tagLayout(row_max_x: f64, text_width: f64, checked: bool) TagLayout {
-    const text_x = row_max_x - tag_margin - text_width;
-    const check_x = text_x - tag_gap - check_width;
+/// Places the button of a row at its right edge, wide enough for its text and its padding.
+pub fn tagLayout(row_max_x: f64, text_width: f64) TagLayout {
+    const max_x = row_max_x - tag_margin;
+    const min_x = max_x - text_width - 2 * tag_padding_x;
+    return .{ .min_x = min_x, .max_x = max_x, .text_x = min_x + tag_padding_x };
+}
+
+/// The colors of the button of a row.
+pub const TagStyle = struct { fill: c_int, border: c_int, text: c_int };
+
+/// The colors of the button of a row for each of its states: dark and outlined when it is at rest, lit by the mouse over it, and
+/// filled with the color of its text when it is active, which is the state of the button of the row that is the default.
+pub fn tagStyle(color: c_int, active: bool, hovered: bool) TagStyle {
+    if (active) return .{
+        .fill = combo_style.withAlpha(color, 0x66),
+        .border = combo_style.withAlpha(color, 0xFF),
+        .text = combo_style.withAlpha(color, 0xFF),
+    };
     return .{
-        .check_x = check_x,
-        .text_x = text_x,
-        .hit_min_x = (if (checked) check_x else text_x) - tag_gap,
+        .fill = if (hovered) panel_theme.frame_bg_hover else panel_theme.frame_bg,
+        .border = combo_style.withAlpha(color, if (hovered) 0xFF else 0x80),
+        .text = color,
     };
 }
 
 /// What a click on a row with a tag was on.
 pub const TagClick = enum { none, row, tag };
 
-/// A row of a list that has a tag at its right edge, as a button of its own: a click on the tag is reported apart from a click on
-/// the rest of the row. The tag is drawn in `tag_color`, and a check comes before it when the row is `checked`.
+/// A row of a list that has a button over its right edge: a click on the button is reported apart from a click on the rest of the
+/// row. The button is drawn in `tag_color`, and it has its active colors when the row is `active`.
 pub fn rowWithTag(
     ctx: imgui.ContextPtr,
     label: [:0]const u8,
     tag: [:0]const u8,
     tag_color: c_int,
-    checked: bool,
+    active: bool,
     is_cursor: bool,
     scroll_changed: ?*bool,
 ) !TagClick {
@@ -144,17 +158,15 @@ pub fn rowWithTag(
     var text_w: f64 = undefined;
     var text_h: f64 = undefined;
     try imgui.CalcTextSize(.{ ctx, tag, &text_w, &text_h });
-    const layout = tagLayout(x2, text_w, checked);
-    const cy = (y1 + y2) / 2;
+    const layout = tagLayout(x2, text_w);
+    const over_tag = try imgui.IsMouseHoveringRect(.{ ctx, layout.min_x, y1, layout.max_x, y2, null });
+    const style = tagStyle(tag_color, active, over_tag);
     const dl = try imgui.GetWindowDrawList(.{ctx});
-    if (checked) {
-        // Because the check is drawn with two lines, it does not depend on the font having the glyph.
-        try imgui.DrawList_AddLine(.{ dl, layout.check_x, cy, layout.check_x + 3, cy + 3.5, tag_color, 1.6 });
-        try imgui.DrawList_AddLine(.{ dl, layout.check_x + 3, cy + 3.5, layout.check_x + 9, cy - 4, tag_color, 1.6 });
-    }
-    try imgui.DrawList_AddText(.{ dl, layout.text_x, cy - text_h / 2, tag_color, tag });
+    // Because the button is drawn after the row, it is over the row, and over the wash of the cursor.
+    try imgui.DrawList_AddRectFilled(.{ dl, layout.min_x, y1 + tag_inset_y, layout.max_x, y2 - tag_inset_y, style.fill, tag_rounding });
+    try imgui.DrawList_AddRect(.{ dl, layout.min_x, y1 + tag_inset_y, layout.max_x, y2 - tag_inset_y, style.border, tag_rounding, null, 1 });
+    try imgui.DrawList_AddText(.{ dl, layout.text_x, (y1 + y2) / 2 - text_h / 2, style.text, tag });
     if (!clicked) return .none;
-    const over_tag = try imgui.IsMouseHoveringRect(.{ ctx, layout.hit_min_x, y1, x2, y2, null });
     return if (over_tag) .tag else .row;
 }
 

@@ -1,5 +1,20 @@
 const imgui = @import("reaper_imgui");
 const Knobs = @import("knob");
+const ModulesList = @import("statemachine.zig").ModulesList;
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
+
+/// The name of a module as the screens write it, spelled out, instead of the abbreviation that the tag of the module has.
+pub fn moduleName(translations: *const TranslationStore, module: ModulesList) [:0]const u8 {
+    return tr(translations, switch (module) {
+        .INPUT => .mapping_module_input,
+        .GATE => .mapping_module_gate,
+        .EQ => .mapping_module_eq,
+        .COMP => .mapping_module_comp,
+        .OUTPT => .mapping_module_output,
+        .STRIP => .mapping_module_strip,
+    });
+}
 
 pub fn drawInvertedSlctblColors(
     ctx: imgui.ContextPtr,

@@ -10,6 +10,7 @@ const MappingPanelAction = mapping_actions.MappingPanelAction;
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const card_kit = @import("components/panel_card.zig");
+const ui_helpers = @import("ui_helpers.zig");
 const widgets = @import("components/widgets.zig");
 const panel_theme = @import("panel_theme");
 
@@ -48,7 +49,7 @@ pub fn drawModuleSelectionPanel(
             const display_text = if (browse_state.available_modules[i]) |cached|
                 cached
             else
-                std.mem.printSentinel(&fx_name_buf, "{s}    {s}", .{ @tagName(module), tr(translations, .mapping_no_fx) }, 0) catch @tagName(module);
+                std.mem.printSentinel(&fx_name_buf, "{s}    {s}", .{ ui_helpers.moduleName(translations, module), tr(translations, .mapping_no_fx) }, 0) catch ui_helpers.moduleName(translations, module);
 
             if (try card_kit.row(ctx, display_text, false, browse_state.selected_module == module, null)) {
                 rv = .{ .enter_assign = module };

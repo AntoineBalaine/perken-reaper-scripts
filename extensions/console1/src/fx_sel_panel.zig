@@ -214,9 +214,9 @@ fn drawLevelRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
     }
 }
 
-/// The rows of the mappings of one plugin. Each row has a "default" button at its right edge, in the accent color, which makes the
-/// map the one that the plugin starts from, and the default map has a check before it. Because the controller reaches the button
-/// with shift, the accent is lit while shift is held.
+/// The rows of the mappings of one plugin. Each row has a "set as default" button over its right edge, in the accent color, which
+/// makes the map the one that the plugin starts from, and the button of the default map is drawn active. Because the controller
+/// reaches the button with shift, the accent is lit while shift is held.
 fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(FxSelSubMode, "select_mapping")) !void {
     const mapping_entries = list.mappings.get(sel.fx_string_pool_offset) orelse return;
     const default_label = tr(list.translations, .fx_sel_default_map);
@@ -281,7 +281,7 @@ pub fn ModulePopup(
             if (try imgui.ArrowButton(.{ ctx, "##fx_back", imgui.Dir_Left })) rv = .back;
             try imgui.SameLine(.{ctx});
         }
-        try card_kit.drawEngraved(ctx, @tagName(module));
+        try card_kit.drawEngraved(ctx, ui_helpers.moduleName(translations, module));
 
         // The search is next to the name of the window. Only the main browser has it, because the choice of the default plugin
         // of a module is among the plugins that have a mapping, and a search among all of them would not be one of those.

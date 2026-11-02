@@ -11,6 +11,7 @@ const tr = @import("translations.zig").tr;
 const substituteFirst = @import("translations.zig").substituteFirst;
 const safePrint = @import("utils").safePrint;
 const card_kit = @import("components/panel_card.zig");
+const ui_helpers = @import("ui_helpers.zig");
 const widgets = @import("components/widgets.zig");
 const panel_theme = @import("panel_theme");
 
@@ -28,7 +29,7 @@ fn drawModuleRows(ctx: imgui.ContextPtr, state: *PresetsState, translations: *Tr
         const has_fx = row.fx_index != null;
         // Because the id that follows the "##" is not drawn, the text of the row is only what comes before it.
         const label = std.mem.printSentinel(&buffer, "{s}    {s}##row{d}", .{
-            @tagName(row.module),
+            ui_helpers.moduleName(translations, row.module),
             if (has_fx) row.fx_name else tr(translations, .mapping_no_fx),
             index,
         }, 0) catch continue;
@@ -96,7 +97,7 @@ pub fn drawPresetsPanel(
         .presets => {
             // The card is labelled with the module and the FX whose presets it lists.
             const chosen = state.rows[state.module_cursor];
-            const title = safePrint(&title_buf, "{s}    {s}", .{ @tagName(chosen.module), chosen.fx_name });
+            const title = safePrint(&title_buf, "{s}    {s}", .{ ui_helpers.moduleName(translations, chosen.module), chosen.fx_name });
             const card = try card_kit.beginCard(ctx, "##presets_card_presets", title, room);
             if (card.visible) {
                 if (try drawPresetRows(ctx, state)) |picked| rv = picked;

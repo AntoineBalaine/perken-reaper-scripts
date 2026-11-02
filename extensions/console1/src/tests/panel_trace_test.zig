@@ -469,7 +469,7 @@ test "the keys of the computer move through the maps of a plugin, choose one wit
     try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .back);
 }
 
-test "each map of the selector has a default button at its right, and the default map has a check before it" {
+test "each map of the selector has a button at its right to set it as the default" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -495,14 +495,14 @@ test "each map of the selector has a default button at its right, and the defaul
     var ui = builder.build();
     var style_mgr = builder.buildStyleManager();
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
-    const lines_without_default = countTrace(&mock, .draw_list_add_line);
+    const rects_with_two_maps = countTrace(&mock, .draw_list_add_rect);
 
-    // Because the check is two lines, a map that is the default adds two to what is drawn.
-    builder.state.fx_sel.sub_mode.select_mapping.default_map = "punchy";
+    // Because each row has a button with its border, a third map adds one border to what is drawn.
+    try builder.mappings_list.registerPath(.COMP, fx_name, "gentle", "/maps/COMP/reacomp/gentle.ini");
     mock.resetTrace();
     ui = builder.build();
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
-    try testing.expectEqual(lines_without_default + 2, countTrace(&mock, .draw_list_add_line));
+    try testing.expectEqual(rects_with_two_maps + 1, countTrace(&mock, .draw_list_add_rect));
 
     // A click on the row chooses the map.
     mock.selectItem("punchy");
@@ -529,17 +529,37 @@ fn countTrace(mock: *const MockImGui, kind: anytype) usize {
     return count;
 }
 
-test "the pieces of the default button of a row are placed from its right edge" {
+test "the button of a row is placed from its right edge, and the button of the default map has the active colors" {
     const panel_card = @import("../components/panel_card.zig");
-    // Without a check, the area that answers is the text and its margin.
-    const plain = panel_card.tagLayout(200, 40, false);
-    try testing.expectApproxEqAbs(@as(f64, 152), plain.text_x, 0.001);
-    try testing.expectApproxEqAbs(@as(f64, 148), plain.hit_min_x, 0.001);
-    // Because the check is before the text, a checked row has a wider area, which starts before the check.
-    const checked = panel_card.tagLayout(200, 40, true);
-    try testing.expectApproxEqAbs(@as(f64, 152), checked.text_x, 0.001);
-    try testing.expectApproxEqAbs(@as(f64, 138), checked.check_x, 0.001);
-    try testing.expectApproxEqAbs(@as(f64, 134), checked.hit_min_x, 0.001);
+    // Because the button holds its text and its padding, it ends at the margin of the row and starts a padding before the text.
+    const layout = panel_card.tagLayout(200, 40);
+    try testing.expectApproxEqAbs(@as(f64, 192), layout.max_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 136), layout.min_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 144), layout.text_x, 0.001);
+
+    // Because the active button is filled with the color of its text, it differs from the one at rest and from the one that the
+    // mouse is over, and its fill is not the dark of those.
+    const accent: c_int = @bitCast(@as(u32, 0xF0A030B0));
+    const at_rest = panel_card.tagStyle(accent, false, false);
+    const hovered = panel_card.tagStyle(accent, false, true);
+    const active = panel_card.tagStyle(accent, true, false);
+    try testing.expect(active.fill != at_rest.fill);
+    try testing.expect(active.fill != hovered.fill);
+    try testing.expect(hovered.fill != at_rest.fill);
+    try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.text)));
+    try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.border)));
+}
+
+test "the screens spell out the name of each module, and none is the abbreviation that its tag has" {
+    const ui_helpers = @import("../ui_helpers.zig");
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    try testing.expectEqualStrings("INPUT", ui_helpers.moduleName(&builder.translations, .INPUT));
+    try testing.expectEqualStrings("GATE", ui_helpers.moduleName(&builder.translations, .GATE));
+    try testing.expectEqualStrings("EQ", ui_helpers.moduleName(&builder.translations, .EQ));
+    try testing.expectEqualStrings("COMPRESSOR", ui_helpers.moduleName(&builder.translations, .COMP));
+    try testing.expectEqualStrings("OUTPUT", ui_helpers.moduleName(&builder.translations, .OUTPT));
+    try testing.expectEqualStrings("CHANNEL STRIP", ui_helpers.moduleName(&builder.translations, .STRIP));
 }
 
 test "the FX controls of a channel strip are drawn as one card, and every module is still there" {
