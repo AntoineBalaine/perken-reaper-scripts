@@ -838,3 +838,26 @@ test "a button that was pressed shows its value like a knob does: on or off for 
     fx_ctrl.now_ms = 1000 + @import("../fx_ctrl_state.zig").value_popup_ms;
     try testing.expect(fx_ctrl.knobPopupVisible(.Out_mute));
 }
+
+test "a knob of the FX controls that the map does not assign is not mapped, except the volume and the pan, and the cut knobs follow the filters key" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
+    // Because the state frees none of its maps itself, an arena owns them.
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    var state: FxCtrlState = .init(arena.allocator());
+
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Comp_Ratio));
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Out_Vol));
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Out_Pan));
+
+    try state.track_state.forward_map.put(arena.allocator(), .Comp_Ratio, .{ .fx_index = 0, .param_index = 1 });
+    try state.track_state.forward_map.put(arena.allocator(), .Comp_HiCut, .{ .fx_index = 0, .param_index = 17 });
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Comp_Ratio));
+
+    // Because the cut knobs of the input are the compressor's while the filters go to it, one has a parameter and the other does not.
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Inpt_HiCut));
+    state.filter_to_comp = true;
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Inpt_HiCut));
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Inpt_LoCut));
+}

@@ -360,6 +360,12 @@ fn drawKnob(
         shown.edit_text = fx_state.track_state.forward_map.get(known) != null;
         // The cap of a knob that carries an icon has no pointer, as the icon takes its place.
         shown.no_pointer = mode == .transport and !flags.disabled and transportKnobIcon(known) != null;
+        // Because a knob that the map does not assign has nothing to drive, it is disabled in the FX controls. The volume and the
+        // pan are the exceptions, as they drive the track when no parameter is assigned to them.
+        if (mode == .fx_ctrl and !isMapped(fx_state, known)) {
+            shown.disabled = true;
+            shown.no_val_display = true;
+        }
     }
     // The widget is as wide as it is given, and at least as wide as the knob, so the icon can be placed before it is drawn.
     var origin: Knobs.Position = .{ .x = undefined, .y = undefined };
@@ -371,6 +377,20 @@ fn drawKnob(
         }
     }
     return result;
+}
+
+/// Whether a knob of the FX controls has a parameter to drive. While the filters go to the compressor, the two cut knobs of the input
+/// are the ones of the compressor, and the volume and the pan always have the track.
+pub fn isMapped(fx_state: *const FxCtrlState, cc: c1.CCs) bool {
+    const effective: c1.CCs = if (fx_state.filter_to_comp) switch (cc) {
+        .Inpt_HiCut => .Comp_HiCut,
+        .Inpt_LoCut => .Comp_LoCut,
+        else => cc,
+    } else cc;
+    return switch (effective) {
+        .Out_Vol, .Out_Pan => true,
+        else => fx_state.track_state.forward_map.get(effective) != null,
+    };
 }
 
 /// The icon of the knobs of the transport mode that have one, which are the ones of the MFT.
