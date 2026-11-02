@@ -115,6 +115,26 @@ pub fn lookupPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, ma
     return null;
 }
 
+/// The maps that an FX has, found by its name.
+pub const FxEntry = struct {
+    /// The key of the FX in the list of its module, which the selector of maps reads its rows from.
+    fx_offset: StringPool.StringRef,
+    maps: []const MapEntry,
+};
+
+/// Looks up the maps of an FX by its name. Because the StringPool does not deduplicate, the names are compared by value, as
+/// `lookupPath` does, and the key that is returned is the one under which the maps are stored.
+pub fn findFx(self: *@This(), module: ModulesList, fx_name: []const u8) ?FxEntry {
+    const mod_map = self.list.getPtr(module);
+    var iter = mod_map.iterator();
+    while (iter.next()) |map_entry| {
+        if (std.mem.eql(u8, self.strings.get(map_entry.key_ptr.*), fx_name)) {
+            return .{ .fx_offset = map_entry.key_ptr.*, .maps = map_entry.value_ptr.items };
+        }
+    }
+    return null;
+}
+
 pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8, file_path: [:0]const u8) !void {
     const fx_offset = try self.strings.intern(self.allocator, fx_name);
     const name_offset = try self.strings.intern(self.allocator, mapping_name);

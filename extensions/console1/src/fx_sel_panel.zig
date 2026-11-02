@@ -222,6 +222,15 @@ fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(Fx
     }
 }
 
+/// What the keys of the computer do in the maps of a plugin: the arrows move the cursor by one row, and Enter chooses the map that
+/// it is on. Escape steps back, and is read where the search would be.
+fn mappingKeyAction(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) return .{ .scroll_by = 1 };
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) return .{ .scroll_by = -1 };
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Enter }) or try imgui.IsKeyPressed(.{ ctx, imgui.Key_KeypadEnter })) return .confirm;
+    return null;
+}
+
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
@@ -427,6 +436,9 @@ pub fn ModulePopup(
                 const card = try card_kit.beginCard(ctx, "##fx_card_mappings", tr(translations, .fx_sel_mappings), @max(room - overhead, row_height * 3));
                 if (card.visible) try drawMappingRows(ctx, &list, sel);
                 try card_kit.endCard(ctx, card.plate);
+                // Because the cursor of the maps is kept in the state, the keys of the computer ask the state to move it or to
+                // confirm it, as the controller does. A click on a row, which is already in the result, has the priority.
+                if (list.rv == null) list.rv = try mappingKeyAction(ctx);
             },
         }
         if (escape_closes) rv = .close_browser;

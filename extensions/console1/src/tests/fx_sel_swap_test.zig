@@ -400,3 +400,38 @@ test "the volume and the pan knobs drive the track unless a parameter is assigne
     const handled = @import("../csurf/midi_events_fxctrl.zig").shiftFunction(&Globals.instance, .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = true } });
     try testing.expect(!handled);
 }
+
+test "a plugin that has several maps opens the selector of maps when it is chosen without one, and goes back to the list" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    const track = setupFullChain(globals);
+    const fx_name = "VST: ReaComp (Cockos)";
+    try globals.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    try globals.mappings_list.registerPath(.COMP, fx_name, "punchy", "/maps/COMP/reacomp/punchy.ini");
+
+    globals.state.fx_sel.current_category = .COMP;
+    actions.dispatch(globals, .{ .change_mode = .fx_sel });
+    const count_before = reaper.TrackFX_GetCount(track);
+
+    // Because the plugin comes with no map, and has two, the selector opens and nothing is inserted.
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } });
+    try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
+    try testing.expectEqualStrings(fx_name, globals.state.fx_sel.sub_mode.select_mapping.fx_name);
+    try testing.expectEqual(count_before, reaper.TrackFX_GetCount(track));
+
+    // Because a step back leaves the maps of the plugin, the list is shown again.
+    actions.dispatch(globals, .{ .fx_sel = .back });
+    try testing.expect(globals.state.fx_sel.sub_mode == .browse_fx);
+}

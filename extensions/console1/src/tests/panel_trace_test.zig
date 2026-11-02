@@ -392,6 +392,70 @@ test "Escape closes the browser when the search does not have the keyboard" {
     try testing.expect(with_text.fx_sel == .close_browser);
 }
 
+test "the keys of the computer move through the maps of a plugin, choose one with Enter and step back with Escape" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    // Because the mock does not give the keys numbers, each one that is used here gets its own, and they are put back after.
+    const saved_keys = [_]c_int{ imgui.Key_Enter, imgui.Key_KeypadEnter, imgui.Key_DownArrow, imgui.Key_UpArrow, imgui.Key_Escape };
+    imgui.Key_Enter = 101;
+    imgui.Key_KeypadEnter = 102;
+    imgui.Key_DownArrow = 103;
+    imgui.Key_UpArrow = 104;
+    imgui.Key_Escape = 107;
+    defer {
+        imgui.Key_Enter = saved_keys[0];
+        imgui.Key_KeypadEnter = saved_keys[1];
+        imgui.Key_DownArrow = saved_keys[2];
+        imgui.Key_UpArrow = saved_keys[3];
+        imgui.Key_Escape = saved_keys[4];
+    }
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    try builder.mappings_list.registerPath(.COMP, fx_name, "punchy", "/maps/COMP/reacomp/punchy.ini");
+    const found = builder.mappings_list.findFx(.COMP, fx_name).?;
+    builder.state.fx_sel.current_category = .COMP;
+    builder.state.fx_sel.sub_mode = .{ .select_mapping = .{
+        .fx_name = builder.mappings_list.strings.get(found.fx_offset),
+        .fx_string_pool_offset = found.fx_offset,
+    } };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    // Without a key, the maps are drawn and nothing is asked.
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)) == null);
+    try testing.expect(mock.containsWidget(.begin_child, "##fx_card_mappings"));
+
+    mock.pressKey(imgui.Key_DownArrow);
+    ui = builder.build();
+    try testing.expectEqual(@as(i8, 1), (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_UpArrow);
+    ui = builder.build();
+    try testing.expectEqual(@as(i8, -1), (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .confirm);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Escape);
+    ui = builder.build();
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .back);
+}
+
 test "the FX controls of a channel strip are drawn as one card, and every module is still there" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();

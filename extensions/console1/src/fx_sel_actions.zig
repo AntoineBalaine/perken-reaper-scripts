@@ -69,6 +69,21 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 return;
             }
 
+            // Because a plugin that comes from a list, from the recent menu or from the search carries no map, and because the
+            // store would then take its preferred map without asking, a plugin that has several maps opens the selector of maps
+            // instead. The map that is chosen there comes back here with its name, so this does not repeat.
+            if (plugin.mapping_name == null) {
+                if (globals.mappings_list.findFx(current_module, plugin.name)) |found| {
+                    if (found.maps.len > 1) {
+                        globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
+                            .fx_name = globals.mappings_list.strings.get(found.fx_offset),
+                            .fx_string_pool_offset = found.fx_offset,
+                        } };
+                        return;
+                    }
+                }
+            }
+
             if (current_module == .STRIP) {
                 handleStripPlugin(globals, plugin.name, plugin.mapping_name);
                 return;
@@ -95,6 +110,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             var loaded_mapping: ?MapStore.TaggedMapping = null;
             if (plugin.mapping_name) |map_name| {
                 loaded_mapping = globals.map_store.getMap(io, plugin.name, current_module, map_name, &globals.mappings_list) catch null;
+                if (loaded_mapping != null) preferMap(globals, plugin.name, current_module, map_name);
             } else {
                 loaded_mapping = globals.map_store.get(io, plugin.name, current_module, &globals.mappings_list);
             }
@@ -326,6 +342,16 @@ fn leaveBrowser(globals: *Globals, module: ModulesList) void {
     dispatch(globals, .{ .change_mode = .fx_ctrl });
 }
 
+/// Makes the map that was chosen the one that the store gives for the plugin. Because the store keeps the first map that it loaded
+/// for a plugin as its preferred one, which is its default map, a map that was chosen by name would otherwise be loaded and then
+/// ignored when the track is validated.
+fn preferMap(globals: *Globals, fx_name: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) void {
+    const path = globals.mappings_list.lookupPath(module, fx_name, mapping_name) orelse return;
+    globals.map_store.setPreferredMapping(fx_name, module, path) catch |err| {
+        log.err("Failed to prefer the map {s} of {s}: {s}", .{ mapping_name, fx_name, @errorName(err) });
+    };
+}
+
 /// How many plugins the recent menu keeps.
 const recent_capacity = 20;
 
@@ -416,7 +442,9 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
 
     // Load the mapping first so that fx_preset is available for preset application
     if (mapping_name) |map_name| {
-        _ = globals.map_store.getMap(io, name, .STRIP, map_name, &globals.mappings_list) catch {};
+        if (globals.map_store.getMap(io, name, .STRIP, map_name, &globals.mappings_list)) |_| {
+            preferMap(globals, name, .STRIP, map_name);
+        } else |_| {}
     }
 
     // Apply associated preset after the mapping has been loaded
