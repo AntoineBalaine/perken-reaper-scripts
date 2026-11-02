@@ -434,7 +434,10 @@ fn tryInsertDefaultStrip(
     if (!preferences.single_fx_mode) return false;
 
     const new_idx = pReaper.TrackFX_AddByName(.{ mediaTrack, strip_fx_name, false, -1 });
-    if (new_idx < 0) return false;
+    if (new_idx < 0) {
+        log.warn("The default channel strip '{s}' could not be added, so the track gets its modules", .{strip_fx_name});
+        return false;
+    }
 
     var name_buf: [512:0]u8 = undefined;
     const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-X)", .{strip_fx_name}, 0) catch return false;
