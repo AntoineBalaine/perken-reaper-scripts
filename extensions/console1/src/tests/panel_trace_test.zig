@@ -469,6 +469,79 @@ test "the keys of the computer move through the maps of a plugin, choose one wit
     try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .back);
 }
 
+test "each map of the selector has a default button at its right, and the default map has a check before it" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    try builder.mappings_list.registerPath(.COMP, fx_name, "punchy", "/maps/COMP/reacomp/punchy.ini");
+    const found = builder.mappings_list.findFx(.COMP, fx_name).?;
+    builder.state.fx_sel.current_category = .COMP;
+    builder.state.fx_sel.sub_mode = .{ .select_mapping = .{
+        .fx_name = builder.mappings_list.strings.get(found.fx_offset),
+        .fx_string_pool_offset = found.fx_offset,
+    } };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    const lines_without_default = countTrace(&mock, .draw_list_add_line);
+
+    // Because the check is two lines, a map that is the default adds two to what is drawn.
+    builder.state.fx_sel.sub_mode.select_mapping.default_map = "punchy";
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(lines_without_default + 2, countTrace(&mock, .draw_list_add_line));
+
+    // A click on the row chooses the map.
+    mock.selectItem("punchy");
+    ui = builder.build();
+    const chosen = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin;
+    try testing.expectEqualStrings("punchy", chosen.mapping_name.?);
+
+    // A click with the mouse over the button makes it the default instead. In the mock, the rows are one point wide, and the
+    // button is the room at the left of that point.
+    mock.mouse_x = -30;
+    mock.mouse_y = 0;
+    mock.selectItem("punchy");
+    ui = builder.build();
+    const set = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.set_default_map;
+    try testing.expectEqualStrings("punchy", set.mapping_name);
+    try testing.expectEqualStrings(fx_name, set.name);
+}
+
+fn countTrace(mock: *const MockImGui, kind: anytype) usize {
+    var count: usize = 0;
+    for (mock.trace_list.items) |entry| {
+        if (entry.kind == kind) count += 1;
+    }
+    return count;
+}
+
+test "the pieces of the default button of a row are placed from its right edge" {
+    const panel_card = @import("../components/panel_card.zig");
+    // Without a check, the area that answers is the text and its margin.
+    const plain = panel_card.tagLayout(200, 40, false);
+    try testing.expectApproxEqAbs(@as(f64, 152), plain.text_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 148), plain.hit_min_x, 0.001);
+    // Because the check is before the text, a checked row has a wider area, which starts before the check.
+    const checked = panel_card.tagLayout(200, 40, true);
+    try testing.expectApproxEqAbs(@as(f64, 152), checked.text_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 138), checked.check_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 134), checked.hit_min_x, 0.001);
+}
+
 test "the FX controls of a channel strip are drawn as one card, and every module is still there" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();

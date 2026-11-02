@@ -63,6 +63,8 @@ pub const FxSelActions = union(enum) {
     fx_chain: struct { path: []const u8 },
     track_template: struct { path: [:0]const u8 },
     plugin: struct { name: [:0]const u8, mapping_name: ?[:0]const u8 },
+    /// Makes a map the default of a plugin, from the selector of maps, which stays open.
+    set_default_map: struct { name: [:0]const u8, mapping_name: [:0]const u8 },
     close_browser: void,
     rescan: void,
 };

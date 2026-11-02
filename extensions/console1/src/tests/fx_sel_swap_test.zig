@@ -435,3 +435,72 @@ test "a plugin that has several maps opens the selector of maps when it is chose
     actions.dispatch(globals, .{ .fx_sel = .back });
     try testing.expect(globals.state.fx_sel.sub_mode == .browse_fx);
 }
+
+test "the default button makes a map the default of the plugin and writes it to the disk, and shift with confirm does the same, with the selector open" {
+    const DefaultMaps = @import("../default_maps.zig");
+    const io = Globals.hostIo();
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    const arena = model_arena.allocator();
+    var reaper_teardown = models.reaper.setupTestModel(arena, null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+    const actions = @import("../actions.zig");
+
+    // Because the choice is written to the folder of the store, and the maps are read from files, both are in a folder of the test.
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
+    try tmp_dir.dir.createDirPath(io, "maps/COMP/reacomp");
+    inline for (.{ .{ "default", "1" }, .{ "punchy", "2" } }) |map| {
+        const file = try tmp_dir.dir.createFile(io, "maps/COMP/reacomp/" ++ map[0] ++ ".ini", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, "version=1\nmodule=COMP\nfx_name=VST: ReaComp (Cockos)\nComp_Attack=" ++ map[1] ++ "\n");
+    }
+    var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir = dir_buf[0..try tmp_dir.dir.realPathFile(io, ".", &dir_buf)];
+    globals.map_store.controller_dir = try arena.dupeSentinel(u8, dir, 0);
+
+    const fx_name = "VST: ReaComp (Cockos)";
+    inline for (.{ "default", "punchy" }) |map_name| {
+        var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+        const path = try std.mem.printSentinel(&path_buf, "{s}/maps/COMP/reacomp/{s}.ini", .{ dir, map_name }, 0);
+        try globals.mappings_list.registerPath(.COMP, fx_name, map_name, path);
+    }
+
+    const track = setupFullChain(globals);
+    globals.state.fx_sel.current_category = .COMP;
+    actions.dispatch(globals, .{ .change_mode = .fx_sel });
+    actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } });
+    try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
+    try testing.expectEqual(@as(?[:0]const u8, null), globals.state.fx_sel.sub_mode.select_mapping.default_map);
+    const count_before = reaper.TrackFX_GetCount(track);
+
+    // The button of a row makes its map the default: the selector stays open, the check moves, and the choice is on the disk.
+    actions.dispatch(globals, .{ .fx_sel = .{ .set_default_map = .{ .name = fx_name, .mapping_name = "punchy" } } });
+    try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
+    try testing.expectEqualStrings("punchy", globals.state.fx_sel.sub_mode.select_mapping.default_map.?);
+    try testing.expect(std.mem.endsWith(u8, globals.map_store.getPreferredMapping(fx_name, .COMP).?, "punchy.ini"));
+    var reloaded: DefaultMaps = .empty;
+    reloaded.load(arena, io, dir);
+    try testing.expectEqualStrings("punchy", reloaded.get(.COMP, fx_name).?);
+
+    // Because the controller reaches the button with shift, confirming the first row with shift held makes it the default, and
+    // nothing is inserted.
+    globals.state.fx_ctrl.shift_held = true;
+    globals.state.fx_sel.sub_mode.select_mapping.scroll_position_rel = 0;
+    actions.dispatch(globals, .{ .fx_sel = .confirm });
+    try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
+    try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
+    try testing.expectEqualStrings("default", globals.state.fx_sel.sub_mode.select_mapping.default_map.?);
+    try testing.expectEqual(count_before, reaper.TrackFX_GetCount(track));
+    var reloaded_again: DefaultMaps = .empty;
+    reloaded_again.load(arena, io, dir);
+    try testing.expectEqualStrings("default", reloaded_again.get(.COMP, fx_name).?);
+}

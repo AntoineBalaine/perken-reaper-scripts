@@ -94,6 +94,70 @@ pub fn row(ctx: imgui.ContextPtr, label: [:0]const u8, is_menu: bool, is_cursor:
     return clicked;
 }
 
+/// Where the pieces of the tag of a row go, from the right edge of the row.
+pub const TagLayout = struct {
+    /// The left edge of the check, which is drawn before the text when the row is checked.
+    check_x: f64,
+    text_x: f64,
+    /// The left edge of the area that answers a click as the tag does: the check and the text.
+    hit_min_x: f64,
+};
+
+/// The width of the check mark that comes before the tag.
+const check_width = 10.0;
+const tag_margin = 8.0;
+const tag_gap = 4.0;
+
+/// Places the tag of a row at its right edge. Because the check comes before the text, a checked row has a wider area that
+/// answers as the tag, so that a click on the check changes the default as well.
+pub fn tagLayout(row_max_x: f64, text_width: f64, checked: bool) TagLayout {
+    const text_x = row_max_x - tag_margin - text_width;
+    const check_x = text_x - tag_gap - check_width;
+    return .{
+        .check_x = check_x,
+        .text_x = text_x,
+        .hit_min_x = (if (checked) check_x else text_x) - tag_gap,
+    };
+}
+
+/// What a click on a row with a tag was on.
+pub const TagClick = enum { none, row, tag };
+
+/// A row of a list that has a tag at its right edge, as a button of its own: a click on the tag is reported apart from a click on
+/// the rest of the row. The tag is drawn in `tag_color`, and a check comes before it when the row is `checked`.
+pub fn rowWithTag(
+    ctx: imgui.ContextPtr,
+    label: [:0]const u8,
+    tag: [:0]const u8,
+    tag_color: c_int,
+    checked: bool,
+    is_cursor: bool,
+    scroll_changed: ?*bool,
+) !TagClick {
+    const clicked = try row(ctx, label, false, is_cursor, scroll_changed);
+    var x1: f64 = undefined;
+    var y1: f64 = undefined;
+    var x2: f64 = undefined;
+    var y2: f64 = undefined;
+    try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
+    try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
+    var text_w: f64 = undefined;
+    var text_h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, tag, &text_w, &text_h });
+    const layout = tagLayout(x2, text_w, checked);
+    const cy = (y1 + y2) / 2;
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    if (checked) {
+        // Because the check is drawn with two lines, it does not depend on the font having the glyph.
+        try imgui.DrawList_AddLine(.{ dl, layout.check_x, cy, layout.check_x + 3, cy + 3.5, tag_color, 1.6 });
+        try imgui.DrawList_AddLine(.{ dl, layout.check_x + 3, cy + 3.5, layout.check_x + 9, cy - 4, tag_color, 1.6 });
+    }
+    try imgui.DrawList_AddText(.{ dl, layout.text_x, cy - text_h / 2, tag_color, tag });
+    if (!clicked) return .none;
+    const over_tag = try imgui.IsMouseHoveringRect(.{ ctx, layout.hit_min_x, y1, x2, y2, null });
+    return if (over_tag) .tag else .row;
+}
+
 /// The pixels that a card takes around its rows: the room for its label, and its edges.
 pub fn cardOverhead(ctx: imgui.ContextPtr) !f64 {
     try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });

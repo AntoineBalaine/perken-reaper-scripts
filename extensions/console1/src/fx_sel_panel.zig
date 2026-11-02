@@ -5,6 +5,7 @@ const styles = @import("styles.zig");
 const fx_sel_actions = @import("action_types.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
+const ui_helpers = @import("ui_helpers.zig");
 const safePrint = @import("utils").safePrint;
 const UiState = @import("ui_state.zig").UiState;
 const FxSelSubMode = @import("statemachine.zig").FxSelSubMode;
@@ -147,6 +148,8 @@ const ListContext = struct {
     scroll_changed: ?*bool,
     /// What the user chose with the mouse.
     rv: ?fx_sel_actions.FxSelActions = null,
+    /// Whether shift is held, which lights the label of the alternative use of a row in the accent color.
+    shift_held: bool = false,
 };
 
 /// The rows of the plugins that have a mapping, which are the first rows of the first level.
@@ -211,13 +214,20 @@ fn drawLevelRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
     }
 }
 
-/// The rows of the mappings of one plugin.
+/// The rows of the mappings of one plugin. Each row has a "default" button at its right edge, in the accent color, which makes the
+/// map the one that the plugin starts from, and the default map has a check before it. Because the controller reaches the button
+/// with shift, the accent is lit while shift is held.
 fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(FxSelSubMode, "select_mapping")) !void {
     const mapping_entries = list.mappings.get(sel.fx_string_pool_offset) orelse return;
+    const default_label = tr(list.translations, .fx_sel_default_map);
+    const accent = ui_helpers.altColor(list.shift_held);
     for (mapping_entries.items, 0..) |map_entry, i| {
         const mapping_name = list.strings.get(map_entry.name_offset);
-        if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(mapping_name)), false, list.cursor == i, list.scroll_changed)) {
-            list.rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } };
+        const is_default = if (sel.default_map) |default_name| std.mem.eql(u8, default_name, mapping_name) else false;
+        switch (try card_kit.rowWithTag(ctx, @as([:0]const u8, @ptrCast(mapping_name)), default_label, accent, is_default, list.cursor == i, list.scroll_changed)) {
+            .none => {},
+            .row => list.rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } },
+            .tag => list.rv = .{ .set_default_map = .{ .name = sel.fx_name, .mapping_name = mapping_name } },
         }
     }
 }
@@ -343,6 +353,7 @@ pub fn ModulePopup(
             .translations = translations,
             .cursor = if (highlight) |hl| hl.current_index else null,
             .scroll_changed = if (highlight) |hl| hl.scroll_changed else null,
+            .shift_held = ui.shift_held,
         };
 
         // What the cards can share: the height under the header, less the line under the cards where the place of the

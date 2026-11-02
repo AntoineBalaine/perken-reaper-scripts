@@ -267,6 +267,7 @@ pub const TranslationKey = enum {
     fx_sel_browse,
     fx_sel_plugins,
     fx_sel_mappings,
+    fx_sel_default_map,
     fx_sel_tags_category,
     fx_sel_tags_developer,
 };
@@ -524,6 +525,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "fx_sel_browse", "Browse" },
     .{ "fx_sel_plugins", "Plugins" },
     .{ "fx_sel_mappings", "Mappings" },
+    .{ "fx_sel_default_map", "default" },
     .{ "fx_sel_tags_category", "category" },
     .{ "fx_sel_tags_developer", "developer" },
 });

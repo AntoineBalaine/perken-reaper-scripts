@@ -16,6 +16,7 @@ const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("mappings.zig");
 const fx_browser = @import("fx_browser.zig");
 const mapping_actions = @import("mapping_actions.zig");
+const StringPool = @import("string_pool").StringPool;
 const translate = @import("translations.zig").tr;
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
@@ -75,10 +76,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             if (plugin.mapping_name == null) {
                 if (globals.mappings_list.findFx(current_module, plugin.name)) |found| {
                     if (found.maps.len > 1) {
-                        globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
-                            .fx_name = globals.mappings_list.strings.get(found.fx_offset),
-                            .fx_string_pool_offset = found.fx_offset,
-                        } };
+                        openMapSelector(globals, current_module, globals.mappings_list.strings.get(found.fx_offset), found.fx_offset);
                         return;
                     }
                 }
@@ -239,10 +237,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                                 const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
                                 fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
                             } else {
-                                globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
-                                    .fx_name = fx_name,
-                                    .fx_string_pool_offset = fx_offset,
-                                } };
+                                openMapSelector(globals, category, fx_name, fx_offset);
                             }
                         },
                         .plugin => |name| fxSelActions(globals, .{ .plugin = .{ .name = name, .mapping_name = null } }),
@@ -264,6 +259,12 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                     const mapping_offsets = mappings.get(sel.fx_string_pool_offset) orelse return;
                     if (sel.scroll_position_rel >= mapping_offsets.items.len) return;
                     const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[sel.scroll_position_rel].name_offset);
+                    // Because the controller reaches the default button of a row with shift, confirming a row while shift is held
+                    // makes it the default, and the selector stays open, as a click on the button does.
+                    if (globals.unit.shiftHeld() or globals.state.fx_ctrl.shift_held) {
+                        fxSelActions(globals, .{ .set_default_map = .{ .name = sel.fx_name, .mapping_name = mapping_name } });
+                        return;
+                    }
                     fxSelActions(globals, .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } });
                 },
             }
@@ -327,12 +328,29 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         .select_fx => |fx_offset| {
             const fx_name = globals.mappings_list.strings.get(fx_offset);
-            globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
-                .fx_name = fx_name,
-                .fx_string_pool_offset = fx_offset,
-            } };
+            openMapSelector(globals, globals.state.fx_sel.current_category, fx_name, fx_offset);
+        },
+        .set_default_map => |chosen| {
+            const module = globals.state.fx_sel.current_category;
+            globals.map_store.setDefaultMap(io, module, chosen.name, chosen.mapping_name, &globals.mappings_list) catch |err| {
+                log.err("Failed to make {s} the default map of {s}: {s}", .{ chosen.mapping_name, chosen.name, @errorName(err) });
+            };
+            // Because the selector stays open, its check follows the default that the store now has.
+            switch (globals.state.fx_sel.sub_mode) {
+                .select_mapping => |*sel| sel.default_map = globals.map_store.default_maps.get(module, sel.fx_name),
+                .browse_fx => {},
+            }
         },
     }
+}
+
+/// Opens the selector of the maps of a plugin, with the default map of the plugin marked.
+fn openMapSelector(globals: *Globals, module: ModulesList, fx_name: [:0]const u8, fx_offset: StringPool.StringRef) void {
+    globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
+        .fx_name = fx_name,
+        .fx_string_pool_offset = fx_offset,
+        .default_map = globals.map_store.default_maps.get(module, fx_name),
+    } };
 }
 
 /// Leaves the browser when nothing was inserted: back to the assignment when the browser was opened from it, and to the FX

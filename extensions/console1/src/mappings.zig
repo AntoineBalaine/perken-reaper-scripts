@@ -8,6 +8,7 @@ const PhysicalModule = statemachine.PhysicalModule;
 const fs_helpers = @import("fs_helpers");
 const StringPool = @import("string_pool").StringPool;
 const preset_file_reader = @import("preset_file_reader");
+const DefaultMaps = @import("default_maps.zig");
 const log = std.log.scoped(.mappings);
 
 pub const MAPPING_FORMAT_VERSION = 1;
@@ -193,6 +194,8 @@ STRIP: std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 preset_strings: StringPool,
+/// The map that each FX starts from, which the user picked, and which is kept in a file of its own.
+default_maps: DefaultMaps,
 pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
     const self: MapStore = .{
         .INPUT = std.StringArrayHashMapUnmanaged(FxMaps(Inpt)){},
@@ -204,32 +207,54 @@ pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This(
         .controller_dir = controller_dir,
         .allocator = allocator,
         .preset_strings = .empty,
+        .default_maps = .empty,
     };
     return self;
 }
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, controller_dir: [*:0]const u8, ml: *MappingsList, defaults: *settings.DefaultFx) !MapStore {
     var self: MapStore = .empty(allocator, controller_dir);
+    // Because the maps that the user picked decide which map each FX loads first, they are read before the defaults are loaded.
+    self.default_maps.load(allocator, io, std.mem.span(controller_dir));
     // find the mappings for the defaults
     var iterator = defaults.iterator();
     while (iterator.next()) |defaultsEntry| {
         const fxName = defaultsEntry.value.*;
 
         if (fxName) |fx_name| {
-            // use self.getMap() only for its side-effect: storing into the map.
+            // use self.getDefaultMap() only for its side-effect: storing into the map.
             // Its return value is only meant to be used by self.get()
-            _ = self.getMap(io, fx_name, defaultsEntry.key, "default", ml) catch {
-                continue;
-            };
+            _ = self.getDefaultMap(io, fx_name, defaultsEntry.key, ml);
         }
     }
     return self;
+}
+
+/// Loads the map that an FX starts from: the one that the user picked, or the map that is named `default` when none was picked,
+/// or when the picked one is not on the disk anymore.
+pub fn getDefaultMap(self: *MapStore, io: std.Io, fx_name: [:0]const u8, module: ModulesList, ml: *MappingsList) ?TaggedMapping {
+    if (self.default_maps.get(module, fx_name)) |picked| {
+        if (self.getMap(io, fx_name, module, picked, ml)) |mapping| return mapping else |_| {}
+    }
+    return self.getMap(io, fx_name, module, "default", ml) catch null;
+}
+
+/// Makes a map the default of an FX, which is also the map that the FX uses from now on, and writes the choice to the disk at
+/// once. Because the choice is in memory before the file is written, a failure to write returns its error and the session
+/// keeps the choice.
+pub fn setDefaultMap(self: *MapStore, io: std.Io, module: ModulesList, fx_name: [:0]const u8, map_name: [:0]const u8, ml: *MappingsList) !void {
+    const path = ml.lookupPath(module, fx_name, map_name) orelse return error.FileNotFound;
+    try self.default_maps.set(self.allocator, module, fx_name, map_name);
+    _ = try self.getMap(io, fx_name, module, map_name, ml);
+    try self.setPreferredMapping(fx_name, module, path);
+    try self.default_maps.save(io, std.mem.span(self.controller_dir));
 }
 
 pub fn deinit(self: *MapStore) void {
     log.debug("Cleaning up MapStore", .{});
 
     self.preset_strings.deinit(self.allocator);
+    self.default_maps.deinit(self.allocator);
 
     // Clean up nested FxMaps structures
     var comp_iter = self.COMP.iterator();
@@ -376,7 +401,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
         .EQ => {
@@ -389,7 +414,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
         .INPUT => {
@@ -402,7 +427,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
         .OUTPT => {
@@ -415,7 +440,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
         .GATE => {
@@ -428,7 +453,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
         .STRIP => {
@@ -441,7 +466,7 @@ pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesLis
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(io, fxName, module, "default", ml) catch null;
+                return self.getDefaultMap(io, fxName, module, ml);
             }
         },
     }

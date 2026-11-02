@@ -106,6 +106,7 @@ test {
     _ = @import("unit/accel.zig");
     _ = @import("param_text.zig");
     _ = @import("fx_browser.zig");
+    _ = @import("default_maps.zig");
     _ = @import("components/led_meter.zig");
     _ = @import("components/panel_card.zig");
     _ = @import("track_list_panel.zig");
