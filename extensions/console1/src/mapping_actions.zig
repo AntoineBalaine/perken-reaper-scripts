@@ -717,6 +717,8 @@ fn populateKnobValues(
                     if (comptime std.mem.eql(u8, field_name, "version")) continue;
                     if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
                     if (comptime std.mem.eql(u8, field_name, "labels")) continue;
+                    // Because a field such as Comp_GR is no control, it has no value to sync.
+                    if (comptime !@hasField(c1.CCs, field_name)) continue;
                     if (@field(mapping, field_name)) |param_idx| {
                         const cc = @field(c1.CCs, field_name);
                         const val = pReaper.TrackFX_GetParamNormalized(.{ track, location.fx_index, param_idx });

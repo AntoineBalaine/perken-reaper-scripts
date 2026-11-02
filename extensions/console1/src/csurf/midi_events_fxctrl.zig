@@ -149,10 +149,19 @@ fn tickParameter(globals: *Globals, cc: c1.CCs, step: f64) void {
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = normalizedToMidi(next) } } });
 }
 
-/// How far a plugin pulls the signal down, in dB, as it says it with the name "GainReduction_dB", or null when it says
-/// nothing, which is the case of the plugins that do not report their reduction to the host. The reduction is a positive
-/// amount whichever sign the plugin writes it with.
-fn reductionDb(track: MediaTrack, fx_index: c_int) ?f64 {
+/// How far a plugin pulls the signal down, in dB, or null when it says nothing, which is the case of the plugins that do not
+/// report their reduction to the host. When the map of the plugin says in which parameter it keeps the reduction (`param`), the
+/// parameter is read, which is what a JS plugin has to do, since the host gives no reduction of a JS to a script. Otherwise, or
+/// when the plugin has no such parameter, which is the case of an older version of it, the plugin is asked for "GainReduction_dB".
+/// The reduction is a positive amount whichever sign the plugin writes it with.
+fn reductionDb(track: MediaTrack, fx_index: c_int, param: ?u16) ?f64 {
+    if (param) |index| {
+        if (index < reaper.TrackFX_GetNumParams(track, fx_index)) {
+            var min: f64 = undefined;
+            var max: f64 = undefined;
+            return @abs(reaper.TrackFX_GetParam(track, fx_index, index, &min, &max));
+        }
+    }
     var buf: [64:0]u8 = undefined;
     if (!reaper.TrackFX_GetNamedConfigParm(track, fx_index, "GainReduction_dB", buf[0..], buf.len)) return null;
     const value = std.fmt.parseFloat(f64, std.mem.sliceTo(&buf, 0)) catch return null;
@@ -165,19 +174,28 @@ fn reductionKey(globals: *Globals) u64 {
     const fx_ctrl = &globals.state.fx_ctrl;
     var gate_index: i64 = -1;
     var comp_index: i64 = -1;
+    var gate_param: i64 = -1;
+    var comp_param: i64 = -1;
     var kind: i64 = 0;
     switch (fx_ctrl.track_state.mode) {
         .multi_fx => |locations| {
-            if (locations.get(.GATE)) |gate| gate_index = gate.fx_index;
-            if (locations.get(.COMP)) |comp| comp_index = comp.fx_index;
+            if (locations.get(.GATE)) |gate| {
+                gate_index = gate.fx_index;
+                gate_param = if (gate.mapping) |mapping| mapping.GATE.Shp_GR orelse -1 else -1;
+            }
+            if (locations.get(.COMP)) |comp| {
+                comp_index = comp.fx_index;
+                comp_param = if (comp.mapping) |mapping| mapping.COMP.Comp_GR orelse -1 else -1;
+            }
         },
         .channel_strip => |strip| {
             kind = 1;
             comp_index = strip.fx_index;
+            comp_param = strip.mapping.Comp_GR orelse -1;
         },
     }
     const track: i64 = globals.state.current_tr_id orelse -1;
-    return std.hash.Wyhash.hash(0, std.mem.asBytes(&[_]i64{ track, kind, gate_index, comp_index }));
+    return std.hash.Wyhash.hash(0, std.mem.asBytes(&[_]i64{ track, kind, gate_index, comp_index, gate_param, comp_param }));
 }
 
 /// Reads how far the gate and the compressor of the selected track pull the signal down, for the meters of the panel. A
@@ -201,10 +219,16 @@ fn readReductionMeters(globals: *Globals, playing: bool) void {
     const tr = getTrack(globals.state.current_tr_id) orelse return;
     switch (fx_ctrl.track_state.mode) {
         .multi_fx => |locations| {
-            if (locations.get(.GATE)) |gate| fx_ctrl.gate_reduction_db = reductionDb(tr, gate.fx_index);
-            if (locations.get(.COMP)) |comp| fx_ctrl.comp_reduction_db = reductionDb(tr, comp.fx_index) orelse 0;
+            if (locations.get(.GATE)) |gate| {
+                const param: ?u16 = if (gate.mapping) |mapping| mapping.GATE.Shp_GR else null;
+                fx_ctrl.gate_reduction_db = reductionDb(tr, gate.fx_index, param);
+            }
+            if (locations.get(.COMP)) |comp| {
+                const param: ?u16 = if (comp.mapping) |mapping| mapping.COMP.Comp_GR else null;
+                fx_ctrl.comp_reduction_db = reductionDb(tr, comp.fx_index, param) orelse 0;
+            }
         },
-        .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index) orelse 0,
+        .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index, strip.mapping.Comp_GR) orelse 0,
     }
 }
 
@@ -560,4 +584,64 @@ pub fn syncFilterKnobs(globals: *Globals) void {
 inline fn getTrackIndex(cc: c1.CCs, page_offset: u8) usize {
     const button_idx = @backingInt(cc) - @backingInt(c1.CCs.Tr_tr1);
     return page_offset * TrackList.PageSize + button_idx;
+}
+
+/// What the plugin of the tests tells the host, in place of REAPER.
+const FakeReduction = struct {
+    /// Whether the plugin answers "GainReduction_dB", and with what.
+    var named_answer: ?[:0]const u8 = null;
+
+    fn numParams(track: MediaTrack, fx: c_int) callconv(.c) c_int {
+        _ = track;
+        _ = fx;
+        return 51;
+    }
+
+    fn getParam(track: MediaTrack, fx: c_int, param: c_int, minval: *f64, maxval: *f64) callconv(.c) f64 {
+        _ = track;
+        _ = fx;
+        minval.* = -60;
+        maxval.* = 0;
+        return if (param == 47) -12.5 else 0;
+    }
+
+    fn namedParam(track: MediaTrack, fx: c_int, name: [*:0]const u8, buf: [*:0]u8, size: c_int) callconv(.c) bool {
+        _ = track;
+        _ = fx;
+        _ = name;
+        _ = size;
+        const answer = named_answer orelse return false;
+        const out: [*]u8 = @ptrCast(buf);
+        @memcpy(out[0..answer.len], answer);
+        out[answer.len] = 0;
+        return true;
+    }
+};
+
+test "reductionDb reads the parameter that the map names, and asks the plugin when the map names none" {
+    const saved_count = reaper.TrackFX_GetNumParams;
+    const saved_param = reaper.TrackFX_GetParam;
+    const saved_named = reaper.TrackFX_GetNamedConfigParm;
+    defer {
+        @constCast(&reaper.TrackFX_GetNumParams).* = @constCast(&saved_count).*;
+        @constCast(&reaper.TrackFX_GetParam).* = @constCast(&saved_param).*;
+        @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&saved_named).*;
+        FakeReduction.named_answer = null;
+    }
+    @constCast(&reaper.TrackFX_GetNumParams).* = @constCast(&FakeReduction.numParams);
+    @constCast(&reaper.TrackFX_GetParam).* = @constCast(&FakeReduction.getParam);
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&FakeReduction.namedParam);
+    const track: MediaTrack = @ptrFromInt(8);
+
+    // Because a plugin that has the parameter keeps its reduction there, the amount is the one of the parameter, as a positive size.
+    FakeReduction.named_answer = "-3.0";
+    try std.testing.expectEqual(@as(?f64, 12.5), reductionDb(track, 0, 47));
+
+    // Because an older version of the plugin has fewer parameters, an index that is past the last one asks the plugin instead.
+    try std.testing.expectEqual(@as(?f64, 3.0), reductionDb(track, 0, 60));
+
+    // Because a map that names no parameter leaves it to the plugin, the plugin is asked, and says nothing when it reports nothing.
+    try std.testing.expectEqual(@as(?f64, 3.0), reductionDb(track, 0, null));
+    FakeReduction.named_answer = null;
+    try std.testing.expectEqual(@as(?f64, null), reductionDb(track, 0, null));
 }

@@ -95,6 +95,9 @@ pub const Comp = struct {
     Comp_HiCut: ?u16 = null,
     Comp_LoCut: ?u16 = null,
     // Comp_Mtr : u8,
+    /// The parameter in which the plugin keeps its gain reduction, in dB. It is no control: when a map has it, the meter reads
+    /// the parameter, and when it has not, it asks the plugin for "GainReduction_dB".
+    Comp_GR: ?u16 = null,
 };
 
 pub const Eq = struct {
@@ -156,6 +159,8 @@ pub const Shp = struct {
     Shp_hard_gate: ?u16 = null,
     Shp_shape: ?u16 = null,
     Shp_sustain: ?u16 = null,
+    /// The parameter in which the plugin keeps its gain reduction, in dB. It is no control: see `Comp.Comp_GR`.
+    Shp_GR: ?u16 = null,
 };
 
 /// A flattened mapping for channel strip FX that contain all Console1 sections
@@ -206,6 +211,8 @@ pub const ChannelStripMapping = struct {
     Comp_Release: ?u16 = null,
     Comp_Thresh: ?u16 = null,
     Comp_comp: ?u16 = null,
+    /// The parameter in which the plugin keeps the gain reduction of its compressor, in dB. It is no control: see `Comp.Comp_GR`.
+    Comp_GR: ?u16 = null,
 
     // Output section
     Out_Drive: ?u16 = null,
@@ -1056,6 +1063,25 @@ test "a [labels] section names controls, and its lines are no parameter" {
     // Because a line without a name gives none, the plugin's own name stays.
     try std.testing.expect(strip.labels.get(.Inpt_Gain) == null);
     try std.testing.expectEqual(ModulesList.STRIP, found_module.?);
+}
+
+test "Comp_GR is read from a map as a parameter, and no control gets it" {
+    const example =
+        \\version = 1
+        \\module=STRIP
+        \\Comp_comp=12
+        \\Comp_GR=47
+    ;
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
+    defer parser.deinit();
+    var found_module: ?ModulesList = null;
+    var strip = ChannelStripMapping{};
+    _ = try readToU8Struct(&strip, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectEqual(@as(?u16, 47), strip.Comp_GR);
+    try std.testing.expectEqual(@as(?u16, 12), strip.Comp_comp);
+    try std.testing.expect(!@hasField(c1.CCs, "Comp_GR"));
+    try std.testing.expect(!@hasField(c1.CCs, "Shp_GR"));
 }
 
 test "the names of a map are written as a [labels] section that reads back, and a map with none writes nothing" {
