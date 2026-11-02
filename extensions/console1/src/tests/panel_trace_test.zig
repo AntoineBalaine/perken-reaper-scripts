@@ -427,6 +427,53 @@ test "the keys move through the results of the search, and Enter inserts the one
     try testing.expectEqualStrings(best, again);
 }
 
+test "without a search, the arrows move the cursor of the list that the browser shows, and Enter chooses its row" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    const saved_keys = [_]c_int{ imgui.Key_Enter, imgui.Key_KeypadEnter, imgui.Key_DownArrow, imgui.Key_UpArrow };
+    imgui.Key_Enter = 101;
+    imgui.Key_KeypadEnter = 102;
+    imgui.Key_DownArrow = 103;
+    imgui.Key_UpArrow = 104;
+    defer {
+        imgui.Key_Enter = saved_keys[0];
+        imgui.Key_KeypadEnter = saved_keys[1];
+        imgui.Key_DownArrow = saved_keys[2];
+        imgui.Key_UpArrow = saved_keys[3];
+    }
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    // The first frame opens the browser, and has no key.
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)) == null);
+
+    mock.pressKey(imgui.Key_DownArrow);
+    ui = builder.build();
+    const down = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expectEqual(@as(i32, 1), down.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_UpArrow);
+    ui = builder.build();
+    const up = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expectEqual(@as(i32, -1), up.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    const enter = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expect(enter.fx_sel == .confirm);
+}
+
 test "Escape closes the browser when the search does not have the keyboard" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();

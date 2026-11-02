@@ -32,6 +32,9 @@ var search_scroll = false;
 /// Whether the search had the keyboard on the frame before: Escape deactivates the field in the frame that it is pressed in, so it is
 /// the frame before that says whether the key was meant for the field.
 var search_was_active = false;
+/// Whether the search must take the keyboard back on the next frame. A click on a row, or on the arrow that leaves a menu, gives the
+/// keyboard to that widget, and the arrows and Enter would then not reach the lists.
+var search_refocus = false;
 
 /// The text of the search, for the tests.
 pub fn testSearchBuffer() *[96:0]u8 {
@@ -233,9 +236,10 @@ fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(Fx
     }
 }
 
-/// What the keys of the computer do in the maps of a plugin: the arrows move the cursor by one row, and Enter chooses the map that
-/// it is on. Escape steps back, and is read where the search would be.
-fn mappingKeyAction(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+/// What the keys of the computer do in a list that has no search over it, which is the lists of the browser and the maps of a plugin:
+/// the arrows move the cursor by one row, and Enter chooses the row that it is on. Escape steps back, and is read where the search
+/// would be.
+fn cursorKeyAction(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) return .{ .scroll_by = 1 };
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) return .{ .scroll_by = -1 };
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Enter }) or try imgui.IsKeyPressed(.{ ctx, imgui.Key_KeypadEnter })) return .confirm;
@@ -305,7 +309,8 @@ pub fn ModulePopup(
 
             try imgui.SameLine(.{ctx});
             const had_text = search_buffer[0] != 0;
-            if (just_opened) try imgui.SetKeyboardFocusHere(.{ctx});
+            if (just_opened or search_refocus) try imgui.SetKeyboardFocusHere(.{ctx});
+            search_refocus = false;
             try imgui.SetNextItemWidth(.{ ctx, 220 });
             // Because the text is only written back to the buffer when the field says that it changed, the field has no flag that makes it
             // say so only on Enter: the results follow each letter, and Enter is read from the keyboard.
@@ -442,6 +447,9 @@ pub fn ModulePopup(
                         try card_kit.endCard(ctx, card.plate);
                     },
                 }
+                // Because the search has the keyboard, the arrows and Enter go to the cursor of the list that is shown, as they go to the
+                // results of the search. A click on a row has the priority.
+                if (list.rv == null) list.rv = try cursorKeyAction(ctx);
             },
             .select_mapping => |sel| {
                 list.cursor = if (highlight) |hl| hl.current_index else null;
@@ -450,11 +458,15 @@ pub fn ModulePopup(
                 try card_kit.endCard(ctx, card.plate);
                 // Because the cursor of the maps is kept in the state, the keys of the computer ask the state to move it or to
                 // confirm it, as the controller does. A click on a row, which is already in the result, has the priority.
-                if (list.rv == null) list.rv = try mappingKeyAction(ctx);
+                if (list.rv == null) list.rv = try cursorKeyAction(ctx);
             },
         }
         if (escape_closes) rv = .close_browser;
         if (list.rv) |chosen| rv = chosen;
+        // Whatever moved the browser, a click or a key, the search gets the keyboard back when it is drawn again.
+        if (rv) |action| {
+            if (std.meta.activeTag(action) != .close_browser) search_refocus = true;
+        }
     }
     if (!open) rv = .close_browser;
 
