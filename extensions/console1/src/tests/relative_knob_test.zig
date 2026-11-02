@@ -133,7 +133,31 @@ test "outside the fx_ctrl mode a tick keeps the absolute emulation" {
     try testing.expectEqual(@as(f64, 0.5), h.value());
 }
 
-test "a tick of Volume moves the fader by 1/127 of its slider range" {
+test "the volume knob is at noon for 0 dB, and each half of it is a straight line in dB" {
+    const utils = @import("utils");
+    try testing.expectEqual(@as(f64, 0), utils.normalizedToDb(0.5));
+    try testing.expectApproxEqAbs(@as(f64, 1.0), utils.normalizedToVol(0.5), 1e-9);
+    try testing.expectApproxEqAbs(@as(f64, 0.5), utils.volToNormalized(1.0), 1e-9);
+    // Because each half is a straight line in dB, the middle of the lower half is half of the lowest level, and the middle of the
+    // upper half is half of the highest one.
+    try testing.expectApproxEqAbs(@as(f64, -30.0), utils.normalizedToDb(0.25), 1e-9);
+    try testing.expectApproxEqAbs(@as(f64, 6.0), utils.normalizedToDb(0.75), 1e-9);
+    try testing.expectApproxEqAbs(@as(f64, 12.0), utils.normalizedToDb(1.0), 1e-9);
+    // The silence is the very bottom of the knob, and the knob does not go beyond its ends.
+    try testing.expectEqual(@as(f64, 0), utils.normalizedToVol(0));
+    try testing.expectEqual(@as(f64, 0), utils.volToNormalized(0));
+    try testing.expectEqual(@as(f64, 1.0), utils.dbToNormalized(20));
+    try testing.expectEqual(@as(f64, 0.0), utils.dbToNormalized(-80));
+    // What the knob sets, it reads back.
+    for ([_]f64{ 0.1, 0.25, 0.4, 0.5, 0.6, 0.9, 1.0 }) |position| {
+        try testing.expectApproxEqAbs(position, utils.volToNormalized(utils.normalizedToVol(position)), 1e-9);
+    }
+    // The legacy unit has the same scale: its knob sends 64 at noon.
+    try testing.expectEqual(@as(u8, 64), utils.volToU8(1.0));
+    try testing.expectApproxEqAbs(@as(f64, 1.0), @import("../csurf/midi_events_fxctrl.zig").u8ToVol(64), 0.05);
+}
+
+test "a tick of Volume moves the fader by 1/127 of the range of the knob" {
     const h = try Harness.init();
     defer h.deinit();
     const utils = @import("utils");

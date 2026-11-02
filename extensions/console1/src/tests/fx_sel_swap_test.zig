@@ -420,9 +420,11 @@ test "the host reads the volume of the selected track in dB for the knob of the 
     @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
     try testing.expectApproxEqAbs(@as(f64, -6.0206), globals.state.fx_ctrl.track_volume_db, 0.001);
 
+    // Because the knob is at noon for 0 dB, a track at unity gain has the knob at 0.5, and the knob follows the volume that REAPER has.
     _ = reaper.SetMediaTrackInfo_Value(track, "D_VOL", 1.0);
     @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
     try testing.expectApproxEqAbs(@as(f64, 0), globals.state.fx_ctrl.track_volume_db, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 0.5), globals.state.fx_ctrl.track_volume, 1e-9);
 }
 
 test "a plugin that has several maps opens the selector of maps when it is chosen without one, and goes back to the list" {

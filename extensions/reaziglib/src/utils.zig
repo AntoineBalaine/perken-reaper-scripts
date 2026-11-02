@@ -1,22 +1,43 @@
 const std = @import("std");
 const reaper = @import("reaper").reaper;
 pub fn volToU8(vol: f64) u8 {
-    var d: f64 = (reaper.DB2SLIDER(VAL2DB(vol)) * 127.0 / 1000.0);
-    d = if (d < 0.0) 0.0 else if (d > 127.0) 127.0 else d;
-    const t: u8 = @intFromFloat(d + 0.5);
-    return t;
+    const d = std.math.clamp(volToNormalized(vol) * 127.0, 0.0, 127.0);
+    return @intFromFloat(d + 0.5);
 }
 
+/// The lowest and the highest level that the volume knob reaches, besides the silence at its very bottom.
+pub const volume_knob_min_db = -60.0;
+pub const volume_knob_max_db = 12.0;
+/// What REAPER takes for the silence, in dB.
+pub const silence_db = -150.0;
+
+/// The volume in dB for a position of the volume knob, from 0 to 1. Because the knob must be at noon for 0 dB, the lower half goes
+/// from the lowest level up to 0 dB and the upper half from 0 dB up to the highest level, each in a straight line in dB, and not
+/// in the gain. The silence is the very bottom of the knob.
+pub fn normalizedToDb(norm: f64) f64 {
+    const n = std.math.clamp(norm, 0.0, 1.0);
+    if (n <= 0.0) return silence_db;
+    if (n <= 0.5) return volume_knob_min_db * (1.0 - n / 0.5);
+    return volume_knob_max_db * (n - 0.5) / 0.5;
+}
+
+/// The position of the volume knob for a volume in dB. Because the knob does not go under its lowest level except at its bottom,
+/// the levels under it are at the bottom, and the levels over its highest one are at the top.
+pub fn dbToNormalized(db: f64) f64 {
+    if (db <= volume_knob_min_db) return 0.0;
+    if (db <= 0.0) return 0.5 * (1.0 - db / volume_knob_min_db);
+    return 0.5 + 0.5 * @min(db, volume_knob_max_db) / volume_knob_max_db;
+}
+
+/// The gain of a track for a position of the volume knob.
 pub fn normalizedToVol(norm: f64) f64 {
-    const slider_pos = norm * 1000.0; // 0-1 → 0-1000
-    const db = reaper.SLIDER2DB(slider_pos);
-    return DB2VAL(db);
+    const db = normalizedToDb(norm);
+    return if (db <= silence_db) 0.0 else DB2VAL(db);
 }
 
+/// The position of the volume knob for the gain of a track.
 pub fn volToNormalized(vol: f64) f64 {
-    const db = VAL2DB(vol);
-    const slider_pos = reaper.DB2SLIDER(db);
-    return slider_pos / 1000.0;
+    return dbToNormalized(VAL2DB(vol));
 }
 
 pub fn panToNormalized(pan: f64) f64 {

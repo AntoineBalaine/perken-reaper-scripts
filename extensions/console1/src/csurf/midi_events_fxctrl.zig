@@ -239,7 +239,10 @@ pub fn readOutputMeter(globals: *Globals) void {
 /// volume can also be moved by the mouse, by the automation or by the unit, it is read before each frame.
 pub fn readTrackVolume(globals: *Globals) void {
     const tr = getTrack(globals.state.current_tr_id) orelse return;
-    globals.state.fx_ctrl.track_volume_db = utils.VAL2DB(reaper.GetMediaTrackInfo_Value(tr, "D_VOL"));
+    const gain = reaper.GetMediaTrackInfo_Value(tr, "D_VOL");
+    globals.state.fx_ctrl.track_volume_db = utils.VAL2DB(gain);
+    // Because the position of the knob follows the volume that REAPER has, the knob follows the mouse and the automation as well.
+    globals.state.fx_ctrl.track_volume = utils.volToNormalized(gain);
 }
 
 /// Reads what the meters of the panel show, which REAPER is asked only while the DAW plays.
@@ -455,10 +458,9 @@ fn u8ToPan(val: u8) f64 {
     return (@as(f64, @floatFromInt(val)) / (127 / 2)) - 1.0;
 }
 
+/// The gain of a track for the position of the volume knob of the legacy unit, which is at noon for 0 dB as the knob of the panel is.
 pub fn u8ToVol(val: u8) f64 {
-    var pos = (@as(f64, @floatFromInt(val)) * 1000.0) / 127.0; // scale to 1000
-    pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
-    return utils.DB2VAL(pos);
+    return utils.normalizedToVol(@as(f64, @floatFromInt(val)) / 127.0);
 }
 
 /// set the fx_ctrl UI values
