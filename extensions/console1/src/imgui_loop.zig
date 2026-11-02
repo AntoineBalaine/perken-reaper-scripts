@@ -144,6 +144,11 @@ fn onTimer() callconv(.c) void {
 
     // The meters are read here, because the UI library cannot call REAPER. Because the mapping panel draws no meter, and the
     // transport mode draws the meter of the output only, they are the only ones that are read for the modes that have fewer.
+    // The volume of the track is read for the modes that draw the knob of the output with the track's own use.
+    switch (globals.state.current_mode) {
+        .fx_ctrl, .fx_sel, .mapping_panel => midi_events_fxctrl.readTrackVolume(globals),
+        else => {},
+    }
     switch (globals.state.current_mode) {
         .fx_ctrl, .fx_sel => midi_events_fxctrl.readMeters(globals),
         .transport => midi_events_fxctrl.readOutputMeter(globals),

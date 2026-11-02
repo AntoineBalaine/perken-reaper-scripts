@@ -401,6 +401,30 @@ test "the volume and the pan knobs drive the track unless a parameter is assigne
     try testing.expect(!handled);
 }
 
+test "the host reads the volume of the selected track in dB for the knob of the volume" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
+    globals.state.current_mode = .fx_ctrl;
+
+    const track = setupFullChain(globals);
+    // Because the volume of a track is a gain, half of the gain is 6 dB under.
+    _ = reaper.SetMediaTrackInfo_Value(track, "D_VOL", 0.5);
+    @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
+    try testing.expectApproxEqAbs(@as(f64, -6.0206), globals.state.fx_ctrl.track_volume_db, 0.001);
+
+    _ = reaper.SetMediaTrackInfo_Value(track, "D_VOL", 1.0);
+    @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
+    try testing.expectApproxEqAbs(@as(f64, 0), globals.state.fx_ctrl.track_volume_db, 0.001);
+}
+
 test "a plugin that has several maps opens the selector of maps when it is chosen without one, and goes back to the list" {
     var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer model_arena.deinit();

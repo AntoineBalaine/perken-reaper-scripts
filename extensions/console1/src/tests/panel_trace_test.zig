@@ -569,6 +569,16 @@ test "the button of a row is placed from its right edge, and the button of the d
     try testing.expect(@as(u32, @bitCast(at_rest.top_line)) >> 8 == 0xFFFFFF);
 }
 
+test "the volume of the track is said in dB, with one decimal, and the silence is minus infinity" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    var buf: [24:0]u8 = undefined;
+    try testing.expectEqualStrings("0.0 dB", fx_ctrl_panel.volumeText(0, &buf));
+    try testing.expectEqualStrings("-6.0 dB", fx_ctrl_panel.volumeText(-6.02, &buf));
+    try testing.expectEqualStrings("3.5 dB", fx_ctrl_panel.volumeText(3.46, &buf));
+    // Because REAPER takes a volume under -150 dB as the silence, it is not written as a number.
+    try testing.expectEqualStrings("-inf dB", fx_ctrl_panel.volumeText(-150, &buf));
+}
+
 test "the screens spell out the name of each module, and none is the abbreviation that its tag has" {
     const ui_helpers = @import("../ui_helpers.zig");
     var builder = TestUiStateBuilder.init(testing.allocator);

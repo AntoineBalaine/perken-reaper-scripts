@@ -1379,6 +1379,12 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
     return rv;
 }
 
+/// The text of a volume in dB, with one decimal, and -inf dB for the silence, which REAPER takes as -150 dB.
+pub fn volumeText(db: f64, buf: *[24:0]u8) [:0]const u8 {
+    if (db <= -149.9) return "-inf dB";
+    return std.mem.printSentinel(buf, "{d:.1} dB", .{db}, 0) catch "-";
+}
+
 /// What the volume or the pan knob shows in the FX control modes. Because a map can assign a plugin parameter to these knobs,
 /// a knob that has one shows it, with the label of the track's own use after it, in the accent color, at the right: that use
 /// is the one that shift gives the knob. While shift is held, the label of the parameter is dimmed, the accent is lit, and the
@@ -1387,16 +1393,19 @@ const TrackKnob = struct {
     label_id: Knobs.LabelId,
     value: f64,
 
-    fn of(fx_state: *const FxCtrlState, cc: c1.CCs, track_label: [:0]const u8, id: [:0]const u8) TrackKnob {
+    /// `text_buf` holds the text of the volume in dB, which the knob shows for the track's own volume.
+    fn of(fx_state: *const FxCtrlState, cc: c1.CCs, track_label: [:0]const u8, id: [:0]const u8, text_buf: *[24:0]u8) TrackKnob {
         std.debug.assert(cc == .Out_Vol or cc == .Out_Pan);
         const track_value = if (cc == .Out_Vol) fx_state.track_volume else fx_state.track_pan;
-        if (!fx_state.isKnobMapped(cc)) return .{ .label_id = .{ .label = track_label, .id = id }, .value = track_value };
+        // Because the position of the volume knob is a slider position and says nothing about the level, the knob says the level in dB.
+        const track_text: ?[:0]const u8 = if (cc == .Out_Vol) volumeText(fx_state.track_volume_db, text_buf) else null;
+        if (!fx_state.isKnobMapped(cc)) return .{ .label_id = .{ .label = track_label, .id = id, .value_text = track_text }, .value = track_value };
         const shift = fx_state.shift_held;
         return .{
             .label_id = .{
                 .label = paramLabel(fx_state, cc),
                 .id = id,
-                .value_text = if (shift) null else fx_state.track_state.label_pool.getFmtValue(cc),
+                .value_text = if (shift) track_text else fx_state.track_state.label_pool.getFmtValue(cc),
                 .label_color = if (shift) dimmed_label else null,
                 .alt = track_label,
                 .alt_color = ui_helpers.altColor(shift),
@@ -1512,8 +1521,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const pan_label = if (pan_key) |key| tr(translations, key) else null;
             const pan_disabled = (pan_label == null);
             const pan_no_val_display = pan_disabled or value_display_disabled;
+            var pan_text_buf: [24:0]u8 = undefined;
             const pan_knob: TrackKnob = if (is_fx_mode and pan_label != null)
-                TrackKnob.of(fx_state, .Out_Pan, pan_label.?, "Out_Pan")
+                TrackKnob.of(fx_state, .Out_Pan, pan_label.?, "Out_Pan", &pan_text_buf)
             else
                 .{ .label_id = .{ .label = pan_label orelse "-", .id = "Out_Pan" }, .value = 0 };
             const pan_label_id = pan_knob.label_id;
@@ -1652,8 +1662,9 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const vol_disabled = (vol_label == null);
             const vol_no_val_display = vol_disabled or value_display_disabled;
             const vol_id = try std.mem.printSentinel(id_buf, "Out_Vol", .{}, 0);
+            var vol_text_buf: [24:0]u8 = undefined;
             const vol_knob: TrackKnob = if (is_fx_mode and vol_label != null)
-                TrackKnob.of(fx_state, .Out_Vol, vol_label.?, vol_id)
+                TrackKnob.of(fx_state, .Out_Vol, vol_label.?, vol_id, &vol_text_buf)
             else
                 .{ .label_id = .{ .label = vol_label orelse "-", .id = vol_id }, .value = 0 };
             const label_id = vol_knob.label_id;
