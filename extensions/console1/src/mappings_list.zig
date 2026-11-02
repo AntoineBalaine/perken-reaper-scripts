@@ -8,6 +8,9 @@ const StringPool = @import("string_pool").StringPool;
 pub const MapEntry = struct {
     name_offset: StringPool.StringRef, // mapping name (filename without .ini) in StringPool
     path_offset: StringPool.StringRef, // absolute file path in StringPool
+    /// Whether the user made this map the one that its FX starts from. Because the selector of maps draws its rows from these
+    /// entries, it reads the flag from them, and the disk file of the defaults (default_maps.zig) is read into the flags.
+    is_default: bool = false,
 };
 
 pub const ModuleMap = std.ArrayHashMapUnmanaged(StringPool.StringRef, std.ArrayList(MapEntry), std.array_hash_map.AutoContext(StringPool.StringRef), false);
@@ -133,6 +136,30 @@ pub fn findFx(self: *@This(), module: ModulesList, fx_name: []const u8) ?FxEntry
         }
     }
     return null;
+}
+
+/// The name of the map that the user made the default of an FX, or null when none was picked.
+pub fn defaultMapName(self: *@This(), module: ModulesList, fx_name: []const u8) ?[:0]const u8 {
+    const found = self.findFx(module, fx_name) orelse return null;
+    for (found.maps) |entry| {
+        if (entry.is_default) return self.strings.get(entry.name_offset);
+    }
+    return null;
+}
+
+/// Makes the map that is named `map_name` the default of an FX, and no other map of that FX. Because two files of an FX can have the
+/// same name, the entries that have that name are all the default, as the name is what a choice of map goes by.
+pub fn setDefault(self: *@This(), module: ModulesList, fx_name: []const u8, map_name: []const u8) !void {
+    const found = self.findFx(module, fx_name) orelse return error.FxNotFound;
+    const entries = self.list.getPtr(module).getPtr(found.fx_offset).?.items;
+    var named: usize = 0;
+    for (entries) |entry| {
+        if (std.mem.eql(u8, self.strings.get(entry.name_offset), map_name)) named += 1;
+    }
+    if (named == 0) return error.MappingNotFound;
+    for (entries) |*entry| {
+        entry.is_default = std.mem.eql(u8, self.strings.get(entry.name_offset), map_name);
+    }
 }
 
 pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8, file_path: [:0]const u8) !void {

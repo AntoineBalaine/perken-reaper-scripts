@@ -224,7 +224,7 @@ fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(Fx
     const accent = ui_helpers.altColor(list.shift_held);
     for (mapping_entries.items, 0..) |map_entry, i| {
         const mapping_name = list.strings.get(map_entry.name_offset);
-        const is_default = if (sel.default_map) |default_name| std.mem.eql(u8, default_name, mapping_name) else false;
+        const is_default = map_entry.is_default;
         switch (try card_kit.rowWithTag(ctx, @as([:0]const u8, @ptrCast(mapping_name)), if (is_default) is_default_label else set_label, accent, is_default, list.cursor == i, list.scroll_changed)) {
             .none => {},
             .row => list.rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } },

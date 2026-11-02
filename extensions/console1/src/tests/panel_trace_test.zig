@@ -504,6 +504,15 @@ test "each map of the selector has a button at its right to set it as the defaul
     _ = try gui_lib.main(null, &ui, 0, &style_mgr);
     try testing.expectEqual(rects_with_two_maps + 1, countTrace(&mock, .draw_list_add_rect));
 
+    // Because the flag of the entry says which map is the default, the button of that row is drawn active, with a check: two lines
+    // more than the buttons at rest.
+    const lines_at_rest = countTrace(&mock, .draw_list_add_line);
+    try builder.mappings_list.setDefault(.COMP, fx_name, "punchy");
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(lines_at_rest + 2, countTrace(&mock, .draw_list_add_line));
+
     // A click on the row chooses the map.
     mock.selectItem("punchy");
     ui = builder.build();

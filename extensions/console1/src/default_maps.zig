@@ -2,44 +2,17 @@ const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers");
 const ModulesList = @import("statemachine.zig").ModulesList;
+const MappingsList = @import("mappings_list.zig");
 const log = std.log.scoped(.default_maps);
 
-/// The file that holds the default maps, next to the preferences.
+/// The file that holds the default maps, next to the preferences. Because an FX can have several maps, and the user picks one of
+/// them as the one to start from, the choice is kept in a file of its own, which a reinstall of the factory maps leaves alone.
+/// While the extension runs, the choice is the `is_default` flag of the entries of the maps list.
 pub const file_name = "default_maps.ini";
 
-/// The name of the map of each FX, by the name of the FX.
-pub const Table = std.StringArrayHashMapUnmanaged([:0]const u8);
-
-const DefaultMaps = @This();
-
-/// The map that each FX uses when none is chosen, for each module. Because an FX can have several maps, and the user picks one
-/// of them as the one to start from, the choice is saved in a file of its own, which a reinstall of the factory maps leaves alone.
-tables: std.EnumArray(ModulesList, Table) = .initFill(.empty),
-
-pub const empty: DefaultMaps = .{};
-
-/// The name of the map that is the default of an FX, or null when the user has not picked one.
-pub fn get(self: *const DefaultMaps, module: ModulesList, fx_name: []const u8) ?[:0]const u8 {
-    return self.tables.getPtrConst(module).get(fx_name);
-}
-
-/// Makes a map the default of an FX. Because the file has one `name = map` line for each FX, a name that holds an equal sign
-/// cannot be written back, so it is refused.
-pub fn set(self: *DefaultMaps, allocator: std.mem.Allocator, module: ModulesList, fx_name: []const u8, map_name: []const u8) !void {
-    if (fx_name.len == 0 or map_name.len == 0) return error.EmptyName;
-    if (std.mem.indexOfScalar(u8, fx_name, '=') != null) return error.UnsupportedName;
-
-    const value = try allocator.dupeSentinel(u8, map_name, 0);
-    const table = self.tables.getPtr(module);
-    if (table.getPtr(fx_name)) |existing| {
-        existing.* = value;
-        return;
-    }
-    try table.put(allocator, try allocator.dupe(u8, fx_name), value);
-}
-
-/// Reads the default maps from the folder `dir`. Because a missing file only means that nothing was picked yet, it is not an error.
-pub fn load(self: *DefaultMaps, allocator: std.mem.Allocator, io: std.Io, dir: []const u8) void {
+/// Flags the maps that the file names as the defaults of their FX. Because a missing file only means that nothing was picked yet,
+/// it is not an error, and a line that names an FX or a map that is not in the list anymore is skipped.
+pub fn load(ml: *MappingsList, io: std.Io, dir: []const u8) void {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{ dir, std.fs.path.sep_str, file_name });
     const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return;
@@ -59,8 +32,8 @@ pub fn load(self: *DefaultMaps, allocator: std.mem.Allocator, io: std.Io, dir: [
         switch (record) {
             .section => |heading| module = std.meta.stringToEnum(ModulesList, heading),
             .property => |kv| if (module) |m| {
-                self.set(allocator, m, kv.key, kv.value) catch |err| {
-                    log.warn("Skipped the default map of {s}: {s}", .{ kv.key, @errorName(err) });
+                ml.setDefault(m, kv.key, kv.value) catch |err| {
+                    log.warn("Skipped the default map {s} of {s}: {s}", .{ kv.value, kv.key, @errorName(err) });
                 };
             },
             .enumeration => {},
@@ -68,8 +41,9 @@ pub fn load(self: *DefaultMaps, allocator: std.mem.Allocator, io: std.Io, dir: [
     }
 }
 
-/// Writes the default maps in the folder `dir`, over the file that was there.
-pub fn save(self: *const DefaultMaps, io: std.Io, dir: []const u8) !void {
+/// Writes the maps that are flagged as the defaults in the folder `dir`, over the file that was there. Because the file has one
+/// `FX = map` line for each FX, an FX name that holds an equal sign cannot be read back, and `MapStore.setDefaultMap` refuses it.
+pub fn save(ml: *MappingsList, io: std.Io, dir: []const u8) !void {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{ dir, std.fs.path.sep_str, file_name });
     const file = try std.Io.Dir.createFileAbsolute(io, path, .{ .truncate = true });
@@ -82,22 +56,25 @@ pub fn save(self: *const DefaultMaps, io: std.Io, dir: []const u8) !void {
 
     try writer.writeAll("; Console1 default maps: the map that a plugin uses when none is chosen.\n");
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        const table = self.tables.getPtrConst(module);
-        if (table.count() > 0) {
-            try writer.print("\n[{s}]\n", .{@tagName(module)});
-            for (table.keys(), table.values()) |fx_name, map_name| {
-                try writer.print("{s} = {s}\n", .{ fx_name, map_name });
+        var header_written = false;
+        var iter = ml.list.getPtr(module).iterator();
+        while (iter.next()) |fx| {
+            for (fx.value_ptr.items) |entry| {
+                if (!entry.is_default) continue;
+                if (!header_written) {
+                    try writer.print("\n[{s}]\n", .{@tagName(module)});
+                    header_written = true;
+                }
+                try writer.print("{s} = {s}\n", .{ ml.strings.get(fx.key_ptr.*), ml.strings.get(entry.name_offset) });
+                // Because two files can have the same name, the name of the map is written once for each FX.
+                break;
             }
         }
     }
     try writer.flush();
 }
 
-pub fn deinit(self: *DefaultMaps, allocator: std.mem.Allocator) void {
-    for (&self.tables.values) |*table| table.deinit(allocator);
-}
-
-test "the default maps are saved and read back, and a new choice replaces the old one" {
+test "the default maps are saved and read back into the flags of a new list" {
     const testing = std.testing;
     const io = testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -109,31 +86,48 @@ test "the default maps are saved and read back, and a new choice replaces the ol
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = path_buf[0..try tmp_dir.dir.realPathFile(io, ".", &path_buf)];
 
-    var maps: DefaultMaps = .empty;
-    try maps.set(allocator, .COMP, "VST: ReaComp (Cockos)", "punchy");
-    try maps.set(allocator, .OUTPT, "JS: Saturation", "test_output_saturation");
-    try maps.set(allocator, .COMP, "VST: ReaComp (Cockos)", "gentle");
-    try maps.save(io, dir);
+    var ml = MappingsList.empty(allocator);
+    try ml.registerPath(.COMP, "VST: ReaComp (Cockos)", "default", "/maps/default.ini");
+    try ml.registerPath(.COMP, "VST: ReaComp (Cockos)", "punchy", "/maps/punchy.ini");
+    try ml.registerPath(.OUTPT, "JS: Saturation", "default", "/maps/sat_default.ini");
+    try ml.registerPath(.OUTPT, "JS: Saturation", "test_output_saturation", "/maps/sat_test.ini");
+    try testing.expectEqual(@as(?[:0]const u8, null), ml.defaultMapName(.COMP, "VST: ReaComp (Cockos)"));
 
-    var loaded: DefaultMaps = .empty;
-    loaded.load(allocator, io, dir);
-    try testing.expectEqualStrings("gentle", loaded.get(.COMP, "VST: ReaComp (Cockos)").?);
-    try testing.expectEqualStrings("test_output_saturation", loaded.get(.OUTPT, "JS: Saturation").?);
+    // Because a new choice replaces the old one, only one map of an FX is the default.
+    try ml.setDefault(.COMP, "VST: ReaComp (Cockos)", "default");
+    try ml.setDefault(.COMP, "VST: ReaComp (Cockos)", "punchy");
+    try ml.setDefault(.OUTPT, "JS: Saturation", "test_output_saturation");
+    try testing.expectEqualStrings("punchy", ml.defaultMapName(.COMP, "VST: ReaComp (Cockos)").?);
+    try testing.expect(!ml.findFx(.COMP, "VST: ReaComp (Cockos)").?.maps[0].is_default);
+    try save(&ml, io, dir);
+
+    var reloaded = MappingsList.empty(allocator);
+    try reloaded.registerPath(.COMP, "VST: ReaComp (Cockos)", "default", "/maps/default.ini");
+    try reloaded.registerPath(.COMP, "VST: ReaComp (Cockos)", "punchy", "/maps/punchy.ini");
+    try reloaded.registerPath(.OUTPT, "JS: Saturation", "default", "/maps/sat_default.ini");
+    try reloaded.registerPath(.OUTPT, "JS: Saturation", "test_output_saturation", "/maps/sat_test.ini");
+    load(&reloaded, io, dir);
+    try testing.expectEqualStrings("punchy", reloaded.defaultMapName(.COMP, "VST: ReaComp (Cockos)").?);
+    try testing.expectEqualStrings("test_output_saturation", reloaded.defaultMapName(.OUTPT, "JS: Saturation").?);
     // Because the choice is made for one module, the same name in another module has none.
-    try testing.expect(loaded.get(.EQ, "VST: ReaComp (Cockos)") == null);
+    try testing.expectEqual(@as(?[:0]const u8, null), reloaded.defaultMapName(.EQ, "VST: ReaComp (Cockos)"));
 
-    try testing.expectError(error.UnsupportedName, maps.set(allocator, .COMP, "a=b", "x"));
-    try testing.expectError(error.EmptyName, maps.set(allocator, .COMP, "x", ""));
+    // A map or an FX that the list does not have is refused.
+    try testing.expectError(error.MappingNotFound, ml.setDefault(.COMP, "VST: ReaComp (Cockos)", "missing"));
+    try testing.expectError(error.FxNotFound, ml.setDefault(.COMP, "VST: Missing", "default"));
 }
 
 test "a folder without the file has no default maps" {
     const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
     var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = path_buf[0..try tmp_dir.dir.realPathFile(testing.io, ".", &path_buf)];
 
-    var loaded: DefaultMaps = .empty;
-    loaded.load(testing.allocator, testing.io, dir);
-    try testing.expect(loaded.get(.COMP, "anything") == null);
+    var ml = MappingsList.empty(arena.allocator());
+    try ml.registerPath(.COMP, "VST: ReaComp (Cockos)", "default", "/maps/default.ini");
+    load(&ml, testing.io, dir);
+    try testing.expectEqual(@as(?[:0]const u8, null), ml.defaultMapName(.COMP, "VST: ReaComp (Cockos)"));
 }

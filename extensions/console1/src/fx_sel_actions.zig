@@ -76,7 +76,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             if (plugin.mapping_name == null) {
                 if (globals.mappings_list.findFx(current_module, plugin.name)) |found| {
                     if (found.maps.len > 1) {
-                        openMapSelector(globals, current_module, globals.mappings_list.strings.get(found.fx_offset), found.fx_offset);
+                        openMapSelector(globals, globals.mappings_list.strings.get(found.fx_offset), found.fx_offset);
                         return;
                     }
                 }
@@ -237,7 +237,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                                 const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
                                 fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
                             } else {
-                                openMapSelector(globals, category, fx_name, fx_offset);
+                                openMapSelector(globals, fx_name, fx_offset);
                             }
                         },
                         .plugin => |name| fxSelActions(globals, .{ .plugin = .{ .name = name, .mapping_name = null } }),
@@ -328,28 +328,22 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         .select_fx => |fx_offset| {
             const fx_name = globals.mappings_list.strings.get(fx_offset);
-            openMapSelector(globals, globals.state.fx_sel.current_category, fx_name, fx_offset);
+            openMapSelector(globals, fx_name, fx_offset);
         },
         .set_default_map => |chosen| {
             const module = globals.state.fx_sel.current_category;
             globals.map_store.setDefaultMap(io, module, chosen.name, chosen.mapping_name, &globals.mappings_list) catch |err| {
                 log.err("Failed to make {s} the default map of {s}: {s}", .{ chosen.mapping_name, chosen.name, @errorName(err) });
             };
-            // Because the selector stays open, its check follows the default that the store now has.
-            switch (globals.state.fx_sel.sub_mode) {
-                .select_mapping => |*sel| sel.default_map = globals.map_store.default_maps.get(module, sel.fx_name),
-                .browse_fx => {},
-            }
         },
     }
 }
 
-/// Opens the selector of the maps of a plugin, with the default map of the plugin marked.
-fn openMapSelector(globals: *Globals, module: ModulesList, fx_name: [:0]const u8, fx_offset: StringPool.StringRef) void {
+/// Opens the selector of the maps of a plugin.
+fn openMapSelector(globals: *Globals, fx_name: [:0]const u8, fx_offset: StringPool.StringRef) void {
     globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
         .fx_name = fx_name,
         .fx_string_pool_offset = fx_offset,
-        .default_map = globals.map_store.default_maps.get(module, fx_name),
     } };
 }
 

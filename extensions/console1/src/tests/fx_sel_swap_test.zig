@@ -463,7 +463,8 @@ test "a plugin that has several maps opens the selector of maps when it is chose
 }
 
 test "the default button makes a map the default of the plugin and writes it to the disk, and shift with confirm does the same, with the selector open" {
-    const DefaultMaps = @import("../default_maps.zig");
+    const default_maps = @import("../default_maps.zig");
+    const MappingsList = @import("../mappings_list.zig");
     const io = Globals.hostIo();
     var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer model_arena.deinit();
@@ -504,18 +505,21 @@ test "the default button makes a map the default of the plugin and writes it to 
     actions.dispatch(globals, .{ .change_mode = .fx_sel });
     actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } });
     try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
-    try testing.expectEqual(@as(?[:0]const u8, null), globals.state.fx_sel.sub_mode.select_mapping.default_map);
+    try testing.expectEqual(@as(?[:0]const u8, null), globals.mappings_list.defaultMapName(.COMP, fx_name));
     const count_before = reaper.TrackFX_GetCount(track);
 
     // The button of a row makes its map the default: the selector stays open, the check moves, and the choice is on the disk.
     actions.dispatch(globals, .{ .fx_sel = .{ .set_default_map = .{ .name = fx_name, .mapping_name = "punchy" } } });
     try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
     try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
-    try testing.expectEqualStrings("punchy", globals.state.fx_sel.sub_mode.select_mapping.default_map.?);
+    try testing.expectEqualStrings("punchy", globals.mappings_list.defaultMapName(.COMP, fx_name).?);
     try testing.expect(std.mem.endsWith(u8, globals.map_store.getPreferredMapping(fx_name, .COMP).?, "punchy.ini"));
-    var reloaded: DefaultMaps = .empty;
-    reloaded.load(arena, io, dir);
-    try testing.expectEqualStrings("punchy", reloaded.get(.COMP, fx_name).?);
+    // Because the file is read into the flags of a list that has the maps, a list that was just indexed has the choice back.
+    var reloaded = MappingsList.empty(arena);
+    try reloaded.registerPath(.COMP, fx_name, "default", "/maps/default.ini");
+    try reloaded.registerPath(.COMP, fx_name, "punchy", "/maps/punchy.ini");
+    default_maps.load(&reloaded, io, dir);
+    try testing.expectEqualStrings("punchy", reloaded.defaultMapName(.COMP, fx_name).?);
 
     // Because the controller reaches the button with shift, confirming the first row with shift held makes it the default, and
     // nothing is inserted.
@@ -524,9 +528,11 @@ test "the default button makes a map the default of the plugin and writes it to 
     actions.dispatch(globals, .{ .fx_sel = .confirm });
     try testing.expectEqual(statemachine.Mode.fx_sel, globals.state.current_mode);
     try testing.expect(globals.state.fx_sel.sub_mode == .select_mapping);
-    try testing.expectEqualStrings("default", globals.state.fx_sel.sub_mode.select_mapping.default_map.?);
+    try testing.expectEqualStrings("default", globals.mappings_list.defaultMapName(.COMP, fx_name).?);
     try testing.expectEqual(count_before, reaper.TrackFX_GetCount(track));
-    var reloaded_again: DefaultMaps = .empty;
-    reloaded_again.load(arena, io, dir);
-    try testing.expectEqualStrings("default", reloaded_again.get(.COMP, fx_name).?);
+    var reloaded_again = MappingsList.empty(arena);
+    try reloaded_again.registerPath(.COMP, fx_name, "default", "/maps/default.ini");
+    try reloaded_again.registerPath(.COMP, fx_name, "punchy", "/maps/punchy.ini");
+    default_maps.load(&reloaded_again, io, dir);
+    try testing.expectEqualStrings("default", reloaded_again.defaultMapName(.COMP, fx_name).?);
 }

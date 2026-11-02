@@ -192,9 +192,6 @@ pub const FxSelSubMode = union(enum) {
         fx_string_pool_offset: StringPool.StringRef,
         scroll_position_abs: u8 = 0,
         scroll_position_rel: usize = 0,
-        /// The name of the map that the user made the default of this FX, which the rows mark with a check. Because the panel
-        /// cannot read the store, it is kept here, and it is updated when the default changes.
-        default_map: ?[:0]const u8 = null,
     },
 };
 
