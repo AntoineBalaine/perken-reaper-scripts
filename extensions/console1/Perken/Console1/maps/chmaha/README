@@ -86,6 +86,12 @@ for each control, as in
 A name is at most 31 bytes, and a map can name 16 controls. Lumina uses it to
 shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs.
 
+In the mapping panel, a right click on a control opens a popup above it, titled
+"Custom name", with a field. Enter confirms the name, and so does a click
+elsewhere; Escape gives it up. An empty name takes the custom name away, and the
+control has the name of its parameter again. The name goes into the map file
+when the mapping is saved.
+
 
 Gain reduction
 --------------

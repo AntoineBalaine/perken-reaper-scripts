@@ -16,7 +16,7 @@ const TranslationStore = @import("../translations.zig").TranslationStore;
 const tr = @import("../translations.zig").tr;
 const combo_style = @import("combo_style.zig");
 
-pub const Res = union(enum) { click, param_idx: u32, remove_mapping, value_changed: f32 };
+pub const Res = union(enum) { click, right_click, param_idx: u32, remove_mapping, value_changed: f32 };
 
 /// A knob with its combo over the cap, where its label is in the panel of the FX controls. `width` is the width of the
 /// widget, which is the one that the plate gives to the knobs of the module. `assigned` is the name of the parameter that the
@@ -83,6 +83,8 @@ pub fn drawWidget(
     } else if (clicked) {
         rv = .click;
     }
+    // A right click on the cap asks for the name of the control.
+    if (hovered and try imgui.IsMouseClicked(.{ ctx, imgui.MouseButton_Right, null })) rv = .right_click;
 
     try knob.drawCapKnob(drwls, center_x, center_y, radius, value, flags.trackStart, .{ .hovered = hovered, .active = clicked, .disabled = flags.disabled });
 

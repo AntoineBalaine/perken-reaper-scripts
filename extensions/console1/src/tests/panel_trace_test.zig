@@ -193,6 +193,74 @@ test "mapping panel in strip assign mode renders the store key and param list" {
     try testing.expectEqual(@as(usize, 2), mock.widgetCount(.begin_disabled));
 }
 
+test "a right click on a control of the mapping panel opens the popup of its custom name, and on no other" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    // The knob of the low cut answers to the id of the knob, and the key of the compressor to the id of its key.
+    mock.rightClick("Inpt_LoCut");
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.open_popup, "##custom_name_Inpt_LoCut"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Inpt_HiCut"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Inpt_Gain"));
+}
+
+test "a right click on a key of the mapping panel opens the popup of its custom name" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    mock.rightClick("##Comp_comp");
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.open_popup, "##custom_name_Comp_comp"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Eq_eq"));
+}
+
 test "the store key of a plate does not need a preset to be loaded" {
     const statemachine = @import("../statemachine.zig");
     const mappings = @import("../mappings.zig");

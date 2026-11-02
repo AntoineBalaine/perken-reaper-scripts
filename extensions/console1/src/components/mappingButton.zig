@@ -91,6 +91,8 @@ pub fn mappingButton(
     const held = !disabled and try imgui.IsItemActive(.{ctx});
     try knob.drawRoundKey(draw_list, center_x, center_y, radius, -1, .{ .hovered = hovered, .active = held, .disabled = disabled });
     if (clicked) rv = .click;
+    // A right click on the key asks for the name of the control.
+    if (!disabled and hovered and try imgui.IsMouseClicked(.{ ctx, imgui.MouseButton_Right, null })) rv = .right_click;
 
     try imgui.SetCursorScreenPos(.{ ctx, combo_x, combo_y });
     if (try mappingKnob.paramsCombo(ctx, cc, label, assigned, combo_w, param_store, translations)) |v| rv = v;

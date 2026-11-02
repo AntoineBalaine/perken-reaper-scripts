@@ -703,8 +703,99 @@ fn storeKey(ctx: imgui.ContextPtr, plate: Plate, comptime id: [:0]const u8, titl
     return iconKey(ctx, "##store_" ++ id, titleKeyX(plate, title_w, key_w, 1), plate.start.y + module_plate.pad, key_w, try titleKeyHeight(ctx), c1_theme.Icons.get(.pin), enabled, state.store_preset_data, tr(translations, .mapping_store_preset));
 }
 
+/// The editor of the custom name of a control: a popup over the control, in which the name is typed. Only one control has it at a
+/// time. It is the state of the panel, and not of the mapping: the name only goes to the mapping when it is confirmed.
+const NameEditor = struct {
+    /// The control that the popup is for, or null when no popup is wanted.
+    target: ?c1.CCs = null,
+    /// The popup is to be opened on the next frame of its control.
+    open_requested: bool = false,
+    /// The popup has been seen open, which tells a click elsewhere from a popup that is not open yet.
+    shown: bool = false,
+    /// The field takes the keyboard on the frame that the popup opens.
+    focus: bool = false,
+    /// What the field holds, as a C string. The name is at most 31 bytes.
+    text: [32]u8 = std.mem.zeroes([32]u8),
+    /// What the field held when the popup opened, or when it was confirmed.
+    original: [32]u8 = std.mem.zeroes([32]u8),
+};
+
+var name_editor: NameEditor = .{};
+
+/// The custom name that the mapping of the control has, or an empty text.
+fn customNameOf(assign_state: *const AssignState, cc: c1.CCs, buffer: *[32]u8) void {
+    buffer.* = std.mem.zeroes([32]u8);
+    switch (assign_state.current_mappings) {
+        inline else => |mapping| {
+            if (mapping.labels.get(cc)) |name| @memcpy(buffer[0..name.len], name);
+        },
+    }
+}
+
+/// Asks for the popup of the name of a control, which starts with the name that it has now.
+fn requestNameEditor(assign_state: *const AssignState, cc: c1.CCs) void {
+    customNameOf(assign_state, cc, &name_editor.text);
+    name_editor.original = name_editor.text;
+    name_editor.target = cc;
+    name_editor.open_requested = true;
+    name_editor.shown = false;
+}
+
+/// The action that gives the control the text that is in the editor.
+fn nameAction(cc: c1.CCs) mapping_actions.MappingPanelAction {
+    return .{ .assign_set_label = .{ .control = cc, .text = name_editor.text } };
+}
+
+/// The popup of the custom name of a control. It opens above the control, at the middle of it, and has a title and a field in
+/// which the name is typed: Enter confirms it, and so does a click elsewhere. Escape gives it up. An empty name gives the control
+/// the name of the parameter again. It must be called right after the control is drawn, because the last item is what it opens
+/// over, and it is the one that has the id of the popup.
+fn customNamePopup(ctx: imgui.ContextPtr, comptime cc: c1.CCs, translations: *TranslationStore) !?mapping_actions.MappingPanelAction {
+    if (name_editor.target != cc) return null;
+    const popup_id = "##custom_name_" ++ @tagName(cc);
+    if (name_editor.open_requested) {
+        try imgui.OpenPopup(.{ ctx, popup_id, null });
+        name_editor.open_requested = false;
+        name_editor.focus = true;
+    }
+
+    var min_x: f64 = undefined;
+    var min_y: f64 = undefined;
+    var max_x: f64 = undefined;
+    var max_y: f64 = undefined;
+    try imgui.GetItemRectMin(.{ ctx, &min_x, &min_y });
+    try imgui.GetItemRectMax(.{ ctx, &max_x, &max_y });
+    // The bottom of the popup is on the top of the control, and the middle of the popup is on the middle of the control.
+    const pivot_x: f64 = 0.5;
+    const pivot_y: f64 = 1.0;
+    try imgui.SetNextWindowPos(.{ ctx, (min_x + max_x) / 2, min_y - 4, imgui.Cond_Always, pivot_x, pivot_y });
+    if (!try imgui.BeginPopup(.{ ctx, popup_id, null })) {
+        // Because a click elsewhere closes the popup before its field runs again, the name that was typed is kept here. Escape gives
+        // the field its old text back, so it keeps nothing.
+        defer name_editor.target = null;
+        const typed = std.mem.sliceTo(&name_editor.text, 0);
+        if (name_editor.shown and !std.mem.eql(u8, typed, std.mem.sliceTo(&name_editor.original, 0))) return nameAction(cc);
+        return null;
+    }
+    defer imgui.EndPopup(.{ctx}) catch {};
+    name_editor.shown = true;
+
+    try imgui.Text(.{ ctx, tr(translations, .mapping_custom_name) });
+    if (name_editor.focus) {
+        try imgui.SetKeyboardFocusHere(.{ ctx, null });
+        name_editor.focus = false;
+    }
+    try imgui.SetNextItemWidth(.{ ctx, 180 });
+    const entered = try imgui.InputText(.{ ctx, "##custom_name_input", @as([*]u8, @ptrCast(&name_editor.text)), name_editor.text.len, imgui.InputTextFlags_EnterReturnsTrue, null });
+    if (!entered) return null;
+    name_editor.original = name_editor.text;
+    try imgui.CloseCurrentPopup(.{ctx});
+    return nameAction(cc);
+}
+
 /// A control of a module, at its slot of the plate: a knob or a key, with the combo of its parameter where the label is. A
-/// module that has no FX has no owner: its controls are drawn disabled, with nothing mapped.
+/// module that has no FX has no owner: its controls are drawn disabled, with nothing mapped. A right click on it opens the popup of
+/// its custom name.
 fn control(
     ctx: imgui.ContextPtr,
     plate: Plate,
@@ -769,7 +860,11 @@ fn control(
             .param_idx => |i| rv = .{ .assign_add_mapping = .{ .param = @intCast(i), .control = c.cc } },
             .remove_mapping => rv = .{ .assign_remove_mapping = c.cc },
             .value_changed => |new_val| rv = .{ .assign_update_knob = .{ .cc = c.cc, .value = new_val } },
+            .right_click => if (mappable_owner) |assign_state| requestNameEditor(assign_state, c.cc),
         }
+    }
+    if (mappable_owner != null) {
+        if (try customNamePopup(ctx, c.cc, translations)) |action| rv = action;
     }
     return rv;
 }

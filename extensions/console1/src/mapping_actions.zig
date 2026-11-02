@@ -20,6 +20,9 @@ const preset_file_reader = @import("preset_file_reader");
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
+/// The bytes of the text of a name, as the action that sets it carries them.
+const change_text_len = @typeInfo(@FieldType(@FieldType(MappingPanelAction, "assign_set_label"), "text")).array.len;
+
 pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
     const io = Globals.hostIo();
     switch (action) {
@@ -210,6 +213,18 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 assign.learned_param = param_index;
                 log.debug("MIDI learn: param {d} captured", .{param_index});
                 tryCompleteLearnAssignment(globals);
+            }
+        },
+
+        .assign_set_label => |change| {
+            comptime std.debug.assert(change_text_len == mappings.max_label_len + 1);
+            const set = assignSet(globals);
+            const owner = if (set.moduleOf(change.control)) |module| set.get(module).? else set.active();
+            const text = std.mem.sliceTo(&change.text, 0);
+            switch (owner.current_mappings) {
+                inline else => |*mapping| {
+                    if (text.len == 0) mapping.labels.clear(change.control) else mapping.labels.set(change.control, text);
+                },
             }
         },
 

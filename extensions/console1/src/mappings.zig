@@ -68,6 +68,16 @@ pub const Labels = struct {
         self.count += 1;
     }
 
+    /// Takes the name of the control away, so that it has the one of the plugin again. A control that has no name is left alone.
+    pub fn clear(self: *Labels, cc: c1.CCs) void {
+        for (self.entries[0..self.count], 0..) |entry, index| {
+            if (entry.cc != cc) continue;
+            std.mem.copyForwards(Entry, self.entries[index .. self.count - 1], self.entries[index + 1 .. self.count]);
+            self.count -= 1;
+            return;
+        }
+    }
+
     pub fn any(self: *const Labels) bool {
         return self.count > 0;
     }
@@ -1108,6 +1118,26 @@ test "the names of a map are written as a [labels] section that reads back, and 
     _ = try readToU8Struct(&strip, &parser, &found_module, null, std.testing.allocator);
     try std.testing.expectEqualStrings("HPF", strip.labels.get(.Inpt_LoCut).?);
     try std.testing.expectEqualStrings("LPF", strip.labels.get(.Inpt_HiCut).?);
+}
+
+test "a name is taken away by clear, the others stay in order, and clearing a control without a name does nothing" {
+    var labels: Labels = .{};
+    labels.set(.Inpt_LoCut, "HPF");
+    labels.set(.Inpt_HiCut, "LPF");
+    labels.set(.Comp_Ratio, "Ratio");
+    labels.clear(.Inpt_HiCut);
+    try std.testing.expectEqual(@as(u8, 2), labels.count);
+    try std.testing.expect(labels.get(.Inpt_HiCut) == null);
+    try std.testing.expectEqualStrings("HPF", labels.get(.Inpt_LoCut).?);
+    try std.testing.expectEqualStrings("Ratio", labels.get(.Comp_Ratio).?);
+    labels.clear(.Out_Vol);
+    try std.testing.expectEqual(@as(u8, 2), labels.count);
+    labels.clear(.Inpt_LoCut);
+    labels.clear(.Comp_Ratio);
+    try std.testing.expect(!labels.any());
+    // Because a list that was emptied is free again, a new name goes in.
+    labels.set(.Out_Vol, "Vol");
+    try std.testing.expectEqualStrings("Vol", labels.get(.Out_Vol).?);
 }
 
 test "a name is replaced by naming the control again, cut at the longest label, and the list has a limit" {

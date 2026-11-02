@@ -277,6 +277,7 @@ pub const TranslationKey = enum {
     fx_sel_is_default,
     fx_sel_tags_category,
     fx_sel_tags_developer,
+    mapping_custom_name,
 };
 
 /// TODO: move default translations into an INI or zon file,
@@ -537,6 +538,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "fx_sel_is_default", "Default" },
     .{ "fx_sel_tags_category", "category" },
     .{ "fx_sel_tags_developer", "developer" },
+    .{ "mapping_custom_name", "Custom name" },
 });
 
 const T = Translator.TranslationEngine(TranslationKey, default_translations);

@@ -89,6 +89,9 @@ pub const MappingPanelAction = union(enum) {
     assign_midi_learned_param: u32,
     assign_update_knob: struct { cc: CCs, value: f32 },
     assign_remove_mapping: CCs,
+    /// Gives a control the name that the user typed, or takes its name away when the text is empty. The text is a C string in a
+    /// buffer as long as the longest label, and its last byte is 0.
+    assign_set_label: struct { control: CCs, text: [32]u8 },
     assign_change_module: ModulesList,
     /// Opens the browser of the plugins of a module from the assignment, to swap its plugin: the assignment is back once one is chosen.
     assign_swap_fx: ModulesList,

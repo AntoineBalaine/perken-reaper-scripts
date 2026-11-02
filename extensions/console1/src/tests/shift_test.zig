@@ -106,6 +106,36 @@ test "shift with Tr7 creates a mapping: every module that has an FX is open at o
     try testing.expect(set.getConst(.INPUT) == null);
 }
 
+test "the custom name of a control goes to the mapping of its own module, and an empty name takes it away" {
+    const h = try Harness.init(2);
+    defer h.deinit();
+    const actions = @import("../actions.zig");
+    h.globals.state.current_tr_id = 1;
+    var locations = @import("../track_state.zig").ModuleLocations.initFill(null);
+    locations.set(.GATE, .{ .fx_index = 0, .mapping = null });
+    locations.set(.COMP, .{ .fx_index = 1, .mapping = null });
+    h.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = locations };
+    actions.dispatch(h.globals, .{ .mapping_panel = .create_mapping });
+    const set = &h.globals.state.mapping_panel.mode.assign;
+
+    var rate = std.mem.zeroes([32]u8);
+    @memcpy(rate[0..4], "Rate");
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_set_label = .{ .control = .Comp_Ratio, .text = rate } } });
+    try testing.expectEqualStrings("Rate", set.getConst(.COMP).?.current_mappings.COMP.labels.get(.Comp_Ratio).?);
+    // Because the control belongs to the compressor, the gate has no name.
+    try testing.expect(!set.getConst(.GATE).?.current_mappings.GATE.labels.any());
+
+    // A name that is typed again replaces the one that the control had.
+    var slope = std.mem.zeroes([32]u8);
+    @memcpy(slope[0..5], "Slope");
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_set_label = .{ .control = .Comp_Ratio, .text = slope } } });
+    try testing.expectEqualStrings("Slope", set.getConst(.COMP).?.current_mappings.COMP.labels.get(.Comp_Ratio).?);
+
+    // An empty name gives the control the name of its parameter again.
+    actions.dispatch(h.globals, .{ .mapping_panel = .{ .assign_set_label = .{ .control = .Comp_Ratio, .text = std.mem.zeroes([32]u8) } } });
+    try testing.expect(set.getConst(.COMP).?.current_mappings.COMP.labels.get(.Comp_Ratio) == null);
+}
+
 test "a control maps in its own module: the module is focused, and the others keep their mapping" {
     const h = try Harness.init(2);
     defer h.deinit();
