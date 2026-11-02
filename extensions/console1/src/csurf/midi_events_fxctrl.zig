@@ -284,8 +284,9 @@ pub fn trackListColor(id: c_int) c_int {
 }
 
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
-    // The legacy unit turns its knobs through here, and the sysex unit through `onTick`.
-    if (ids.isKnob(cc)) globals.state.fx_ctrl.touchKnob(cc, csurf.nowMs());
+    // The legacy unit turns its knobs through here, and the sysex unit through `onTick`. The keys of both come through here, and the
+    // panel shows the value of a key that was pressed a moment ago, as it does for a knob.
+    globals.state.fx_ctrl.touchKnob(cc, csurf.nowMs());
     switch (cc) {
         .Inpt_disp_mode => {
             actions.dispatch(globals, .{ .change_mode = .transport });
@@ -312,14 +313,23 @@ pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) vo
         },
         .Inpt_preset => {},
         .Out_Pan => {
+            // Because the legacy unit has no shift, a parameter that a map assigns to the knob leaves it no track.
+            if (!globals.state.fx_ctrl.knobDrivesTrack(cc, false)) {
+                if (getTrack(globals.state.current_tr_id)) |tr| setPrmVal(cc, tr, val, &globals.state.fx_ctrl);
+                return;
+            }
             const norm_val = @as(f64, @floatFromInt(val)) / 127.0;
-            setUIVal(cc, norm_val, &globals.state.fx_ctrl);
+            globals.state.fx_ctrl.track_pan = norm_val;
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 pReaper.CSurf_SetSurfacePan(.{ tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), csurf.surface() });
             }
         },
         .Out_Vol => {
-            setUIVal(cc, @as(f64, @floatFromInt(val)) / 127, &globals.state.fx_ctrl);
+            if (!globals.state.fx_ctrl.knobDrivesTrack(cc, false)) {
+                if (getTrack(globals.state.current_tr_id)) |tr| setPrmVal(cc, tr, val, &globals.state.fx_ctrl);
+                return;
+            }
+            globals.state.fx_ctrl.track_volume = @as(f64, @floatFromInt(val)) / 127;
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 pReaper.CSurf_SetSurfaceVolume(.{ tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), csurf.surface() });
             }

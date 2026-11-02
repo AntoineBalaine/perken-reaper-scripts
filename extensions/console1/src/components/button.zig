@@ -14,6 +14,9 @@ pub const TextPosition = enum {
 /// The radius of a round button that is not given one.
 pub const default_radius = 8.5;
 
+/// Where the key of the round button that was drawn last is on the screen, so that a panel can put something over it.
+pub var last_key: struct { x: f64, y: f64, radius: f64 } = .{ .x = 0, .y = 0, .radius = default_radius };
+
 /// The symbols that a round button can carry: those of a transport.
 pub const Icon = enum { play, stop, rec, cross, single, save };
 
@@ -191,6 +194,7 @@ pub fn roundButton(
             hit.max_y = @max(hit.max_y, label_pos_y + label_size.h);
         }
 
+        last_key = .{ .x = center_x, .y = center_y, .radius = radius };
         try imgui.SetCursorScreenPos(.{ ctx, hit.min_x, hit.min_y });
         const pressed = try imgui.InvisibleButton(.{ ctx, id, hit.max_x - hit.min_x, hit.max_y - hit.min_y });
         if (!is_disabled) rv = pressed;

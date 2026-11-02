@@ -36,6 +36,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
         },
         .panel_input => |panel| {
             var input = panel;
+            // Because a key that was clicked shows its value over it for a moment, as the controller's keys do, it is touched like a knob.
+            if (!@import("unit/ids.zig").isKnob(panel.cc)) globals.state.fx_ctrl.touchKnob(panel.cc, csurf.nowMs());
             // A value that was typed is read as the plugin writes its values, and a text that is not one is dropped.
             if (panel.text) |text| {
                 input.value = typedValue(globals, panel.cc, text) orelse return;

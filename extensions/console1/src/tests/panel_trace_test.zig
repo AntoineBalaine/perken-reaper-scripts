@@ -535,3 +535,30 @@ test "roundButton component renders with mock imgui" {
     // roundButton should record draw operations in the trace
     try testing.expect(mock.trace_list.items.len > 0);
 }
+
+test "a key that was pressed shows its value like a knob does: on or off for a toggle, and the text of the plugin for a mapped parameter" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    const fx_ctrl = &builder.state.fx_ctrl;
+
+    fx_ctrl.values.getPtr(.Out_mute).?.* = .{ .button = true };
+    try testing.expectEqualStrings("On", fx_ctrl_panel.keyValueText(fx_ctrl, .Out_mute).?);
+    fx_ctrl.values.getPtr(.Out_mute).?.* = .{ .button = false };
+    try testing.expectEqualStrings("Off", fx_ctrl_panel.keyValueText(fx_ctrl, .Out_mute).?);
+
+    // Because a key that is not mapped has no value of a plugin, it has nothing to show.
+    try testing.expect(fx_ctrl_panel.keyValueText(fx_ctrl, .Comp_comp) == null);
+
+    try fx_ctrl.track_state.forward_map.put(testing.allocator, .Comp_comp, .{ .fx_index = 0, .param_index = 1 });
+    defer fx_ctrl.track_state.forward_map.clearAndFree(testing.allocator);
+    fx_ctrl.track_state.label_pool.setFmtValue(.Comp_comp, "Peak");
+    try testing.expectEqualStrings("Peak", fx_ctrl_panel.keyValueText(fx_ctrl, .Comp_comp).?);
+    fx_ctrl.track_state.label_pool.setFmtValue(.Comp_comp, "-");
+    try testing.expectEqualStrings("Off", fx_ctrl_panel.keyValueText(fx_ctrl, .Comp_comp).?);
+
+    // The pad of the key stays lit for the same time as the popup of a knob.
+    fx_ctrl.touchKnob(.Out_mute, 1000);
+    fx_ctrl.now_ms = 1000 + @import("../fx_ctrl_state.zig").value_popup_ms;
+    try testing.expect(fx_ctrl.knobPopupVisible(.Out_mute));
+}

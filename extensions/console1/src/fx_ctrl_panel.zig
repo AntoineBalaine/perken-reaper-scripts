@@ -5,7 +5,7 @@ const c1 = @import("c1.zig");
 const WidgetInput = @import("action_types.zig").WidgetInput;
 const UiState = @import("ui_state.zig").UiState;
 const widgets = @import("components/widgets.zig");
-const roundButton = widgets.roundButton;
+const roundKey = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
 const section_spacing = @import("styles.zig").section_spacing;
 const Translations = @import("translations.zig");
@@ -141,6 +141,41 @@ fn moduleTitle(mode: Mode, card: ModuleCard, translations: *TranslationStore) [:
             .output => tr(translations, .fx_ctrl_card_output),
         },
     };
+}
+
+/// The state that the keys read their value from, which is set at the start of each frame of the panel.
+var keys_state: ?*const FxCtrlState = null;
+
+/// The value that a key shows in a popup when it was just pressed, as a knob does when it is turned: the text that the plugin
+/// writes for the parameter that the key is mapped to, or whether the toggle is on. It is null for a key that has none.
+pub fn keyValueText(fx_state: *const FxCtrlState, cc: c1.CCs) ?[:0]const u8 {
+    const on = switch (cc) {
+        .Out_mute, .Out_solo, .Inpt_phase_inv => fx_state.values.get(cc).?.button,
+        .Inpt_filt_to_comp => fx_state.filter_to_comp,
+        .Inpt_disp_on => fx_state.display != null,
+        else => {
+            if (fx_state.track_state.forward_map.get(cc) == null) return null;
+            const written = fx_state.track_state.label_pool.getFmtValue(cc);
+            if (written.len > 0 and !std.mem.eql(u8, written, "-")) return written;
+            return if (fx_state.values.get(cc).?.param.normalized > 0.5) "On" else "Off";
+        },
+    };
+    return if (on) "On" else "Off";
+}
+
+/// A key of the panel. Because the id of each key is the name of its control, the key that was pressed a moment ago, on the
+/// controller or with the mouse, shows its value over it, as a knob does while it is turned.
+fn roundButton(args: anytype) !bool {
+    const pressed = try roundKey(args);
+    const fx_state = keys_state orelse return pressed;
+    const id: [:0]const u8 = args[2];
+    if (id.len < 3) return pressed;
+    const cc = std.meta.stringToEnum(c1.CCs, id[2..]) orelse return pressed;
+    if (!fx_state.knobPopupVisible(cc)) return pressed;
+    if (keyValueText(fx_state, cc)) |text| {
+        try Knobs.drawValuePopup(args[0], button.last_key.x, button.last_key.y - button.last_key.radius - 2, text);
+    }
+    return pressed;
 }
 
 /// The color of the label of a control while shift is held and the control has another use.
@@ -353,6 +388,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
     module_plate.startFrame();
+    keys_state = fx_state;
     // What is wrong with the unit is a warning triangle at the top right of the card of the input, with the message in its tooltip: that
     // the console is not connected, or that it did not answer the handshake and runs in the legacy mode.
     const warning: ?[:0]const u8 = if (!ui.midi_connected)
