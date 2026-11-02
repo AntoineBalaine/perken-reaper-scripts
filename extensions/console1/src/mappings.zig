@@ -33,14 +33,18 @@ pub const Label = struct {
     }
 };
 
-/// The most controls that one map can name.
-pub const max_labels = 16;
-
 /// The names that a map gives its controls. They are written in the section `[labels]` of the map file, one line for each control,
-/// as `Inpt_LoCut=HPF`. Because a map names a few controls at most, the names are a short list that is searched in order.
+/// as `Inpt_LoCut=HPF`. Because a control has one name at most, the list has room for the name of every control, so that a map
+/// can rename all of them. The names are searched in order, since a map names a few controls in practice.
 pub const Labels = struct {
-    entries: [max_labels]Entry = undefined,
+    entries: [capacity]Entry = undefined,
     count: u8 = 0,
+
+    /// The number of controls, which is the most names that a map can have.
+    pub const capacity = std.enums.values(c1.CCs).len;
+    comptime {
+        std.debug.assert(capacity <= std.math.maxInt(u8));
+    }
 
     const Entry = struct { cc: c1.CCs, label: Label };
 
@@ -51,7 +55,7 @@ pub const Labels = struct {
         return null;
     }
 
-    /// Names the control, or renames it. A map that names more controls than the list holds loses the last ones.
+    /// Names the control, or renames it.
     pub fn set(self: *Labels, cc: c1.CCs, text: []const u8) void {
         for (self.entries[0..self.count]) |*entry| {
             if (entry.cc == cc) {
@@ -59,10 +63,8 @@ pub const Labels = struct {
                 return;
             }
         }
-        if (self.count == max_labels) {
-            log.warn("A map names more than {d} controls, so the name of {s} is dropped", .{ max_labels, @tagName(cc) });
-            return;
-        }
+        // Because a control that has a name is renamed above, the list is never full when a control is named for the first time.
+        std.debug.assert(self.count < capacity);
         self.entries[self.count] = .{ .cc = cc, .label = .{} };
         self.entries[self.count].label.set(text);
         self.count += 1;
@@ -1140,7 +1142,7 @@ test "a name is taken away by clear, the others stay in order, and clearing a co
     try std.testing.expectEqualStrings("Vol", labels.get(.Out_Vol).?);
 }
 
-test "a name is replaced by naming the control again, cut at the longest label, and the list has a limit" {
+test "a name is replaced by naming the control again, cut at the longest label, and every control can be named" {
     var labels: Labels = .{};
     labels.set(.Inpt_LoCut, "HPF");
     labels.set(.Inpt_LoCut, "High pass");
@@ -1152,23 +1154,10 @@ test "a name is replaced by naming the control again, cut at the longest label, 
     labels.set(.Inpt_HiCut, &long);
     try std.testing.expectEqual(@as(usize, max_label_len), labels.get(.Inpt_HiCut).?.len);
 
-    // Because the list holds `max_labels` names, the names after them are dropped and the others stay.
-    var count: u8 = labels.count;
-    for (std.enums.values(c1.CCs)) |cc| {
-        if (count == max_labels) break;
-        if (labels.get(cc) != null) continue;
-        labels.set(cc, "name");
-        count += 1;
-    }
-    try std.testing.expectEqual(@as(u8, max_labels), labels.count);
-    for (std.enums.values(c1.CCs)) |cc| {
-        if (labels.get(cc) == null) {
-            labels.set(cc, "one too many");
-            try std.testing.expect(labels.get(cc) == null);
-            break;
-        }
-    }
-    try std.testing.expectEqualStrings("High pass", labels.get(.Inpt_LoCut).?);
+    // Because the list has room for every control, a map that renames all of them loses none.
+    for (std.enums.values(c1.CCs)) |cc| labels.set(cc, "name");
+    try std.testing.expectEqual(@as(usize, Labels.capacity), labels.count);
+    for (std.enums.values(c1.CCs)) |cc| try std.testing.expectEqualStrings("name", labels.get(cc).?);
 }
 
 test readToU8Struct {
