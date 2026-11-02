@@ -547,25 +547,36 @@ pub fn syncFilterKnobs(globals: *Globals) void {
     var lo: f64 = 0.0;
     var hi: f64 = 0.0;
 
-    const filter_locs = fx_ctrl.track_state.getModuleLocations() orelse return;
-    if (fx_ctrl.filter_to_comp) {
-        if (filter_locs.get(.COMP)) |comp_loc| {
-            if (comp_loc.mapping) |mapping| {
-                if (mapping.COMP.Comp_HiCut) |param|
-                    hi = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
-                if (mapping.COMP.Comp_LoCut) |param|
-                    lo = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
+    switch (fx_ctrl.track_state.mode) {
+        // Because the plugin of a channel strip has the filters of its input and of its compressor, the mapping of the strip says
+        // where both are.
+        .channel_strip => |strip| {
+            const hi_param = if (fx_ctrl.filter_to_comp) strip.mapping.Comp_HiCut else strip.mapping.Inpt_HiCut;
+            const lo_param = if (fx_ctrl.filter_to_comp) strip.mapping.Comp_LoCut else strip.mapping.Inpt_LoCut;
+            if (hi_param) |param| hi = reaper.TrackFX_GetParamNormalized(tr, strip.fx_index, param);
+            if (lo_param) |param| lo = reaper.TrackFX_GetParamNormalized(tr, strip.fx_index, param);
+        },
+        .multi_fx => |filter_locs| {
+            if (fx_ctrl.filter_to_comp) {
+                if (filter_locs.get(.COMP)) |comp_loc| {
+                    if (comp_loc.mapping) |mapping| {
+                        if (mapping.COMP.Comp_HiCut) |param|
+                            hi = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
+                        if (mapping.COMP.Comp_LoCut) |param|
+                            lo = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
+                    }
+                }
+            } else {
+                if (filter_locs.get(.INPUT)) |input_loc| {
+                    if (input_loc.mapping) |mapping| {
+                        if (mapping.INPUT.Inpt_HiCut) |param|
+                            hi = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
+                        if (mapping.INPUT.Inpt_LoCut) |param|
+                            lo = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
+                    }
+                }
             }
-        }
-    } else {
-        if (filter_locs.get(.INPUT)) |input_loc| {
-            if (input_loc.mapping) |mapping| {
-                if (mapping.INPUT.Inpt_HiCut) |param|
-                    hi = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
-                if (mapping.INPUT.Inpt_LoCut) |param|
-                    lo = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
-            }
-        }
+        },
     }
     const hicut_cc: c1.CCs = if (fx_ctrl.filter_to_comp) .Comp_HiCut else .Inpt_HiCut;
     const locut_cc: c1.CCs = if (fx_ctrl.filter_to_comp) .Comp_LoCut else .Inpt_LoCut;

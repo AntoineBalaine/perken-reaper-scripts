@@ -223,6 +223,10 @@ pub const ChannelStripMapping = struct {
     Comp_Release: ?u16 = null,
     Comp_Thresh: ?u16 = null,
     Comp_comp: ?u16 = null,
+    /// The two knobs that the filters to compressor key hands the cut knobs of the input to, as `Comp.Comp_HiCut` and `Comp.Comp_LoCut`
+    /// are for a compressor of its own.
+    Comp_HiCut: ?u16 = null,
+    Comp_LoCut: ?u16 = null,
     /// The parameter in which the plugin keeps the gain reduction of its compressor, in dB. It is no control: see `Comp.Comp_GR`.
     Comp_GR: ?u16 = null,
 
@@ -1094,6 +1098,19 @@ test "Comp_GR is read from a map as a parameter, and no control gets it" {
     try std.testing.expectEqual(@as(?u16, 12), strip.Comp_comp);
     try std.testing.expect(!@hasField(c1.CCs, "Comp_GR"));
     try std.testing.expect(!@hasField(c1.CCs, "Shp_GR"));
+}
+
+test "a channel strip map has the compressor filters of the filters to compressor key, and they are controls" {
+    const text = "version = 1\nmodule=STRIP\nComp_LoCut=18\nComp_HiCut=17\n";
+    var fbs: std.Io.Reader = .fixed(text);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
+    defer parser.deinit();
+    var found_module: ?ModulesList = null;
+    var strip = ChannelStripMapping{};
+    _ = try readToU8Struct(&strip, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectEqual(@as(?u16, 18), strip.Comp_LoCut);
+    try std.testing.expectEqual(@as(?u16, 17), strip.Comp_HiCut);
+    try std.testing.expect(@hasField(c1.CCs, "Comp_LoCut") and @hasField(c1.CCs, "Comp_HiCut"));
 }
 
 test "the names of a map are written as a [labels] section that reads back, and a map with none writes nothing" {
