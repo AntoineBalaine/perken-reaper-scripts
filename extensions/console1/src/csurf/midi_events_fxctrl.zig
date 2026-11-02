@@ -284,8 +284,8 @@ pub fn trackListColor(id: c_int) c_int {
 }
 
 pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
-    // The legacy unit turns its knobs through here, and the sysex unit through `onTick`. The keys of both come through here, and the
-    // panel shows the value of a key that was pressed a moment ago, as it does for a knob.
+    // The legacy unit turns its knobs through here, and the sysex unit through `onTick`. The buttons of both come through here, and the
+    // panel shows the value of a button that was pressed a moment ago, as it does for a knob.
     globals.state.fx_ctrl.touchKnob(cc, csurf.nowMs());
     switch (cc) {
         .Inpt_disp_mode => {
