@@ -219,12 +219,13 @@ fn drawLevelRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
 /// reaches the button with shift, the accent is lit while shift is held.
 fn drawMappingRows(ctx: imgui.ContextPtr, list: *ListContext, sel: @FieldType(FxSelSubMode, "select_mapping")) !void {
     const mapping_entries = list.mappings.get(sel.fx_string_pool_offset) orelse return;
-    const default_label = tr(list.translations, .fx_sel_default_map);
+    const set_label = tr(list.translations, .fx_sel_default_map);
+    const is_default_label = tr(list.translations, .fx_sel_is_default);
     const accent = ui_helpers.altColor(list.shift_held);
     for (mapping_entries.items, 0..) |map_entry, i| {
         const mapping_name = list.strings.get(map_entry.name_offset);
         const is_default = if (sel.default_map) |default_name| std.mem.eql(u8, default_name, mapping_name) else false;
-        switch (try card_kit.rowWithTag(ctx, @as([:0]const u8, @ptrCast(mapping_name)), default_label, accent, is_default, list.cursor == i, list.scroll_changed)) {
+        switch (try card_kit.rowWithTag(ctx, @as([:0]const u8, @ptrCast(mapping_name)), if (is_default) is_default_label else set_label, accent, is_default, list.cursor == i, list.scroll_changed)) {
             .none => {},
             .row => list.rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } },
             .tag => list.rv = .{ .set_default_map = .{ .name = sel.fx_name, .mapping_name = mapping_name } },

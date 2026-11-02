@@ -100,37 +100,78 @@ pub const TagLayout = struct {
     /// The left and the right edges of the button, which is also the area that answers a click as the button does.
     min_x: f64,
     max_x: f64,
+    /// The left edge of the check, which comes before the text when the button has one.
+    check_x: f64,
     text_x: f64,
 };
+
+/// The width of the check mark, and the space between it and the text.
+const check_width = 9.0;
+const check_gap = 5.0;
 
 const tag_margin = 8.0;
 const tag_padding_x = 8.0;
 /// The room that the button leaves above and under it in the row, so that it does not touch the rows next to it.
-const tag_inset_y = 2.0;
+const tag_inset_y = 3.0;
 const tag_rounding = 3.0;
 
-/// Places the button of a row at its right edge, wide enough for its text and its padding.
-pub fn tagLayout(row_max_x: f64, text_width: f64) TagLayout {
+/// Places the button of a row at its right edge, wide enough for its text, the check that comes before the text when `with_check`
+/// is true, and its padding.
+pub fn tagLayout(row_max_x: f64, text_width: f64, with_check: bool) TagLayout {
+    const check_room: f64 = if (with_check) check_width + check_gap else 0;
     const max_x = row_max_x - tag_margin;
-    const min_x = max_x - text_width - 2 * tag_padding_x;
-    return .{ .min_x = min_x, .max_x = max_x, .text_x = min_x + tag_padding_x };
+    const min_x = max_x - text_width - check_room - 2 * tag_padding_x;
+    return .{
+        .min_x = min_x,
+        .max_x = max_x,
+        .check_x = min_x + tag_padding_x,
+        .text_x = min_x + tag_padding_x + check_room,
+    };
 }
 
-/// The colors of the button of a row.
-pub const TagStyle = struct { fill: c_int, border: c_int, text: c_int };
+/// How the button of a row is drawn: a raised cap that lets the card show through, as the keys of the panel are.
+pub const TagStyle = struct {
+    /// The body of the cap, which is translucent so that the card stays visible under it.
+    fill: c_int,
+    border: c_int,
+    text: c_int,
+    /// The lit edge at the top of the cap and the dark one at its bottom. Because a cap that is pressed is lit from below, an active
+    /// button has them the other way round.
+    top_line: c_int,
+    bottom_line: c_int,
+    /// The shadow that a raised cap throws under it, which is clear when the cap is pressed.
+    drop_shadow: c_int,
+    /// The light around the cap while the mouse is over it, or while it is active.
+    glow: c_int,
+    /// How far the text sinks, in pixels, when the cap is pressed.
+    sunk: f64,
+};
 
-/// The colors of the button of a row for each of its states: dark and outlined when it is at rest, lit by the mouse over it, and
-/// filled with the color of its text when it is active, which is the state of the button of the row that is the default.
+const white: c_int = @bitCast(@as(u32, 0xFFFFFF00));
+const black: c_int = @bitCast(@as(u32, 0x00000000));
+
+/// The look of the button of a row in each of its states: a raised cap at rest, a lit one when the mouse is over it, and a pressed
+/// one, filled with the color of its text, when it is active, which is the state of the button of the row that is the default.
 pub fn tagStyle(color: c_int, active: bool, hovered: bool) TagStyle {
     if (active) return .{
-        .fill = combo_style.withAlpha(color, 0x66),
+        .fill = combo_style.withAlpha(color, 0x55),
         .border = combo_style.withAlpha(color, 0xFF),
         .text = combo_style.withAlpha(color, 0xFF),
+        .top_line = combo_style.withAlpha(black, 0x70),
+        .bottom_line = combo_style.withAlpha(white, 0x30),
+        .drop_shadow = combo_style.withAlpha(black, 0),
+        .glow = combo_style.withAlpha(color, 0x40),
+        .sunk = 0.8,
     };
     return .{
-        .fill = if (hovered) panel_theme.frame_bg_hover else panel_theme.frame_bg,
+        .fill = combo_style.withAlpha(white, if (hovered) 0x20 else 0x12),
         .border = combo_style.withAlpha(color, if (hovered) 0xFF else 0x80),
         .text = color,
+        .top_line = combo_style.withAlpha(white, if (hovered) 0x70 else 0x50),
+        .bottom_line = combo_style.withAlpha(black, 0x60),
+        .drop_shadow = combo_style.withAlpha(black, 0x90),
+        .glow = combo_style.withAlpha(color, if (hovered) 0x30 else 0),
+        .sunk = 0,
     };
 }
 
@@ -158,14 +199,28 @@ pub fn rowWithTag(
     var text_w: f64 = undefined;
     var text_h: f64 = undefined;
     try imgui.CalcTextSize(.{ ctx, tag, &text_w, &text_h });
-    const layout = tagLayout(x2, text_w);
+    // Because the button of the default map says that it is the default, and the check goes with that, only the active button has it.
+    const layout = tagLayout(x2, text_w, active);
     const over_tag = try imgui.IsMouseHoveringRect(.{ ctx, layout.min_x, y1, layout.max_x, y2, null });
     const style = tagStyle(tag_color, active, over_tag);
     const dl = try imgui.GetWindowDrawList(.{ctx});
-    // Because the button is drawn after the row, it is over the row, and over the wash of the cursor.
-    try imgui.DrawList_AddRectFilled(.{ dl, layout.min_x, y1 + tag_inset_y, layout.max_x, y2 - tag_inset_y, style.fill, tag_rounding });
-    try imgui.DrawList_AddRect(.{ dl, layout.min_x, y1 + tag_inset_y, layout.max_x, y2 - tag_inset_y, style.border, tag_rounding, null, 1 });
-    try imgui.DrawList_AddText(.{ dl, layout.text_x, (y1 + y2) / 2 - text_h / 2, style.text, tag });
+    // Because the button is drawn after the row, it is over the row, and over the wash of the cursor. Its layers go from the back to
+    // the front: the glow, the shadow, the body, the two edges, the border and the text.
+    const top = y1 + tag_inset_y;
+    const bottom = y2 - tag_inset_y;
+    try imgui.DrawList_AddRectFilled(.{ dl, layout.min_x - 1.5, top - 1.5, layout.max_x + 1.5, bottom + 1.5, style.glow, tag_rounding + 1.5 });
+    try imgui.DrawList_AddRectFilled(.{ dl, layout.min_x + 0.5, top + 1.5, layout.max_x + 0.5, bottom + 1.5, style.drop_shadow, tag_rounding });
+    try imgui.DrawList_AddRectFilled(.{ dl, layout.min_x, top, layout.max_x, bottom, style.fill, tag_rounding });
+    try imgui.DrawList_AddLine(.{ dl, layout.min_x + tag_rounding, top + 1.5, layout.max_x - tag_rounding, top + 1.5, style.top_line, 1 });
+    try imgui.DrawList_AddLine(.{ dl, layout.min_x + tag_rounding, bottom - 1.5, layout.max_x - tag_rounding, bottom - 1.5, style.bottom_line, 1 });
+    try imgui.DrawList_AddRect(.{ dl, layout.min_x, top, layout.max_x, bottom, style.border, tag_rounding, null, 1 });
+    const middle = (y1 + y2) / 2 + style.sunk;
+    if (active) {
+        // Because the check is drawn with two lines, it does not depend on the font having the glyph.
+        try imgui.DrawList_AddLine(.{ dl, layout.check_x, middle, layout.check_x + 3, middle + 3.5, style.text, 1.6 });
+        try imgui.DrawList_AddLine(.{ dl, layout.check_x + 3, middle + 3.5, layout.check_x + check_width, middle - 3.5, style.text, 1.6 });
+    }
+    try imgui.DrawList_AddText(.{ dl, layout.text_x, middle - text_h / 2, style.text, tag });
     if (!clicked) return .none;
     return if (over_tag) .tag else .row;
 }

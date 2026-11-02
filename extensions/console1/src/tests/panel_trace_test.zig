@@ -532,10 +532,16 @@ fn countTrace(mock: *const MockImGui, kind: anytype) usize {
 test "the button of a row is placed from its right edge, and the button of the default map has the active colors" {
     const panel_card = @import("../components/panel_card.zig");
     // Because the button holds its text and its padding, it ends at the margin of the row and starts a padding before the text.
-    const layout = panel_card.tagLayout(200, 40);
+    const layout = panel_card.tagLayout(200, 40, false);
     try testing.expectApproxEqAbs(@as(f64, 192), layout.max_x, 0.001);
     try testing.expectApproxEqAbs(@as(f64, 136), layout.min_x, 0.001);
     try testing.expectApproxEqAbs(@as(f64, 144), layout.text_x, 0.001);
+    // Because the check comes before the text, the button that has one is wider, and the text starts after the check.
+    const with_check = panel_card.tagLayout(200, 40, true);
+    try testing.expectApproxEqAbs(@as(f64, 192), with_check.max_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 122), with_check.min_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 130), with_check.check_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 144), with_check.text_x, 0.001);
 
     // Because the active button is filled with the color of its text, it differs from the one at rest and from the one that the
     // mouse is over, and its fill is not the dark of those.
@@ -548,6 +554,19 @@ test "the button of a row is placed from its right edge, and the button of the d
     try testing.expect(hovered.fill != at_rest.fill);
     try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.text)));
     try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.border)));
+
+    // Because the card must show through the button at rest, its body is nearly clear, and it is not the black of a hole.
+    const rest_fill: u32 = @bitCast(at_rest.fill);
+    try testing.expect(rest_fill & 0xFF < 0x40);
+    try testing.expect(rest_fill >> 8 == 0xFFFFFF);
+    // Because a raised cap throws a shadow and a pressed one does not, and a pressed one sinks its text.
+    try testing.expect(@as(u32, @bitCast(at_rest.drop_shadow)) & 0xFF > 0);
+    try testing.expectEqual(@as(u32, 0), @as(u32, @bitCast(active.drop_shadow)) & 0xFF);
+    try testing.expectEqual(@as(f64, 0), at_rest.sunk);
+    try testing.expect(active.sunk > 0);
+    // Because a pressed cap is lit from below, its lit edge is at the bottom: the top edge is the dark one.
+    try testing.expect(@as(u32, @bitCast(active.top_line)) >> 8 == 0);
+    try testing.expect(@as(u32, @bitCast(at_rest.top_line)) >> 8 == 0xFFFFFF);
 }
 
 test "the screens spell out the name of each module, and none is the abbreviation that its tag has" {
