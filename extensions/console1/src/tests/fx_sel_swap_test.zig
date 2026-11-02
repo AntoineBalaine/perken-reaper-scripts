@@ -371,3 +371,32 @@ test "the compressor of a channel strip has a meter that rests at zero when the 
     try testing.expectEqual(@as(?f64, 0), globals.state.fx_ctrl.comp_reduction_db);
     try testing.expectEqual(@as(?f64, null), globals.state.fx_ctrl.gate_reduction_db);
 }
+
+test "the volume and the pan knobs drive the track unless a parameter is assigned to them, and then only while shift is held" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const fx_ctrl = &Globals.instance.state.fx_ctrl;
+
+    try testing.expect(!fx_ctrl.isKnobMapped(.Out_Vol));
+    try testing.expect(fx_ctrl.knobDrivesTrack(.Out_Vol, false));
+    try testing.expect(fx_ctrl.knobDrivesTrack(.Out_Pan, true));
+
+    try fx_ctrl.track_state.forward_map.put(testing.allocator, .Out_Vol, .{ .fx_index = 0, .param_index = 3 });
+    defer fx_ctrl.track_state.forward_map.clearAndFree(testing.allocator);
+    try testing.expect(fx_ctrl.isKnobMapped(.Out_Vol));
+    try testing.expect(!fx_ctrl.knobDrivesTrack(.Out_Vol, false));
+    try testing.expect(fx_ctrl.knobDrivesTrack(.Out_Vol, true));
+    // The knob that has no parameter assigned stays the track's, whatever shift does.
+    try testing.expect(!fx_ctrl.isKnobMapped(.Out_Pan));
+    try testing.expect(fx_ctrl.knobDrivesTrack(.Out_Pan, false));
+
+    // Because shift makes the volume the track's when a parameter is assigned to it, it does not also step the track list.
+    const handled = @import("../csurf/midi_events_fxctrl.zig").shiftFunction(&Globals.instance, .{ .tick = .{ .cc = .Out_Vol, .delta = 1, .fine = true } });
+    try testing.expect(!handled);
+}

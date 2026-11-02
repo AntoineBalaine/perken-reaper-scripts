@@ -1322,6 +1322,39 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpor
     return rv;
 }
 
+/// What the volume or the pan knob shows in the FX control modes. Because a map can assign a plugin parameter to these knobs,
+/// a knob that has one shows it, with the label of the track's own use after it, in the accent color, at the right: that use
+/// is the one that shift gives the knob. While shift is held, the label of the parameter is dimmed, the accent is lit, and the
+/// knob shows the track.
+const TrackKnob = struct {
+    label_id: Knobs.LabelId,
+    value: f64,
+
+    fn of(fx_state: *const FxCtrlState, cc: c1.CCs, track_label: [:0]const u8, id: [:0]const u8) TrackKnob {
+        std.debug.assert(cc == .Out_Vol or cc == .Out_Pan);
+        const track_value = if (cc == .Out_Vol) fx_state.track_volume else fx_state.track_pan;
+        if (!fx_state.isKnobMapped(cc)) return .{ .label_id = .{ .label = track_label, .id = id }, .value = track_value };
+        const shift = fx_state.shift_held;
+        return .{
+            .label_id = .{
+                .label = paramLabel(fx_state, cc),
+                .id = id,
+                .value_text = if (shift) null else fx_state.track_state.label_pool.getFmtValue(cc),
+                .label_color = if (shift) dimmed_label else null,
+                .alt = track_label,
+                .alt_color = ui_helpers.altColor(shift),
+            },
+            .value = if (shift) track_value else fx_state.values.get(cc).?.param.normalized,
+        };
+    }
+
+    /// The text that the plate must be wide enough for: the label of the parameter and the track's label after it.
+    fn widest(fx_state: *const FxCtrlState, cc: c1.CCs, track_label: [:0]const u8, buf: *[160:0]u8) [:0]const u8 {
+        if (!fx_state.isKnobMapped(cc)) return track_label;
+        return std.mem.printSentinel(buf, "{s}  {s}", .{ paramLabel(fx_state, cc), track_label }, 0) catch track_label;
+    }
+};
+
 fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
@@ -1332,7 +1365,12 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
     // the translations: its width is measured too.
     const strip_order: [:0]const u8 = if (fx_state.track_state.mode == .channel_strip) fx_state.track_state.label_pool.getFmtValue(.Tr_order) else "";
     const strip_sidechain: [:0]const u8 = if (fx_state.track_state.mode == .channel_strip) fx_state.track_state.label_pool.getFmtValue(.Tr_ext_sidechain) else "";
+    var pan_wide_buf: [160:0]u8 = undefined;
+    var vol_wide_buf: [160:0]u8 = undefined;
+    const track_knobs_shown = is_fx_mode;
     const out_widest = try widestOf(ctx, &.{
+        if (track_knobs_shown) TrackKnob.widest(fx_state, .Out_Pan, tr(translations, .fx_ctrl_Out_Pan), &pan_wide_buf) else "",
+        if (track_knobs_shown) TrackKnob.widest(fx_state, .Out_Vol, tr(translations, .fx_ctrl_Out_Vol), &vol_wide_buf) else "",
         "Character",
         paramLabel(fx_state, .Out_Drive),
         paramLabel(fx_state, .Out_DriveChar),
@@ -1417,10 +1455,11 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const pan_label = if (pan_key) |key| tr(translations, key) else null;
             const pan_disabled = (pan_label == null);
             const pan_no_val_display = pan_disabled or value_display_disabled;
-            const pan_label_id = Knobs.LabelId{
-                .label = pan_label orelse "-",
-                .id = "Out_Pan",
-            };
+            const pan_knob: TrackKnob = if (is_fx_mode and pan_label != null)
+                TrackKnob.of(fx_state, .Out_Pan, pan_label.?, "Out_Pan")
+            else
+                .{ .label_id = .{ .label = pan_label orelse "-", .id = "Out_Pan" }, .value = 0 };
+            const pan_label_id = pan_knob.label_id;
 
             // First knob
             var drive_val: f64 = if (mode == .transport)
@@ -1463,6 +1502,8 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             // Third knob
             var pan_val: f64 = if (mode == .transport)
                 @as(f64, @floatFromInt(transport.grid)) / 127.0
+            else if (is_fx_mode)
+                pan_knob.value
             else
                 fx_state.values.get(.Out_Pan).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_Pan);
@@ -1553,12 +1594,16 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const vol_label = if (vol_key) |key| tr(translations, key) else null;
             const vol_disabled = (vol_label == null);
             const vol_no_val_display = vol_disabled or value_display_disabled;
-            const label_id = Knobs.LabelId{
-                .label = vol_label orelse "-",
-                .id = try std.mem.printSentinel(id_buf, "Out_Vol", .{}, 0),
-            };
+            const vol_id = try std.mem.printSentinel(id_buf, "Out_Vol", .{}, 0);
+            const vol_knob: TrackKnob = if (is_fx_mode and vol_label != null)
+                TrackKnob.of(fx_state, .Out_Vol, vol_label.?, vol_id)
+            else
+                .{ .label_id = .{ .label = vol_label orelse "-", .id = vol_id }, .value = 0 };
+            const label_id = vol_knob.label_id;
             var vol_val: f64 = if (mode == .transport)
                 @as(f64, @floatFromInt(transport.tr_sel)) / 127.0
+            else if (is_fx_mode)
+                vol_knob.value
             else
                 fx_state.values.get(.Out_Vol).?.param.normalized;
             try plate.knob(ctx, out_slots.Out_Vol);

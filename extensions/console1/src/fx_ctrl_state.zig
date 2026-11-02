@@ -98,6 +98,10 @@ meters_playing: bool = false,
 reduction_key: u64 = 0,
 /// Whether shift is held on the controller, which the host sets before each frame, as it does `now_ms`.
 shift_held: bool = false,
+/// The volume and the pan of the selected track, normalized, as the knobs of the output show them. Because a map can assign a
+/// plugin parameter to these two knobs, the `values` of Out_Vol and Out_Pan hold that parameter then, and the track has its own.
+track_volume: f64 = 0,
+track_pan: f64 = 0.5,
 
 /// Display settings
 display: ?u8 = null,
@@ -150,6 +154,19 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
 
 pub fn deinit(self: *@This()) void {
     self.values.deinit(self.values_allocator);
+}
+
+/// Whether the map of the selected track assigns a plugin parameter to the volume or the pan knob, in which case the track
+/// has these two only while shift is held.
+pub fn isKnobMapped(self: *const @This(), cc: c1.CCs) bool {
+    std.debug.assert(cc == .Out_Vol or cc == .Out_Pan);
+    return self.track_state.forward_map.get(cc) != null;
+}
+
+/// Whether the volume or the pan knob drives the track, which it does when no parameter is assigned to it, or while shift is
+/// held, as the shifted knobs of a map that assigns them are the track's.
+pub fn knobDrivesTrack(self: *const @This(), cc: c1.CCs, shift_held: bool) bool {
+    return shift_held or !self.isKnobMapped(cc);
 }
 
 // Tuple contains: isLoaded, idxInContainer

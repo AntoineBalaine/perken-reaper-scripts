@@ -188,9 +188,9 @@ test "mapping panel in strip assign mode renders the store key and param list" {
     try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_ext_sidechain"));
     try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_order"));
 
-    // No module is disabled: the only disabled things are the four track controls of the output, which are not mapped (the pan,
-    // the solo, the mute and the volume).
-    try testing.expectEqual(@as(usize, 4), mock.widgetCount(.begin_disabled));
+    // No module is disabled: the only disabled things are the two track controls of the output that cannot be mapped, which are
+    // the solo and the mute. The pan and the volume can be mapped, and the track has them while shift is held.
+    try testing.expectEqual(@as(usize, 2), mock.widgetCount(.begin_disabled));
 }
 
 test "the store key of a plate does not need a preset to be loaded" {

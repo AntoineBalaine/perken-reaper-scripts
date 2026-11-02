@@ -362,14 +362,8 @@ const SetVolumeCmd = struct {
         fx_ctrl_actions.fxCtrlActions(sut.globals, .{ .set_volume = self.value });
         _ = model;
 
-        // Verify the state was updated (set_volume calls MidiEvts.setUIVal)
-        if (sut.globals.state.fx_ctrl.values.get(.Out_Vol)) |val| {
-            return switch (val) {
-                .param => |p| @abs(p.normalized - self.value) < 0.001,
-                else => false,
-            };
-        }
-        return false;
+        // Verify the state was updated: the track has its own volume, apart from the parameter that a map can assign to the knob.
+        return @abs(sut.globals.state.fx_ctrl.track_volume - self.value) < 0.001;
     }
 };
 
@@ -396,13 +390,7 @@ const SetPanCmd = struct {
         // set_pan converts pan_value to normalized using panToNormalized,
         // so the stored value in state is the normalized version.
         const expected_norm = utils.panToNormalized(self.value);
-        if (sut.globals.state.fx_ctrl.values.get(.Out_Pan)) |val| {
-            return switch (val) {
-                .param => |p| @abs(p.normalized - expected_norm) < 0.001,
-                else => false,
-            };
-        }
-        return false;
+        return @abs(sut.globals.state.fx_ctrl.track_pan - expected_norm) < 0.001;
     }
 };
 

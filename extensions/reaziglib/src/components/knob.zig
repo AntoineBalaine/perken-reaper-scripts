@@ -84,7 +84,16 @@ pub const LabelId = struct {
     id: [:0]const u8,
     /// When non-null, displayed below the knob instead of the formatted normalized float.
     value_text: ?[:0]const u8 = null,
+    /// The color of the label, or null for the text color of the style.
+    label_color: ?c_int = null,
+    /// A second text on the line of the label, which is the alternative use of the knob. When it is there, the label stands at
+    /// the left edge of the widget and this text at the right edge, in `alt_color`, and the widget is wide enough for both.
+    alt: ?[:0]const u8 = null,
+    alt_color: c_int = 0,
 };
+
+/// The room between a label and the alternative text that stands after it.
+pub const alt_gap = 6.0;
 
 pub inline fn angle_min() f64 {
     return std.math.pi * 0.75;
@@ -141,6 +150,12 @@ pub fn drawWidget(
     var label_size: Size = .{ .w = undefined, .h = undefined };
     try imgui.CalcTextSize(.{ ctx, label_id.label, &label_size.w, &label_size.h });
     const text_padding = label_text_padding;
+    var alt_w: f64 = 0;
+    if (label_id.alt) |alt| {
+        var alt_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, alt, &alt_w, &alt_h });
+    }
+    const line_w = if (label_id.alt != null) label_size.w + alt_gap + alt_w else label_size.w;
 
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
@@ -148,7 +163,7 @@ pub fn drawWidget(
     // A width that is given is the width of the widget, and a longer label is cut by the clip rect of the
     // widget, on both sides, so that the labels of two knobs never overlap: a panel that places the knobs on
     // fixed positions needs the cap to stay at the middle of the width it asked for.
-    const total_width = if (max_width) |max_w| @max(max_w, radius * 2) else @max(radius * 2, label_size.w);
+    const total_width = if (max_width) |max_w| @max(max_w, radius * 2) else @max(radius * 2, line_w);
 
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
@@ -166,13 +181,19 @@ pub fn drawWidget(
         }
 
         // Draw label at top
-        try imgui.DrawList_AddText(.{
-            drwls,
-            widget_rect.min_x + (total_width - label_size.w) / 2,
-            widget_rect.min_y + text_padding,
-            try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
-            label_id.label,
-        });
+        const label_color = label_id.label_color orelse try imgui.GetStyleColor(.{ ctx, imgui.Col_Text });
+        if (label_id.alt) |alt| {
+            try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x, widget_rect.min_y + text_padding, label_color, label_id.label });
+            try imgui.DrawList_AddText(.{ drwls, widget_rect.max_x - alt_w, widget_rect.min_y + text_padding, label_id.alt_color, alt });
+        } else {
+            try imgui.DrawList_AddText(.{
+                drwls,
+                widget_rect.min_x + (total_width - label_size.w) / 2,
+                widget_rect.min_y + text_padding,
+                label_color,
+                label_id.label,
+            });
+        }
 
         // Draw "Empty" button in the center of the adjusted ClipRect
         const center_x = widget_rect.min_x + total_width / 2; // centered based on total width

@@ -30,7 +30,8 @@ fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
 
 /// The functions of the buttons while shift is held in the fx_ctrl mode of the sysex unit. It returns whether the event
 /// was taken, so that a shifted press does not also do what the plain press does. The release of a button is never
-/// taken, and shift with the knobs is the fine adjust, which the tick carries.
+/// taken, and shift with the knobs is the fine adjust, which the tick carries, except for the volume and the pan when a map
+/// assigns a parameter to them: shift then makes them the track's, and the volume does not step the track list.
 pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
     switch (event) {
         .press => |cc| {
@@ -60,6 +61,7 @@ pub fn shiftFunction(globals: *Globals, event: Unit.ControlEvent) bool {
         },
         .tick => |tick| {
             if (tick.cc != .Out_Vol) return false;
+            if (globals.state.fx_ctrl.isKnobMapped(.Out_Vol)) return false;
             actions.dispatch(globals, .{ .track_list = .{ .step_track = if (tick.delta > 0) 1 else -1 } });
             return true;
         },
@@ -73,10 +75,15 @@ pub fn onTick(globals: *Globals, tick: @FieldType(Unit.ControlEvent, "tick")) bo
     if (globals.state.current_mode != .fx_ctrl) return false;
     globals.state.fx_ctrl.touchKnob(tick.cc, csurf.nowMs());
     const settings = globals.preferences.stepSettings();
-    const step = step_size.size(settings, tick.delta, tick.fine);
     switch (tick.cc) {
-        .Out_Vol, .Out_Pan => tickTrackKnob(globals, tick.cc, step),
-        else => tickParameter(globals, tick.cc, step),
+        .Out_Vol, .Out_Pan => {
+            const fx_ctrl = &globals.state.fx_ctrl;
+            // Because shift is what gives the track the knob that a map assigns, it is not the fine adjust there.
+            const shifted_to_track = tick.fine and fx_ctrl.isKnobMapped(tick.cc);
+            const step = step_size.size(settings, tick.delta, tick.fine and !shifted_to_track);
+            if (fx_ctrl.knobDrivesTrack(tick.cc, tick.fine)) tickTrackKnob(globals, tick.cc, step) else tickParameter(globals, tick.cc, step);
+        },
+        else => tickParameter(globals, tick.cc, step_size.size(settings, tick.delta, tick.fine)),
     }
     return true;
 }
@@ -89,14 +96,14 @@ fn tickTrackKnob(globals: *Globals, cc: c1.CCs, step: f64) void {
         .Out_Vol => {
             const current = utils.volToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_VOL"));
             const next = step_size.apply(current, step);
-            setUIVal(.Out_Vol, next, fx_ctrl);
+            fx_ctrl.track_volume = next;
             pReaper.CSurf_SetSurfaceVolume(.{ tr, reaper.CSurf_OnVolumeChange(tr, utils.normalizedToVol(next), false), csurf.surface() });
             actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Vol, .value = normalizedToMidi(next) } } });
         },
         .Out_Pan => {
             const current = utils.panToNormalized(reaper.GetMediaTrackInfo_Value(tr, "D_PAN"));
             const next = step_size.apply(current, step);
-            setUIVal(.Out_Pan, next, fx_ctrl);
+            fx_ctrl.track_pan = next;
             pReaper.CSurf_SetSurfacePan(.{ tr, reaper.CSurf_OnPanChange(tr, next * 2.0 - 1.0, false), csurf.surface() });
             actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = .Out_Pan, .value = normalizedToMidi(next) } } });
         },

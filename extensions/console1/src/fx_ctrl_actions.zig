@@ -77,7 +77,12 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                 },
                 .Out_Vol => {
-                    MidiEvts.setUIVal(.Out_Vol, input.value, &globals.state.fx_ctrl);
+                    // Because a map can assign a parameter to this knob, the track has it only while shift is held then.
+                    if (!globals.state.fx_ctrl.knobDrivesTrack(.Out_Vol, globals.state.fx_ctrl.shift_held)) {
+                        handlePanelParamInput(globals, input);
+                        return;
+                    }
+                    globals.state.fx_ctrl.track_volume = input.value;
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
@@ -88,7 +93,11 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                 },
                 .Out_Pan => {
-                    MidiEvts.setUIVal(.Out_Pan, input.value, &globals.state.fx_ctrl);
+                    if (!globals.state.fx_ctrl.knobDrivesTrack(.Out_Pan, globals.state.fx_ctrl.shift_held)) {
+                        handlePanelParamInput(globals, input);
+                        return;
+                    }
+                    globals.state.fx_ctrl.track_pan = input.value;
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(input.value * 127.0) } } });
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
@@ -182,7 +191,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
             handleFxWindowDisplay(globals, media_track);
         },
         .set_volume => |norm_val| {
-            MidiEvts.setUIVal(.Out_Vol, norm_val, &globals.state.fx_ctrl);
+            globals.state.fx_ctrl.track_volume = norm_val;
         },
         .set_sidechain => |routing| {
             if (globals.state.current_tr_id) |tr_id| {
@@ -192,7 +201,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
         },
         .set_pan => |pan_val| {
             const norm_val = utils.panToNormalized(pan_val);
-            MidiEvts.setUIVal(.Out_Pan, norm_val, &globals.state.fx_ctrl);
+            globals.state.fx_ctrl.track_pan = norm_val;
         },
         else => {},
         // ... other fx_ctrl actions
@@ -334,6 +343,9 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
 
     // Update FX parameter values in the state
     updateFxParamValues(globals, media_track);
+    // The knobs of the volume and the pan show the track's own values when no parameter is assigned to them, or when shift is held.
+    globals.state.fx_ctrl.track_volume = utils.volToNormalized(reaper.GetMediaTrackInfo_Value(media_track, "D_VOL"));
+    globals.state.fx_ctrl.track_pan = utils.panToNormalized(reaper.GetMediaTrackInfo_Value(media_track, "D_PAN"));
 
     handleFxWindowDisplay(globals, media_track);
 

@@ -531,11 +531,11 @@ const output_def = ModuleDef{
         .{ .cc = .Tr_order, .slot = out_slots.Tr_order, .label_key = .mapping_order, .strip_only = true },
         .{ .cc = .Out_Drive, .slot = out_slots.Out_Drive },
         .{ .cc = .Out_DriveChar, .slot = out_slots.Out_DriveChar },
-        .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan, .fixed = true },
+        .{ .cc = .Out_Pan, .slot = out_slots.Out_Pan },
         .{ .cc = .Tr_ext_sidechain, .slot = out_slots.Tr_ext_sidechain, .strip_only = true },
         .{ .cc = .Out_solo, .slot = out_slots.Out_solo, .fixed = true },
         .{ .cc = .Out_mute, .slot = out_slots.Out_mute, .fixed = true },
-        .{ .cc = .Out_Vol, .slot = out_slots.Out_Vol, .fixed = true },
+        .{ .cc = .Out_Vol, .slot = out_slots.Out_Vol },
     },
 };
 
