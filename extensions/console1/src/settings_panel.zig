@@ -12,6 +12,7 @@ const tr = @import("translations.zig").tr;
 const safePrint = @import("utils").safePrint;
 const Knobs = @import("knob");
 const widgets = @import("components/widgets.zig");
+const vr_widgets = @import("panel_widgets");
 const combo_style = @import("components/combo_style.zig");
 const button = @import("components/button.zig");
 const module_plate = @import("components/module_plate.zig");
@@ -56,6 +57,8 @@ const combo_width = 230.0;
 /// The modules in the order of the columns of the default plugins, and how many of them stand in a column.
 const default_fx_order = [_]ModulesList{ .INPUT, .GATE, .EQ, .COMP, .OUTPT, .STRIP };
 const default_fx_rows = 3;
+/// The room under the combos of the default FX for the rocker of the mode.
+const single_fx_room = 30.0;
 /// The space between the two columns of the default plugins.
 const default_fx_column_gap = 16.0;
 
@@ -171,6 +174,23 @@ fn boolSetting(
     const value = &@field(self.temp_settings, @tagName(field));
     if (try toggle(ctx, label, id, value.*, disabled)) {
         value.* = !value.*;
+        rv.* = .{ .val_update = .{ .bool_val = .{ .field = field, .val = value.* } } };
+        self.dirty = true;
+    }
+}
+
+/// The rocker of a boolean setting, which is the toggle of the VR-09 panel: it slides and lights up when the setting is on. A press
+/// flips the setting in the copy that is edited, and reports the change.
+fn rockerSetting(
+    self: *SettingsPanel,
+    ctx: imgui.ContextPtr,
+    label: [:0]const u8,
+    comptime field: Preferences.SettingsFields,
+    rv: *?SettingsRV,
+) !void {
+    const value = &@field(self.temp_settings, @tagName(field));
+    var panel: vr_widgets.Panel = .{ .ctx = ctx };
+    if (vr_widgets.toggle(&panel, label, value)) {
         rv.* = .{ .val_update = .{ .bool_val = .{ .field = field, .val = value.* } } };
         self.dirty = true;
     }
@@ -385,7 +405,7 @@ pub fn draw(
     // The plugins that a new track gets for each module.
     try betweenPlates(ctx);
     {
-        const plate = try beginPlate(ctx, tr(translations, .settings_plate_default_fx), combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows));
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_default_fx), combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows) + single_fx_room);
         // The modules go down a column, and the next column takes over after `default_fx_rows` of them.
         inline for (default_fx_order, 0..) |module, index| {
             const column_x = plate.origin.x + @as(f64, @floatFromInt(index / default_fx_rows)) * (combo_width + default_fx_column_gap);
@@ -428,6 +448,9 @@ pub fn draw(
                 }
             }
         }
+        // The mode that a new track gets is chosen under the combos: the strip of the default FX, or the modules.
+        try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y + try estimateHeight(ctx, 0, default_fx_rows) });
+        try rockerSetting(self, ctx, tr(translations, .settings_single_fx_mode), .single_fx_mode, &rv);
         try endPlate(ctx, 3, plate);
     }
 

@@ -704,3 +704,39 @@ test "preferred_module_order affects insertion positions" {
     try testing.expect(coverage.COMP.?.index == 3);
     try testing.expect(coverage.OUTPT.?.index == 4);
 }
+
+test "a track without Console 1 plugins gets the default strip in the single FX mode, and its modules in the multi FX mode" {
+    const io = std.testing.io;
+    inline for (.{ true, false }) |single| {
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+        defer reaper_teardown.teardown();
+
+        const track = &reaper_teardown.model_ptr.tracks.items[1];
+        const media_track: reaper.MediaTrack = @ptrCast(track);
+
+        const config_path = try getTestConfigPath(arena.allocator(), io);
+        var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
+        var map_store: MapStore = .empty(arena.allocator(), config_path);
+        defer map_store.deinit();
+
+        var default_fx: DefaultFx = .initFill(null);
+        default_fx.set(.STRIP, "ReaComp");
+        default_fx.set(.INPUT, "ReaComp");
+        default_fx.set(.GATE, "ReaGate");
+        default_fx.set(.COMP, "ReaComp");
+        default_fx.set(.EQ, "ReaEQ");
+        default_fx.set(.OUTPT, "ReaComp");
+
+        var prefs = Preferences.empty;
+        prefs.single_fx_mode = single;
+        prefs.default_fx = default_fx;
+
+        var track_state: TrackState = .{};
+        defer track_state.deinitMaps(std.testing.allocator);
+        _ = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, io, &ml);
+
+        try testing.expectEqual(single, track_state.mode == .channel_strip);
+    }
+}

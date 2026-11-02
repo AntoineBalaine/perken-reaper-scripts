@@ -66,6 +66,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         .auto_insert_bypassed,
                         .auto_reorder_modules,
                         .preferred_module_order,
+                        .single_fx_mode,
                         => {
                             const toggled = panel.temp_settings.toggleField(field);
                             if (toggled) panel.dirty = true;
@@ -108,6 +109,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                             .auto_insert_modules => panel.temp_settings.auto_insert_modules = bool_update.val,
                             .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed = bool_update.val,
                             .auto_reorder_modules => panel.temp_settings.auto_reorder_modules = bool_update.val,
+                            .single_fx_mode => panel.temp_settings.single_fx_mode = bool_update.val,
                             else => unreachable,
                         }
                     },

@@ -430,6 +430,8 @@ fn tryInsertDefaultStrip(
 ) bool {
     const strip_fx_name = preferences.default_fx.get(.STRIP) orelse return false;
     if (!preferences.auto_insert_modules) return false;
+    // Because a track gets its modules and not a strip when the multi FX mode is the preference, no strip is inserted.
+    if (!preferences.single_fx_mode) return false;
 
     const new_idx = pReaper.TrackFX_AddByName(.{ mediaTrack, strip_fx_name, false, -1 });
     if (new_idx < 0) return false;

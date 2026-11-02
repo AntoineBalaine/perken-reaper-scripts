@@ -33,6 +33,7 @@ pub const SettingsFields = enum {
     auto_insert_bypassed,
     auto_reorder_modules,
     preferred_module_order,
+    single_fx_mode,
 
     default_INPUT,
     default_GATE,
@@ -62,6 +63,9 @@ auto_insert_modules: bool,
 auto_insert_bypassed: bool,
 auto_reorder_modules: bool,
 preferred_module_order: ModulesOrder,
+/// Whether a track that has no Console 1 plugin gets the default channel strip, which is the single FX mode, or its modules, which is
+/// the multi FX mode. A strip is only inserted when one is chosen in the default FX.
+single_fx_mode: bool,
 // How far a tick of a knob of the sysex unit moves a value (see unit/step.zig)
 base_step: f64,
 sensitivity: f64,
@@ -83,6 +87,8 @@ pub const empty: @This() = .{
     .auto_insert_bypassed = false,
     .auto_reorder_modules = true,
     .preferred_module_order = .@"S-EQ-C",
+    // Because a track got the default channel strip whenever one was chosen before this setting existed, it starts on.
+    .single_fx_mode = true,
     .base_step = default_step.base_step,
     .sensitivity = default_step.sensitivity,
     .fine_multiplier = default_step.fine_multiplier,
@@ -314,6 +320,7 @@ pub fn toggleField(self: *@This(), field: SettingsFields) bool {
         .start_suspended => self.start_suspended = !self.start_suspended,
         .focus_page_tracks => self.focus_page_tracks = !self.focus_page_tracks,
         .mode_is_modifier => self.mode_is_modifier = !self.mode_is_modifier,
+        .single_fx_mode => self.single_fx_mode = !self.single_fx_mode,
         // Handle combo boxes differently
         else => {
             rv = false;
@@ -450,6 +457,20 @@ test "preferences - save and restore" {
     try testing.expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);
     try testing.expect(final_verify.show_plugin_ui == original_prefs.show_plugin_ui);
     try testing.expect(final_verify.manual_routing == original_prefs.manual_routing);
+}
+
+test "preferences - the single FX mode is on by default, is toggled, and is read from the file" {
+    var prefs: Preferences = .empty;
+    try std.testing.expect(prefs.single_fx_mode);
+    try std.testing.expect(prefs.toggleField(.single_fx_mode));
+    try std.testing.expect(!prefs.single_fx_mode);
+
+    var reader: std.Io.Reader = .fixed("single_fx_mode = false\n");
+    var parser = ini.parse(std.testing.allocator, &reader, ";#");
+    defer parser.deinit();
+    var loaded: Preferences = .empty;
+    try loaded.parsePreferences(&parser, std.testing.allocator);
+    try std.testing.expect(!loaded.single_fx_mode);
 }
 
 test "preferences - the step settings are read, and a value that is not positive keeps the default" {
