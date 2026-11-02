@@ -57,8 +57,10 @@ const combo_width = 230.0;
 /// The modules in the order of the columns of the default plugins, and how many of them stand in a column.
 const default_fx_order = [_]ModulesList{ .INPUT, .GATE, .EQ, .COMP, .OUTPT, .STRIP };
 const default_fx_rows = 3;
-/// The room under the combos of the default FX for the rocker of the mode.
-const single_fx_room = 30.0;
+/// The space that the default FX leaves between its last row of combos and the mode, and the room that the mode takes: its label, a gap,
+/// and the rocker.
+const mode_gap = 22.0;
+const mode_room = 64.0;
 /// The space between the two columns of the default plugins.
 const default_fx_column_gap = 16.0;
 
@@ -180,17 +182,25 @@ fn boolSetting(
 }
 
 /// The rocker of a boolean setting, which is the toggle of the VR-09 panel: it slides and lights up when the setting is on. A press
-/// flips the setting in the copy that is edited, and reports the change.
+/// flips the setting in the copy that is edited, and reports the change. `title` is written above the rocker, with `tooltip` when it is
+/// hovered, and the rocker says the value that the setting has, in `off_text` or in `on_text`, at its right.
 fn rockerSetting(
     self: *SettingsPanel,
     ctx: imgui.ContextPtr,
-    label: [:0]const u8,
+    x: f64,
+    title: [:0]const u8,
+    tooltip: [:0]const u8,
+    off_text: [:0]const u8,
+    on_text: [:0]const u8,
     comptime field: Preferences.SettingsFields,
     rv: *?SettingsRV,
 ) !void {
+    try labelAbove(ctx, x, title);
+    // Because the label is the last item that was drawn before the cursor moved under it, it is the one that the tooltip is for.
+    if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) try imgui.SetTooltip(.{ ctx, tooltip });
     const value = &@field(self.temp_settings, @tagName(field));
     var panel: vr_widgets.Panel = .{ .ctx = ctx };
-    if (vr_widgets.toggle(&panel, label, value)) {
+    if (vr_widgets.toggle(&panel, if (value.*) on_text else off_text, value)) {
         rv.* = .{ .val_update = .{ .bool_val = .{ .field = field, .val = value.* } } };
         self.dirty = true;
     }
@@ -405,7 +415,7 @@ pub fn draw(
     // The plugins that a new track gets for each module.
     try betweenPlates(ctx);
     {
-        const plate = try beginPlate(ctx, tr(translations, .settings_plate_default_fx), combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows) + single_fx_room);
+        const plate = try beginPlate(ctx, tr(translations, .settings_plate_default_fx), combo_width * 2 + default_fx_column_gap, try estimateHeight(ctx, 0, default_fx_rows) + mode_gap + mode_room);
         // The modules go down a column, and the next column takes over after `default_fx_rows` of them.
         inline for (default_fx_order, 0..) |module, index| {
             const column_x = plate.origin.x + @as(f64, @floatFromInt(index / default_fx_rows)) * (combo_width + default_fx_column_gap);
@@ -448,9 +458,19 @@ pub fn draw(
                 }
             }
         }
-        // The mode that a new track gets is chosen under the combos: the strip of the default FX, or the modules.
-        try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y + try estimateHeight(ctx, 0, default_fx_rows) });
-        try rockerSetting(self, ctx, tr(translations, .settings_single_fx_mode), .single_fx_mode, &rv);
+        // The mode that a new track gets is chosen under the combos, with room between the two: the strip of the default FX, or the modules.
+        try imgui.SetCursorScreenPos(.{ ctx, plate.origin.x, plate.origin.y + try estimateHeight(ctx, 0, default_fx_rows) + mode_gap });
+        try rockerSetting(
+            self,
+            ctx,
+            plate.origin.x,
+            tr(translations, .settings_default_mode),
+            tr(translations, .settings_default_mode_tooltip),
+            tr(translations, .settings_mode_multi_fx),
+            tr(translations, .settings_mode_single_fx),
+            .single_fx_mode,
+            &rv,
+        );
         try endPlate(ctx, 3, plate);
     }
 
