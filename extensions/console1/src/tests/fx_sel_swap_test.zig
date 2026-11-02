@@ -543,3 +543,18 @@ test "the default button makes a map the default of the plugin and writes it to 
     default_maps.load(&reloaded_again, io, dir);
     try testing.expectEqualStrings("default", reloaded_again.defaultMapName(.COMP, fx_name).?);
 }
+
+test "set_default_plugin makes the plugin the default of the module that the browser is on" {
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+    const actions = @import("../actions.zig");
+
+    globals.state.current_mode = .fx_sel;
+    globals.state.fx_sel.current_category = .STRIP;
+    try testing.expect(globals.preferences.default_fx.get(.STRIP) == null);
+    const comp_before = globals.preferences.default_fx.get(.COMP);
+    actions.dispatch(globals, .{ .fx_sel = .{ .set_default_plugin = "JS: Lumina Channel Strip (port) by chmaha" } });
+    try testing.expectEqualStrings("JS: Lumina Channel Strip (port) by chmaha", globals.preferences.default_fx.get(.STRIP).?);
+    try testing.expectEqualStrings(comp_before.?, globals.preferences.default_fx.get(.COMP).?);
+}

@@ -65,6 +65,8 @@ pub const FxSelActions = union(enum) {
     plugin: struct { name: [:0]const u8, mapping_name: ?[:0]const u8 },
     /// Makes a map the default of a plugin, from the selector of maps, which stays open.
     set_default_map: struct { name: [:0]const u8, mapping_name: [:0]const u8 },
+    /// Makes a plugin the default of the module that the browser is on, from the list of the plugins that have a mapping.
+    set_default_plugin: [:0]const u8,
     close_browser: void,
     rescan: void,
 };

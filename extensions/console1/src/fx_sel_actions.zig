@@ -232,6 +232,12 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                             const fx_offset = mappings.keys()[mapped_index];
                             const mapping_offsets = mappings.get(fx_offset) orelse return;
                             const fx_name = globals.mappings_list.strings.get(fx_offset);
+                            // Because the controller reaches the default button of a row with shift, confirming a plugin while shift is
+                            // held makes it the default of the module, and the browser stays open, as a click on the button does.
+                            if (globals.unit.shiftHeld() or globals.state.fx_ctrl.shift_held) {
+                                fxSelActions(globals, .{ .set_default_plugin = fx_name });
+                                return;
+                            }
 
                             if (mapping_offsets.items.len == 1) {
                                 const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
@@ -329,6 +335,20 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         .select_fx => |fx_offset| {
             const fx_name = globals.mappings_list.strings.get(fx_offset);
             openMapSelector(globals, fx_name, fx_offset);
+        },
+        .set_default_plugin => |name| {
+            const module = globals.state.fx_sel.current_category;
+            // Because the name that the click carries belongs to the list of the browser, the default keeps a copy of its own.
+            const owned = globals.arena_int.allocator().dupeSentinel(u8, name, 0) catch {
+                log.err("Failed to make {s} the default of {s}: out of memory", .{ name, @tagName(module) });
+                return;
+            };
+            globals.preferences.default_fx.set(module, owned);
+            if (!comptime @import("builtin").is_test) {
+                globals.preferences.saveToDisk(io, globals.resource_path) catch {
+                    log.err("Failed to save the default of {s}", .{@tagName(module)});
+                };
+            }
         },
         .set_default_map => |chosen| {
             const module = globals.state.fx_sel.current_category;

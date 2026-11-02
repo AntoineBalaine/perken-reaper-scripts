@@ -153,6 +153,9 @@ const ListContext = struct {
     rv: ?fx_sel_actions.FxSelActions = null,
     /// Whether shift is held, which lights the label of the alternative use of a row in the accent color.
     shift_held: bool = false,
+    /// The plugin that is the default of the module, and whether the plugins that have a mapping have a button that makes them the default.
+    default_plugin: ?[]const u8 = null,
+    default_buttons: bool = false,
 };
 
 /// The rows of the plugins that have a mapping, which are the first rows of the first level.
@@ -162,14 +165,25 @@ fn drawMappedRows(ctx: imgui.ContextPtr, list: *ListContext) !void {
     while (iterator.next()) |entry| : (i += 1) {
         const fx_offset = entry.key_ptr.*;
         const fx_name = list.strings.get(fx_offset);
-        if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(fx_name)), false, list.cursor == i, list.scroll_changed)) {
-            const mapping_offsets = entry.value_ptr.*;
-            if (mapping_offsets.items.len == 1) {
-                const mapping_name = list.strings.get(mapping_offsets.items[0].name_offset);
-                list.rv = .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } };
-            } else {
-                list.rv = .{ .select_fx = fx_offset };
-            }
+        const name_z: [:0]const u8 = @ptrCast(fx_name);
+        // The plugins of the main browser have a button over their right edge, as the maps of a plugin have.
+        const clicked: card_kit.TagClick = if (list.default_buttons) blk: {
+            const is_default = if (list.default_plugin) |current| std.mem.eql(u8, current, fx_name) else false;
+            const tag = if (is_default) tr(list.translations, .fx_sel_is_default) else tr(list.translations, .fx_sel_default_map);
+            break :blk try card_kit.rowWithTag(ctx, name_z, tag, ui_helpers.altColor(list.shift_held), is_default, list.cursor == i, list.scroll_changed);
+        } else if (try card_kit.row(ctx, name_z, false, list.cursor == i, list.scroll_changed)) .row else .none;
+        switch (clicked) {
+            .none => {},
+            .tag => list.rv = .{ .set_default_plugin = name_z },
+            .row => {
+                const mapping_offsets = entry.value_ptr.*;
+                if (mapping_offsets.items.len == 1) {
+                    const mapping_name = list.strings.get(mapping_offsets.items[0].name_offset);
+                    list.rv = .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } };
+                } else {
+                    list.rv = .{ .select_fx = fx_offset };
+                }
+            },
         }
     }
 }
@@ -360,6 +374,8 @@ pub fn ModulePopup(
             .cursor = if (highlight) |hl| hl.current_index else null,
             .scroll_changed = if (highlight) |hl| hl.scroll_changed else null,
             .shift_held = ui.shift_held,
+            .default_plugin = ui.preferences.default_fx.get(module),
+            .default_buttons = display_menus,
         };
 
         // What the cards can share: the height under the header, less the line under the cards where the place of the

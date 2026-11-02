@@ -653,6 +653,48 @@ fn countTrace(mock: *const MockImGui, kind: anytype) usize {
     return count;
 }
 
+test "each plugin that has a mapping has a button at its right to set it as the default of the module" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    builder.state.fx_sel.current_category = .COMP;
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    const lines_at_rest = countTrace(&mock, .draw_list_add_line);
+
+    // Because the preference says which plugin is the default, the button of that row is drawn active, with a check: two lines more.
+    builder.preferences.default_fx.set(.COMP, fx_name);
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(lines_at_rest + 2, countTrace(&mock, .draw_list_add_line));
+
+    // A click on the row chooses the plugin.
+    mock.selectItem(fx_name);
+    ui = builder.build();
+    try testing.expectEqualStrings(fx_name, (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin.name);
+
+    // A click with the mouse over the button makes it the default of the module instead.
+    mock.mouse_x = -30;
+    mock.mouse_y = 0;
+    mock.selectItem(fx_name);
+    ui = builder.build();
+    try testing.expectEqualStrings(fx_name, (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.set_default_plugin);
+}
+
 test "the button of a row is placed from its right edge, and the button of the default map has the active colors" {
     const panel_card = @import("../components/panel_card.zig");
     // Because the button holds its text and its padding, it ends at the margin of the row and starts a padding before the text.
