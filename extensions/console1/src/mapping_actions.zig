@@ -284,6 +284,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                         if (comptime std.mem.eql(u8, field_name, "version")) continue;
                         if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                         if (std.mem.eql(u8, cc_name, field_name)) {
                             @field(strip, field_name) = mapping.param;
                         }
@@ -358,6 +359,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                         if (comptime std.mem.eql(u8, field_name, "version")) continue;
                         if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                         if (std.mem.eql(u8, cc_name, field_name)) {
                             @field(strip, field_name) = null;
                         }
@@ -714,6 +716,7 @@ fn populateKnobValues(
                 inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
                     if (comptime std.mem.eql(u8, field_name, "version")) continue;
                     if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                    if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                     if (@field(mapping, field_name)) |param_idx| {
                         const cc = @field(c1.CCs, field_name);
                         const val = pReaper.TrackFX_GetParamNormalized(.{ track, location.fx_index, param_idx });

@@ -416,6 +416,7 @@ const AddMapping = struct {
                     inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                         if (comptime std.mem.eql(u8, field_name, "version")) continue;
                         if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                         if (std.mem.eql(u8, cc_name, field_name)) {
                             @field(strip, field_name) = self.param;
                         }
@@ -475,6 +476,7 @@ const AddMapping = struct {
                 inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                     if (comptime std.mem.eql(u8, field_name, "version")) continue;
                     if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                    if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                     if (std.mem.eql(u8, cc_name, field_name)) {
                         break :blk @field(strip, field_name) == self.param;
                     }
@@ -558,6 +560,7 @@ const RemoveMapping = struct {
                     inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                         if (comptime std.mem.eql(u8, field_name, "version")) continue;
                         if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                         if (std.mem.eql(u8, cc_name, field_name)) {
                             @field(strip, field_name) = null;
                         }
@@ -616,6 +619,7 @@ const RemoveMapping = struct {
                 inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
                     if (comptime std.mem.eql(u8, field_name, "version")) continue;
                     if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                    if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                     if (std.mem.eql(u8, cc_name, field_name)) {
                         break :blk @field(strip, field_name) == null;
                     }

@@ -183,6 +183,7 @@ pub const CCs = enum(u8) {
             inline for (@typeInfo(MappingStruct).@"struct".field_names) |field_name| {
                 if (comptime std.mem.eql(u8, field_name, "version")) continue;
                 if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                 if (std.mem.eql(u8, cc_name, field_name)) return true;
             }
         }

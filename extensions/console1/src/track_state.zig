@@ -195,6 +195,24 @@ pub fn stepDiscreteParam(
     return clamp(f64, next, min, max);
 }
 
+/// Gives the control the name that the map of its plugin gives it, when the map gives one. The name is copied into the label pool,
+/// so nothing points into the map afterwards.
+fn applyMapLabel(self: *TrackState, comptime cc: c1.CCs) void {
+    switch (self.mode) {
+        .channel_strip => |strip| {
+            if (strip.mapping.labels.get(cc)) |text| self.label_pool.setPrmLabel(cc, text);
+        },
+        .multi_fx => |locations| {
+            if (comptime cc.toModule()) |module| {
+                const location = locations.get(module) orelse return;
+                const tagged = location.mapping orelse return;
+                const labels = @field(tagged, @tagName(module)).labels;
+                if (labels.get(cc)) |text| self.label_pool.setPrmLabel(cc, text);
+            }
+        },
+    }
+}
+
 /// Populate the label pool from the forward map and REAPER parameter names.
 /// Because this queries REAPER APIs, it belongs here rather than in label_pool.zig.
 /// Call this immediately after validateTrack at every call site.
@@ -223,6 +241,8 @@ pub fn getLabels(
                     } else {
                         self.label_pool.fillDefaults(cc);
                     }
+                    // Because a map can name a control itself, its name replaces the one that the plugin gives the parameter.
+                    self.applyMapLabel(cc);
                     if (reaper.TrackFX_GetFormattedParamValue(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
                         self.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
                     } else {

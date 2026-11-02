@@ -96,6 +96,7 @@ fn getControlMapping(assign_state: *const AssignState, cc: c1.CCs) ?u32 {
                 // Skip non-parameter fields because they are not optional u16 values
                 if (comptime std.mem.eql(u8, field_name, "version")) continue;
                 if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                if (comptime std.mem.eql(u8, field_name, "labels")) continue;
 
                 if (std.mem.eql(u8, field_name, cc_name)) {
                     if (@field(mapping, field_name)) |param| {

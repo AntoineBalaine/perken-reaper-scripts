@@ -13,9 +13,79 @@ const log = std.log.scoped(.mappings);
 
 pub const MAPPING_FORMAT_VERSION = 1;
 
+/// The longest name that a map can give a control: the label pool keeps 31 bytes of a label.
+pub const max_label_len = 31;
+
+/// A name that a map gives a control, in place of the one that the plugin gives its parameter. It is empty when the map gives none.
+pub const Label = struct {
+    buf: [max_label_len]u8 = undefined,
+    len: u8 = 0,
+
+    pub fn get(self: *const Label) ?[]const u8 {
+        return if (self.len == 0) null else self.buf[0..self.len];
+    }
+
+    /// Keeps the name, cut at the longest that a label can be.
+    pub fn set(self: *Label, text: []const u8) void {
+        const length = @min(text.len, max_label_len);
+        @memcpy(self.buf[0..length], text[0..length]);
+        self.len = @intCast(length);
+    }
+};
+
+/// The most controls that one map can name.
+pub const max_labels = 16;
+
+/// The names that a map gives its controls. They are written in the section `[labels]` of the map file, one line for each control,
+/// as `Inpt_LoCut=HPF`. Because a map names a few controls at most, the names are a short list that is searched in order.
+pub const Labels = struct {
+    entries: [max_labels]Entry = undefined,
+    count: u8 = 0,
+
+    const Entry = struct { cc: c1.CCs, label: Label };
+
+    pub fn get(self: *const Labels, cc: c1.CCs) ?[]const u8 {
+        for (self.entries[0..self.count]) |*entry| {
+            if (entry.cc == cc) return entry.label.get();
+        }
+        return null;
+    }
+
+    /// Names the control, or renames it. A map that names more controls than the list holds loses the last ones.
+    pub fn set(self: *Labels, cc: c1.CCs, text: []const u8) void {
+        for (self.entries[0..self.count]) |*entry| {
+            if (entry.cc == cc) {
+                entry.label.set(text);
+                return;
+            }
+        }
+        if (self.count == max_labels) {
+            log.warn("A map names more than {d} controls, so the name of {s} is dropped", .{ max_labels, @tagName(cc) });
+            return;
+        }
+        self.entries[self.count] = .{ .cc = cc, .label = .{} };
+        self.entries[self.count].label.set(text);
+        self.count += 1;
+    }
+
+    pub fn any(self: *const Labels) bool {
+        return self.count > 0;
+    }
+
+    /// Writes the section `[labels]`, or nothing when the map gives no name.
+    pub fn write(self: *const Labels, writer: anytype) !void {
+        if (!self.any()) return;
+        try writer.writeAll("\n[labels]\n");
+        for (self.entries[0..self.count]) |*entry| {
+            if (entry.label.get()) |text| try writer.print("{s}={s}\n", .{ @tagName(entry.cc), text });
+        }
+    }
+};
+
 pub const Comp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
     Comp_Attack: ?u16 = null,
     Comp_DryWet: ?u16 = null,
     Comp_Ratio: ?u16 = null,
@@ -30,6 +100,7 @@ pub const Comp = struct {
 pub const Eq = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
     Eq_HiFrq: ?u16 = null,
     Eq_HiGain: ?u16 = null,
     Eq_HiMidFrq: ?u16 = null,
@@ -48,6 +119,7 @@ pub const Eq = struct {
 pub const Inpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
     Inpt_Gain: ?u16 = null,
@@ -63,6 +135,7 @@ pub const Inpt = struct {
 pub const Outpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
     Out_Drive: ?u16 = null,
     Out_DriveChar: ?u16 = null,
     // Out_MtrLft : u8 = null,
@@ -76,6 +149,7 @@ pub const Outpt = struct {
 pub const Shp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
     Shp_Gate: ?u16 = null,
     Shp_GateRelease: ?u16 = null,
     Shp_Punch: ?u16 = null,
@@ -91,6 +165,7 @@ pub const Shp = struct {
 pub const ChannelStripMapping = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     fx_preset: ?StringPool.StringRef = null,
+    labels: Labels = .{},
 
     // Input section
     Inpt_Gain: ?u16 = null,
@@ -369,6 +444,7 @@ pub fn saveStripToFile(
 
     inline for (@typeInfo(ChannelStripMapping).@"struct".field_names) |field_name| {
         if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+        if (comptime std.mem.eql(u8, field_name, "labels")) continue;
         try writer.print("{s} = ", .{field_name});
         try formatOptionalU8(@field(mapping, field_name), writer);
         try writer.writeByte('\n');
@@ -381,6 +457,8 @@ pub fn saveStripToFile(
         try writer.print("fx_preset_data={s}\n", .{ep.data});
         try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
+    // Because a section lasts until the next one, the names come last.
+    try mapping.labels.write(writer);
     try writer.flush();
 }
 
@@ -766,10 +844,21 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
     std.debug.assert(@typeInfo(T) == .@"struct");
 
     var version_found = false;
+    // Because a section lasts until the next one, the lines of `[labels]` are names of controls, and no parameter.
+    var in_labels = false;
 
     while (try parser.*.next()) |record| {
         switch (record) {
             .property => |kv| {
+                if (in_labels) {
+                    if (comptime @hasField(T, "labels")) {
+                        if (std.meta.stringToEnum(c1.CCs, kv.key)) |cc| {
+                            if (kv.value.len > 0) ret_struct.labels.set(cc, kv.value);
+                        }
+                    }
+                    continue;
+                }
+
                 // Because the module field is not part of the mapping structs,
                 // we check for it separately before the struct field matching
                 if (std.mem.eql(u8, kv.key, "module")) {
@@ -795,8 +884,9 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                 }
 
                 inline for (@typeInfo(T).@"struct".field_names) |ns_info_name| {
-                    // Because fx_preset is handled above, we skip it here
+                    // Because fx_preset is handled above, we skip it here, and the names of `[labels]` too
                     if (comptime std.mem.eql(u8, ns_info_name, "fx_preset")) continue;
+                    if (comptime std.mem.eql(u8, ns_info_name, "labels")) continue;
 
                     if (std.mem.eql(u8, ns_info_name, kv.key)) {
                         const field_type = @TypeOf(@field(ret_struct, ns_info_name));
@@ -820,7 +910,7 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                     }
                 }
             },
-            .section => {},
+            .section => |name| in_labels = std.mem.eql(u8, name, "labels"),
             .enumeration => {},
         }
     }
@@ -918,6 +1008,7 @@ pub fn saveToFile(
 
             inline for (@typeInfo(@TypeOf(m)).@"struct".field_names) |field_name| {
                 if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                if (comptime std.mem.eql(u8, field_name, "labels")) continue;
                 try writer.print("{s} = ", .{field_name});
                 try formatOptionalU8(@field(m, field_name), writer);
                 try writer.writeByte('\n');
@@ -932,7 +1023,96 @@ pub fn saveToFile(
         try writer.print("fx_preset_data={s}\n", .{ep.data});
         try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
+    // Because a section lasts until the next one, the names come last.
+    switch (mapping) {
+        inline else => |m| try m.labels.write(writer),
+    }
     try writer.flush();
+}
+
+test "a [labels] section names controls, and its lines are no parameter" {
+    const example =
+        \\version = 1
+        \\module=STRIP
+        \\Inpt_LoCut=35
+        \\
+        \\[labels]
+        \\Inpt_LoCut=HPF
+        \\Inpt_HiCut=LPF
+        \\Inpt_Gain=
+    ;
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var strip = ChannelStripMapping{};
+    _ = try readToU8Struct(&strip, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectEqual(@as(?u16, 35), strip.Inpt_LoCut);
+    // Because the lines of the section are names, the name of a control does not become its parameter.
+    try std.testing.expectEqual(@as(?u16, null), strip.Inpt_HiCut);
+    try std.testing.expectEqualStrings("HPF", strip.labels.get(.Inpt_LoCut).?);
+    try std.testing.expectEqualStrings("LPF", strip.labels.get(.Inpt_HiCut).?);
+    // Because a line without a name gives none, the plugin's own name stays.
+    try std.testing.expect(strip.labels.get(.Inpt_Gain) == null);
+    try std.testing.expectEqual(ModulesList.STRIP, found_module.?);
+}
+
+test "the names of a map are written as a [labels] section that reads back, and a map with none writes nothing" {
+    var labels: Labels = .{};
+    var nothing: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer nothing.deinit();
+    try labels.write(&nothing.writer);
+    try std.testing.expectEqualStrings("", nothing.written());
+
+    labels.set(.Inpt_LoCut, "HPF");
+    labels.set(.Inpt_HiCut, "LPF");
+    var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer out.deinit();
+    try labels.write(&out.writer);
+    try std.testing.expectEqualStrings("\n[labels]\nInpt_LoCut=HPF\nInpt_HiCut=LPF\n", out.written());
+
+    const text = try std.fmt.allocPrint(std.testing.allocator, "version = 1\nmodule=STRIP\n{s}", .{out.written()});
+    defer std.testing.allocator.free(text);
+    var fbs: std.Io.Reader = .fixed(text);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
+    defer parser.deinit();
+    var found_module: ?ModulesList = null;
+    var strip = ChannelStripMapping{};
+    _ = try readToU8Struct(&strip, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectEqualStrings("HPF", strip.labels.get(.Inpt_LoCut).?);
+    try std.testing.expectEqualStrings("LPF", strip.labels.get(.Inpt_HiCut).?);
+}
+
+test "a name is replaced by naming the control again, cut at the longest label, and the list has a limit" {
+    var labels: Labels = .{};
+    labels.set(.Inpt_LoCut, "HPF");
+    labels.set(.Inpt_LoCut, "High pass");
+    try std.testing.expectEqualStrings("High pass", labels.get(.Inpt_LoCut).?);
+    try std.testing.expectEqual(@as(u8, 1), labels.count);
+
+    var long: [max_label_len + 9]u8 = undefined;
+    @memset(&long, 'x');
+    labels.set(.Inpt_HiCut, &long);
+    try std.testing.expectEqual(@as(usize, max_label_len), labels.get(.Inpt_HiCut).?.len);
+
+    // Because the list holds `max_labels` names, the names after them are dropped and the others stay.
+    var count: u8 = labels.count;
+    for (std.enums.values(c1.CCs)) |cc| {
+        if (count == max_labels) break;
+        if (labels.get(cc) != null) continue;
+        labels.set(cc, "name");
+        count += 1;
+    }
+    try std.testing.expectEqual(@as(u8, max_labels), labels.count);
+    for (std.enums.values(c1.CCs)) |cc| {
+        if (labels.get(cc) == null) {
+            labels.set(cc, "one too many");
+            try std.testing.expect(labels.get(cc) == null);
+            break;
+        }
+    }
+    try std.testing.expectEqualStrings("High pass", labels.get(.Inpt_LoCut).?);
 }
 
 test readToU8Struct {
