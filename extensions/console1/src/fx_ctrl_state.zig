@@ -84,8 +84,8 @@ knob_touched_ms: [256]u64 = @splat(0),
 /// host sets it before each frame, and the panel compares it with `knob_touched_ms`.
 now_ms: u64 = 0,
 /// How far the gate and the compressor of the selected track pull the signal down, in dB, as the plugins say it. The host
-/// reads them before each frame, and the panel shows them as meters. A plugin that does not report it has none, which is
-/// null, and its module has no meter.
+/// reads them before each frame, and the panel shows them as meters. A gate whose plugin does not report it has none, which
+/// is null, and its module has no meter. The compressor always has one: its value is zero when the plugin reports nothing.
 gate_reduction_db: ?f64 = null,
 comp_reduction_db: ?f64 = null,
 /// The level of the output of the selected track in dB, for the left and the right channel, as the meter of the panel shows
