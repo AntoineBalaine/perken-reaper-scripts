@@ -14,9 +14,9 @@ NEEDS CHECKING: parameter indices of the DSP-Ports maps
 
 The four DSP-Ports maps were written by reading the slider declarations in the
 JSFX sources rather than by reading parameter indices out of REAPER, on the
-assumption that a JSFX slider N is parameter index N-1. The index listings in
-the older maps here agree with that, but it has not been verified against a
-running REAPER.
+assumption that a JSFX slider N is parameter index N-1. The Lumina map is
+verified: its indices were read from a running REAPER, and agree with that rule,
+Comp GR (slider 48) included. The Compressor, Gate and EQ maps are not.
 
 To check: open any one of the four, look at what the mapping panel reports for
 a control, and compare with the index listing in the comments at the bottom of
@@ -83,8 +83,10 @@ for each control, as in
     Inpt_LoCut=HPF
     Inpt_HiCut=LPF
 
-A name is at most 31 bytes, and a map can name 16 controls. Lumina uses it to
-shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs.
+A name is at most 31 bytes, and a map can rename every control. Lumina uses it to
+shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs, and
+to name the encoders and buttons that carry a control that has no place of its own
+(Air Type, Air, Analog, Keep Gain). Evolution shortens its frequency and speed names.
 
 In the mapping panel, a right click on a control opens a popup above it, titled
 "Custom name", with a field. Enter confirms the name, and so does a click
