@@ -174,8 +174,8 @@ fn reductionKey(globals: *Globals) u64 {
 }
 
 /// Reads how far the gate and the compressor of the selected track pull the signal down, for the meters of the panel. A
-/// module whose plugin does not report it has no meter. The channel strip has one plugin for all of them, which is read for
-/// the compressor only, as the unit's meter does. REAPER is asked only while the DAW plays, since nothing moves otherwise,
+/// gate whose plugin does not report it has no meter, and the compressor has one that rests at zero. The channel strip has
+/// one plugin for all of them, which is read for the compressor only, as the unit's meter does. REAPER is asked only while the DAW plays, since nothing moves otherwise,
 /// and once when the track or its plugins change, to know which plugins report.
 fn readReductionMeters(globals: *Globals, playing: bool) void {
     const fx_ctrl = &globals.state.fx_ctrl;
@@ -188,14 +188,16 @@ fn readReductionMeters(globals: *Globals, playing: bool) void {
     }
     fx_ctrl.reduction_key = key;
     fx_ctrl.gate_reduction_db = null;
-    fx_ctrl.comp_reduction_db = null;
+    // Because the compressor card always has its meter, a compressor that does not report its reduction rests at zero, and so
+    // does a track that has no compressor.
+    fx_ctrl.comp_reduction_db = 0;
     const tr = getTrack(globals.state.current_tr_id) orelse return;
     switch (fx_ctrl.track_state.mode) {
         .multi_fx => |locations| {
             if (locations.get(.GATE)) |gate| fx_ctrl.gate_reduction_db = reductionDb(tr, gate.fx_index);
-            if (locations.get(.COMP)) |comp| fx_ctrl.comp_reduction_db = reductionDb(tr, comp.fx_index);
+            if (locations.get(.COMP)) |comp| fx_ctrl.comp_reduction_db = reductionDb(tr, comp.fx_index) orelse 0;
         },
-        .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index),
+        .channel_strip => |strip| fx_ctrl.comp_reduction_db = reductionDb(tr, strip.fx_index) orelse 0,
     }
 }
 

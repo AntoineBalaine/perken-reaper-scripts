@@ -345,3 +345,29 @@ test "closing the browser of the strip without a strip validates the track again
     try testing.expect(globals.state.mapping_panel.mode.assign.getConst(.STRIP) == null);
     try testing.expectEqual(@as(c_int, 5), reaper.TrackFX_GetCount(track));
 }
+
+test "the compressor of a channel strip has a meter that rests at zero when the plugin reports no reduction" {
+    var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer model_arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
+    defer reaper_teardown.teardown();
+    var midi_teardown = models.midi.setupMidiMocks(reaper);
+    defer midi_teardown.teardown();
+    Globals.instance = try .defaults(testing.allocator);
+    defer Globals.instance.deinit();
+    const globals = &Globals.instance;
+
+    // Because no track is selected, the plugin cannot report anything, which is what a plugin that has no reduction does.
+    globals.state.current_tr_id = null;
+    globals.state.fx_ctrl.track_state.mode = .{ .channel_strip = .{
+        .fx_index = 0,
+        .mapping = .{},
+        .guid = std.mem.zeroes(@import("utils").Guid),
+    } };
+    globals.state.fx_ctrl.comp_reduction_db = null;
+
+    @import("../csurf/midi_events_fxctrl.zig").readMeters(globals);
+
+    try testing.expectEqual(@as(?f64, 0), globals.state.fx_ctrl.comp_reduction_db);
+    try testing.expectEqual(@as(?f64, null), globals.state.fx_ctrl.gate_reduction_db);
+}
