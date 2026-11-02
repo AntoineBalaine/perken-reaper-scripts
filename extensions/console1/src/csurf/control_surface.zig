@@ -254,17 +254,16 @@ export fn zSetTrackListChange() callconv(.c) void {
     actions.dispatch(getGlobals(), .{ .track_list = .refresh });
 }
 
-export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
+pub export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    // Because the panel says the volume in dB from this position, and a move of the volume that is smaller than a step of the unit
+    // must show too, the position is kept for every notification, and only the feedback to the unit goes by steps.
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .set_volume = utils.volToNormalized(volume) } });
     const volint = utils.volToU8(volume);
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
         globals.state.fx_ctrl.vol_lastpos = volint;
-
-        const norm_val = utils.volToNormalized(volume);
-        actions.dispatch(globals, .{ .fx_ctrl = .{ .set_volume = norm_val } });
-
         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = volint } } });
     }
 }

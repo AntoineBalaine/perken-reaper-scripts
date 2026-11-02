@@ -235,16 +235,6 @@ pub fn readOutputMeter(globals: *Globals) void {
     readOutputLevels(globals, playing);
 }
 
-/// Reads the volume of the selected track in dB, so that the knob of the volume says it in dB and not as its position. Because the
-/// volume can also be moved by the mouse, by the automation or by the unit, it is read before each frame.
-pub fn readTrackVolume(globals: *Globals) void {
-    const tr = getTrack(globals.state.current_tr_id) orelse return;
-    const gain = reaper.GetMediaTrackInfo_Value(tr, "D_VOL");
-    globals.state.fx_ctrl.track_volume_db = utils.VAL2DB(gain);
-    // Because the position of the knob follows the volume that REAPER has, the knob follows the mouse and the automation as well.
-    globals.state.fx_ctrl.track_volume = utils.volToNormalized(gain);
-}
-
 /// Reads what the meters of the panel show, which REAPER is asked only while the DAW plays.
 pub fn readMeters(globals: *Globals) void {
     const playing = globals.playState and !globals.pauseState;

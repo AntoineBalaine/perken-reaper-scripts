@@ -1,6 +1,7 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const Knobs = @import("knob");
+const utils = @import("utils");
 const c1 = @import("c1.zig");
 const WidgetInput = @import("action_types.zig").WidgetInput;
 const UiState = @import("ui_state.zig").UiState;
@@ -1398,7 +1399,7 @@ const TrackKnob = struct {
         std.debug.assert(cc == .Out_Vol or cc == .Out_Pan);
         const track_value = if (cc == .Out_Vol) fx_state.track_volume else fx_state.track_pan;
         // Because the position of the volume knob is a slider position and says nothing about the level, the knob says the level in dB.
-        const track_text: ?[:0]const u8 = if (cc == .Out_Vol) volumeText(fx_state.track_volume_db, text_buf) else null;
+        const track_text: ?[:0]const u8 = if (cc == .Out_Vol) volumeText(utils.normalizedToDb(fx_state.track_volume), text_buf) else null;
         if (!fx_state.isKnobMapped(cc)) return .{ .label_id = .{ .label = track_label, .id = id, .value_text = track_text }, .value = track_value };
         const shift = fx_state.shift_held;
         return .{

@@ -401,7 +401,7 @@ test "the volume and the pan knobs drive the track unless a parameter is assigne
     try testing.expect(!handled);
 }
 
-test "the host reads the volume of the selected track in dB for the knob of the volume" {
+test "the surface keeps the knob of the volume at the volume that REAPER has, even for a move smaller than a step of the unit" {
     var model_arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer model_arena.deinit();
     var reaper_teardown = models.reaper.setupTestModel(model_arena.allocator(), null, null);
@@ -415,16 +415,23 @@ test "the host reads the volume of the selected track in dB for the knob of the 
     globals.state.current_mode = .fx_ctrl;
 
     const track = setupFullChain(globals);
-    // Because the volume of a track is a gain, half of the gain is 6 dB under.
-    _ = reaper.SetMediaTrackInfo_Value(track, "D_VOL", 0.5);
-    @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
-    try testing.expectApproxEqAbs(@as(f64, -6.0206), globals.state.fx_ctrl.track_volume_db, 0.001);
+    const csurf = @import("../csurf/control_surface.zig");
+    const utils = @import("utils");
+    const fx_ctrl = &globals.state.fx_ctrl;
 
-    // Because the knob is at noon for 0 dB, a track at unity gain has the knob at 0.5, and the knob follows the volume that REAPER has.
-    _ = reaper.SetMediaTrackInfo_Value(track, "D_VOL", 1.0);
-    @import("../csurf/midi_events_fxctrl.zig").readTrackVolume(globals);
-    try testing.expectApproxEqAbs(@as(f64, 0), globals.state.fx_ctrl.track_volume_db, 0.001);
-    try testing.expectApproxEqAbs(@as(f64, 0.5), globals.state.fx_ctrl.track_volume, 1e-9);
+    // Because the knob is at noon for 0 dB, a track at unity gain has the knob at 0.5.
+    csurf.zSetSurfaceVolume(track, 1.0);
+    try testing.expectApproxEqAbs(@as(f64, 0.5), fx_ctrl.track_volume, 1e-9);
+    try testing.expectApproxEqAbs(@as(f64, 0), utils.normalizedToDb(fx_ctrl.track_volume), 1e-9);
+
+    // Because the volume of a track is a gain, half of the gain is 6 dB under.
+    csurf.zSetSurfaceVolume(track, 0.5);
+    try testing.expectApproxEqAbs(@as(f64, -6.0206), utils.normalizedToDb(fx_ctrl.track_volume), 0.001);
+
+    // A move that is smaller than a step of the unit still moves the knob, and so the dB that the panel says.
+    const before = fx_ctrl.track_volume;
+    csurf.zSetSurfaceVolume(track, 0.5003);
+    try testing.expect(fx_ctrl.track_volume > before);
 }
 
 test "a plugin that has several maps opens the selector of maps when it is chosen without one, and goes back to the list" {

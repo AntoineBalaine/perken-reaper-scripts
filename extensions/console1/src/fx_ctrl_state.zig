@@ -102,9 +102,6 @@ shift_held: bool = false,
 /// plugin parameter to these two knobs, the `values` of Out_Vol and Out_Pan hold that parameter then, and the track has its own.
 track_volume: f64 = 0,
 track_pan: f64 = 0.5,
-/// The volume of the selected track in dB, as REAPER has it, which the host reads before each frame. Because the knob moves on
-/// the slider scale of REAPER and the UI library cannot call REAPER to convert it, the panel says the volume from this value.
-track_volume_db: f64 = 0,
 
 /// Display settings
 display: ?u8 = null,
