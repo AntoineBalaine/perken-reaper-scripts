@@ -56,3 +56,22 @@ Compressor, Gate and EQ maps do. Prefer the plugin's own per-section controls
 on a channel strip, which is what the Lumina map does: there, each Console 1
 section button should toggle its own section, and REAPER's Bypass would
 silence the whole strip.
+
+
+To do
+-----
+
+- Polarity of "On" switches. Lumina's EQ On, Comp On and Gate On are mapped to
+  Eq_eq, Comp_comp and Shp_shape, which Console 1 treats as bypass buttons, so
+  their lights and presses come out inverted. The map format needs a way to say
+  that a parameter is inverted. Not a priority.
+
+- Compressor filter entries in strip maps. A map of a channel strip has no
+  Comp_LoCut or Comp_HiCut, and the panel disables the filter knobs on a strip,
+  so "filters to compressor" does nothing there. For Lumina the wanted entries
+  are Comp_LoCut on Comp SC HPF (18) and Comp_HiCut on Comp Hold (17).
+
+- Custom names for parameters. The label of a knob is the name that the plugin
+  gives the parameter, and a map cannot change it. Lumina's "HPF Freq (Hz)" and
+  "LPF Freq (Hz)" are too long for the knobs, and want to be "HPF" and "LPF".
+
