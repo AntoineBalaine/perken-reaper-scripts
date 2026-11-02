@@ -66,10 +66,6 @@ To do
   their lights and presses come out inverted. The map format needs a way to say
   that a parameter is inverted. Not a priority.
 
-- Compressor filter entries in strip maps. A map of a channel strip has no
-  Comp_LoCut or Comp_HiCut, and the panel disables the filter knobs on a strip,
-  so "filters to compressor" does nothing there. For Lumina the wanted entries
-  are Comp_LoCut on Comp SC HPF (18) and Comp_HiCut on Comp Hold (17).
 
 
 Custom names
