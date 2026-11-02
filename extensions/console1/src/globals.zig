@@ -44,7 +44,9 @@ log_file: ?std.Io.File = null,
 
 // Resource management
 gpa_int: std.heap.DebugAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined,
-arena_int: std.heap.ArenaAllocator = undefined,
+/// Because the allocators that the arena hands out point at the arena itself, it lives on the heap: a Globals that is returned by value, as
+/// `defaults` does, would otherwise leave them pointing at a copy that is gone, and what they allocate after that would never be freed.
+arena_int: *std.heap.ArenaAllocator = undefined,
 resource_path: [:0]const u8 = undefined,
 fs_ops: fs_helpers.FileSystemOps = undefined,
 translations: TranslationStore = undefined,
@@ -77,7 +79,8 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     // Because deinit always checks this allocator for leaks, it must be a valid empty one when the caller owns the memory.
     globals.gpa_int = .{};
 
-    globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
+    globals.arena_int = try debug_allocator.create(std.heap.ArenaAllocator);
+    globals.arena_int.* = std.heap.ArenaAllocator.init(debug_allocator);
     const alloc = globals.arena_int.allocator();
     globals.fs_ops = fs_helpers.RealFileSystem.fileSystemOps(hostIo());
     globals.resource_path = "";
@@ -91,6 +94,13 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     return globals;
 }
 
+/// Frees what the arena allocated, and the arena itself, which `defaults` and `init` put on the heap.
+pub fn freeArena(self: *Globals) void {
+    const parent = self.arena_int.child_allocator;
+    self.arena_int.deinit();
+    parent.destroy(self.arena_int);
+}
+
 pub fn reset(self: *Globals) void {
     actions.dispatch(self, .{ .change_mode = if (self.m_midi_in != null) .fx_ctrl else .suspended });
 }
@@ -100,7 +110,8 @@ pub fn init() !void {
     const io = hostIo();
     instance = .{};
     instance.gpa_int = .{};
-    instance.arena_int = .init(instance.gpa_int.allocator());
+    instance.arena_int = try instance.gpa_int.allocator().create(std.heap.ArenaAllocator);
+    instance.arena_int.* = .init(instance.gpa_int.allocator());
     const alloc = instance.arena_int.allocator();
     instance.fs_ops = fs_helpers.RealFileSystem.fileSystemOps(hostIo());
 
@@ -135,7 +146,7 @@ pub fn init() !void {
 
 pub fn deinit(self: *Globals) void {
     self.state.fx_ctrl.track_state.deinitMaps(self.arena_int.allocator());
-    self.arena_int.deinit();
+    self.freeArena();
 
     const deinit_status = self.gpa_int.deinit();
     if (deinit_status == .leak) {

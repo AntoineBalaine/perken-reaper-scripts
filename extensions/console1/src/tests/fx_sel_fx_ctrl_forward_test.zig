@@ -14,7 +14,7 @@ fn setupGlobals(allocator: std.mem.Allocator) !Globals {
 }
 
 fn teardownGlobals(g: *Globals) void {
-    _ = g.arena_int.reset(.free_all);
+    g.freeArena();
 }
 
 // Test 1: Host parameter changes are forwarded to fx_ctrl in fx_sel mode

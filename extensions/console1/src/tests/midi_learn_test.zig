@@ -114,7 +114,7 @@ const System = struct {
         self.mock_fs.deinit();
         self.allocator.destroy(self.mock_fs);
         self.globals.state.mapping_panel.deinit();
-        _ = self.globals.arena_int.reset(.free_all);
+        self.globals.freeArena();
     }
 
     pub fn getAssign(self: *System) *statemachine.AssignState {

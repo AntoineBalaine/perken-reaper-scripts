@@ -21,7 +21,7 @@ fn setupGlobals(allocator: std.mem.Allocator) !Globals {
 
 fn teardownGlobals(g: *Globals) void {
     g.state.mapping_panel.deinit();
-    _ = g.arena_int.reset(.free_all);
+    g.freeArena();
 }
 
 // Test 1: MIDI controller inputs in browse sub-mode forward non-reserved CCs to fx_ctrl

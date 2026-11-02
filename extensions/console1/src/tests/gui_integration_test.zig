@@ -53,7 +53,8 @@ const GuiTestHarness = struct {
         // panics during deinit.
         const globals = try allocator.create(Globals);
         globals.* = .{};
-        globals.arena_int = std.heap.ArenaAllocator.init(allocator);
+        globals.arena_int = try allocator.create(std.heap.ArenaAllocator);
+        globals.arena_int.* = std.heap.ArenaAllocator.init(allocator);
         const arena = globals.arena_int.allocator();
         globals.fs_ops = @import("fs_helpers").RealFileSystem.fileSystemOps(io);
         globals.resource_path = "";
@@ -86,6 +87,7 @@ const GuiTestHarness = struct {
 
         self.globals.state.deinit(self.allocator);
         self.globals.arena_int.deinit();
+        self.allocator.destroy(self.globals.arena_int);
         self.allocator.destroy(self.globals);
     }
 

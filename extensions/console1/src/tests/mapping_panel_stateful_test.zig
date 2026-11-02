@@ -124,7 +124,7 @@ const System = struct {
         self.allocator.destroy(self.mock_fs);
 
         self.globals.state.mapping_panel.deinit();
-        _ = self.globals.arena_int.reset(.free_all);
+        self.globals.freeArena();
     }
 
     /// Sets up a module location entry for testing. This simulates the state where
