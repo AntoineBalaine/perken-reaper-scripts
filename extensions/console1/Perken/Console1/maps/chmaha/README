@@ -71,7 +71,17 @@ To do
   so "filters to compressor" does nothing there. For Lumina the wanted entries
   are Comp_LoCut on Comp SC HPF (18) and Comp_HiCut on Comp Hold (17).
 
-- Custom names for parameters. The label of a knob is the name that the plugin
-  gives the parameter, and a map cannot change it. Lumina's "HPF Freq (Hz)" and
-  "LPF Freq (Hz)" are too long for the knobs, and want to be "HPF" and "LPF".
 
+Custom names
+------------
+
+The label of a knob is the name that the plugin gives its parameter, and a map
+can replace it with a section "[labels]" at the end of the file, with one line
+for each control, as in
+
+    [labels]
+    Inpt_LoCut=HPF
+    Inpt_HiCut=LPF
+
+A name is at most 31 bytes, and a map can name 16 controls. Lumina uses it to
+shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs.
