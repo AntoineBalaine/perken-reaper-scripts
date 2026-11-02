@@ -173,9 +173,30 @@ fn roundButton(args: anytype) !bool {
     const cc = std.meta.stringToEnum(c1.CCs, id[2..]) orelse return pressed;
     if (!fx_state.knobPopupVisible(cc)) return pressed;
     if (buttonValueText(fx_state, cc)) |text| {
-        try Knobs.drawValuePopup(args[0], button.last_button.x, button.last_button.y - button.last_button.radius - 2, text);
+        // Because the button has just been drawn, the last item of the window is its widget, which tells where the popup goes.
+        var rect: ItemRect = undefined;
+        try imgui.GetItemRectMin(.{ args[0], &rect.min_x, &rect.min_y });
+        try imgui.GetItemRectMax(.{ args[0], &rect.max_x, &rect.max_y });
+        const provided_radius: ?f64 = args[4];
+        const text_position: ?button.TextPosition = args[5];
+        const anchor = buttonPopupAnchor(rect, provided_radius orelse button.default_radius, text_position orelse .above);
+        try Knobs.drawValuePopup(args[0], anchor.x, anchor.y, text);
     }
     return pressed;
+}
+
+/// The rectangle of the widget of a button on the screen, which holds the circle and its label.
+pub const ItemRect = struct { min_x: f64, min_y: f64, max_x: f64, max_y: f64 };
+
+/// Where the popup of a button is drawn: centered over the circle of the button, with its bottom edge just above the circle, or above
+/// the label when the label is over it. Because the widget holds the label as well as the circle, the circle is where the position of
+/// the label leaves it: at the left edge of the widget when the label is at the right, and centered when the label is above or below.
+pub fn buttonPopupAnchor(rect: ItemRect, radius: f64, text_position: button.TextPosition) struct { x: f64, y: f64 } {
+    const gap = 2;
+    return switch (text_position) {
+        .right => .{ .x = rect.min_x + radius, .y = (rect.min_y + rect.max_y) / 2 - radius - gap },
+        .above, .below => .{ .x = (rect.min_x + rect.max_x) / 2, .y = rect.min_y - gap },
+    };
 }
 
 /// The color of the label of a control while shift is held and the control has another use.

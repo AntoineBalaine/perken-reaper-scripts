@@ -392,6 +392,19 @@ test "Escape closes the browser when the search does not have the keyboard" {
     try testing.expect(with_text.fx_sel == .close_browser);
 }
 
+test "the popup of a button is centered over its circle, wherever the label is" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    const radius = 8.5;
+    // Because a label at the right leaves the circle at the left edge of the widget, the circle is level with the middle of it.
+    const right = fx_ctrl_panel.buttonPopupAnchor(.{ .min_x = 100, .min_y = 50, .max_x = 160, .max_y = 70 }, radius, .right);
+    try testing.expectApproxEqAbs(@as(f64, 108.5), right.x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 60 - radius - 2), right.y, 0.001);
+    // Because a label below the circle is centered on it, the circle is in the middle of the widget, at its top.
+    const below = fx_ctrl_panel.buttonPopupAnchor(.{ .min_x = 100, .min_y = 50, .max_x = 160, .max_y = 90 }, radius, .below);
+    try testing.expectApproxEqAbs(@as(f64, 130), below.x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 48), below.y, 0.001);
+}
+
 test "the keys of the computer move through the maps of a plugin, choose one with Enter and step back with Escape" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();
