@@ -1,0 +1,844 @@
+# Reavim Action Definitions Inventory (for Zig port)
+
+Source files:
+
+- `/tank/projects/perken-reaper-scripts/reavim/definitions/defaults/actions.lua` (778 actions)
+- `/tank/projects/perken-reaper-scripts/reavim/definitions/extended_defaults/actions.lua` (779 actions)
+
+`extended_defaults/actions.lua` exists and does NOT import defaults — it is a hand-maintained near-identical fork-copy of the defaults file. 769 of its entries are byte-identical to defaults. The differences are listed in the "extended_defaults" section at the bottom; everything else in this document applies to both files.
+
+Function payload paths are relative to `/tank/projects/perken-reaper-scripts/reavim/internal/`. `custom` = `require("custom_actions")` (custom_actions/custom_actions.lua), `lib` = `require("library")` (library/library.lua).
+
+Kind legend:
+- `id` — plain numeric REAPER command id
+- `named` — named command string (SWS/S&M/Xenakios/BR/ReaScript), resolved via `reaper.NamedCommandLookup`
+- `multi` — plain table/array of sub-actions (action-name strings, ids, named commands) run in sequence, no metadata flags. Single-string aliases to another reavim action are also marked `multi` with note "alias".
+- `func` — Lua function (directly assigned, or sole element of a flag-less 1-element table)
+- `table-meta` — table carrying metadata flags. Flags abbreviated: `midi`=midiCommand, `rep`=prefixRepetitionCount, `reps=N`=repetitions, `reg`=registerAction, `regOpt`=registerOptional, `meta`=metaCommand, `setTime`=setTimeSelection, `setTrack`=setTrackSelection, `pre`/`post`=pre_action/post_action
+
+The defaults file is one flat Lua table with no category groupings, so this is one big list in file order.
+
+## defaults/actions.lua (file order)
+
+- `ActivateNextMidiItem` | table-meta | 40833 | midi
+- `ActivatePrevMidiItem` | table-meta | 40834 | midi
+- `AddFx` | id | 40271 |
+- `AddNextNoteToSelection` | table-meta | 40422 | midi, rep
+- `AddPrevNoteToSelection` | table-meta | 40421 | midi, rep
+- `InsertVirtualInstrumentTrack` | id | 40701 |
+- `InsertClickTrack` | named | _SWS_AWINSERTCLICKTRK |
+- `AllTrackItems` | multi | [SaveItemSelection, SelectItemsOnTrack, SelectedItems, RestoreItemSelection] |
+- `AllTracks` | id | 40296 |
+- `ArmAllEnvelopes` | named | _S&M_ARMALLENVS |
+- `ArmSelectedTracks` | named | _XENAKIOS_SELTRAX_RECARMED |
+- `ArmTracks` | id | 9 |
+- `AutomationItem` | id | 42197 |
+- `AutoRenameTake` | named | _XENAKIOS_AUTORENAMETAKES |
+- `BigItem` | func | custom_actions/selection.lua:23 (innerBigItem) | Sets time selection to the merged "big item" (contiguous/overlapping item group) under the edit cursor on selected tracks. Calls reaper.GetCursorPosition, reaper.GetSet_LoopTimeRange (via utils.getBigItemPositionsOnSelectedTracks).
+- `CleanProjectDirectory` | id | 40098 |
+- `ClearAllEnvelope` | named | _S&M_REMOVE_ALLENVS |
+- `ClearAllRecordArm` | id | 40491 |
+- `ClearEnvelope` | id | 40065 |
+- `ClearNoteSelection` | table-meta | 40214 | midi
+- `ClearTimeSelection` | func | custom_actions/custom_actions.lua:24 | Collapses the time selection to the current edit cursor position. Calls reaper.GetCursorPosition, reaper.GetSet_LoopTimeRange.
+- `CloseAllFxChainsAndWindows` | multi | [CloseAllFx, CloseAllFxChain] |
+- `CloseAllFxChain` | named | _S&M_WNCLS4 |
+- `CloseAllFx` | named | _S&M_WNCLS3 |
+- `CloseFloatingFxWindows` | named | _S&M_WNCLS3 |
+- `PlayFromMouseAndSoloTrack` | named | _BR_CONT_PLAY_MOUSE_SOLO_TRACK |
+- `PlayFromEditCursorAndSoloTrackUnderMouse` | named | _BR_TOGGLE_PLAY_EDIT_SOLO_TRACK |
+- `CloseFx` | multi | [CloseFxChains, CloseFxWindows] |
+- `CloseFxWindows` | named | _S&M_WNCLS5 |
+- `CloseFxChains` | named | _S&M_WNCLS4 |
+- `CloseProject` | id | 40860 |
+- `CloseWindow` | table-meta | 2 | midi. extended_defaults prepends "LoadTrkScreenSet1" to the sequence.
+- `ColorTrack` | table-meta | 40360 | rep
+- `ColorTrackGradient` | named | _SWS_TRACKGRAD |
+- `ColorTrackWithTrackAbove` | named | _SWS_COLTRACKPREV |
+- `ColorTrackWithTrackBelow` | named | _SWS_COLTRACKNEXT |
+- `CopyAndFitByLooping` | id | 41319 |
+- `CopyEnvelope` | id | 40035 |
+- `CopyEnvelopePoints` | id | 40324 |
+- `CopySelectedEnvelopePoints` | id | 40335 |
+- `CopyFxChain` | named | _S&M_SMART_CPY_FXCHAIN |
+- `CopyItems` | multi | [SaveItemSelection, OnlySelectItemsCrossingTimeAndTrackSelection, CopySelectedAreaOfItems, RestoreItemSelection] |
+- `CopyNotes` | multi | [SelectNotes, CopySelectedEvents] |
+- `CopySelectedAreaOfItems` | id | 40060 |
+- `CopySelectedEvents` | table-meta | 40733 | midi
+- `CopySelectedItems` | id | 40698 |
+- `CopyTrack` | id | 40210 |
+- `CropToActiveTake` | id | 40131 |
+- `CutEnvelopePoints` | id | 40325 |
+- `DeleteEnvelopePoints` | func | custom_actions/envelope.lua:188 (deletePoints) | Wrapped in 1-elem table. Copies selected env points first, then deletes selected points (40333), points in time selection, or cuts points (40325) depending on selection state. Calls reaper.GetSelectedEnvelope, GetSet_LoopTimeRange2, CountEnvelopePoints, GetEnvelopePoint, DeleteEnvelopePointRange, Main_OnCommand.
+- `CutFxChain` | named | _S&M_COPYFXCHAIN6 |
+- `CutInputFxChain` | named | _S&M_CUT_INFXCHAIN |
+- `Overdub` | multi | [CopyTrack, UnarmSelectedTracks, Paste, NextTrack, StartStop, ToggleRecord, SelectItemsUnderEditCursor, CutSelectedItems] |
+- `CutItemFxChain` | multi | [CopyItemFxChain, ClearItemFxChain] |
+- `CopyItemFxChain` | named | _S&M_COPYFXCHAIN1 |
+- `ClearItemFxChain` | named | _S&M_CLRFXCHAIN2 |
+- `CutItems` | multi | [SaveItemSelection, SelectItemsAndSplit, CutSelectedItems, RestoreItemSelection] |
+- `MoveItemContentToEditCursor` | id | 41308 |
+- `MoveItemToEditCursor` | id | 41205 |
+- `CutNotes` | multi | [SelectNotes, CutSelectedEvents] |
+- `CutSelectedEvents` | table-meta | 40012 | midi
+- `CutSelectedItems` | id | 40699 |
+- `CutTrack` | multi | [CopyTrack, RemoveTrack, SelectLastTouchedTrack] |
+- `CycleFolderCollapsedState` | id | 1042 |
+- `CycleFolderState` | id | 1041 |
+- `CycleItemFadeInShape` | table-meta | 41520 | rep
+- `CycleItemFadeOutShape` | table-meta | 41527 | rep
+- `CycleRecordMonitor` | id | 40495 |
+- `CycleRippleEditMode` | id | 1155 |
+- `DeleteActiveTake` | table-meta | 40129 | rep
+- `DeleteEnvelope` | id | 40333 |
+- `DeleteItem` | id | 40006 |
+- `DeleteMark` | table-meta | func library/marks.lua:67 (marks.delete) | reg. Receives a register char; deletes the stored mark and its project-marker indication. Calls reaper.DeleteProjectMarker; uses project_state ext-state storage.
+- `DeleteNote` | table-meta | 40002 | midi
+- `DeleteTimeline` | id | 40201 |
+- `InsertTrackFromTemplate` | id | 46000 |
+- `EnterTrackAbove` | multi | [InsertTrackAbove] | extended_defaults: [InsertTrackAbove, ColorTrackWithTrackBelow, RenameTrack]
+- `EnterTrackBelow` | multi | [InsertTrackBelow] | extended_defaults: [InsertTrackBelow, ColorTrackWithTrackAbove, RenameTrack]
+- `EventSelectionEnd` | table-meta | 40639 | midi
+- `EventSelectionStart` | table-meta | 40440 | midi
+- `AddTimeSignatureMarker` | id | 40256 |
+- `EditTimeSignatureMarker` | id | 40618 |
+- `DeleteTimeSignatureMarker` | id | 40617 |
+- `NextTimeSignatureMarker` | id | 41821 |
+- `PrevTimeSignatureMarker` | id | 41820 |
+- `FirstItemStart` | func | custom_actions/movement.lua:24 | Moves edit cursor to start of the first (big) item on selected tracks. Calls reaper.SetEditCurPos; item scan via utils.getBigItemPositionsOnSelectedTracks.
+- `FirstTrack` | multi | [func custom_actions/movement.lua:134 (firstTrack), ScrollToSelectedTracks] | firstTrack selects track 0 via reaper.GetTrack + reaper.SetOnlyTrackSelected.
+- `GlueItemsIgnoringTimeSelection` | id | 40362 |
+- `FitByLoopingNoExtend` | multi | [OnlySelectItemsCrossingTimeAndTrackSelection, GlueItemsIgnoringTimeSelection, FitSelectedItemsByLooping] |
+- `ToggleShowTempoEnvelope` | id | 41046 |
+- `MasterTrack` | id | 40075 | defaults only; extended_defaults names this command `ToggleShowMaster` instead.
+- `FitByLooping` | multi | [OnlySelectItemsCrossingTimeAndTrackSelection, FitSelectedItemsByLooping] |
+- `FitByPadding` | multi | [OnlySelectItemsCrossingTimeAndTrackSelection, FitSelectedItemsByPadding] |
+- `FitByStretching` | multi | [OnlySelectItemsCrossingTimeAndTrackSelection, FitSelectedItemsByStretching] |
+- `FitEnvelopePoints` | named | _BR_FIT_ENV_POINTS_TO_TIMESEL |
+- `FitSelectedItemsByLooping` | id | 41386 |
+- `FitSelectedItemsByPadding` | id | 41385 |
+- `FitSelectedItemsByStretching` | id | 41206 |
+- `FitNotes` | table-meta | 40754 | midi
+- `FocusMain` | named | _S&M_WNMAIN |
+- `FolderChildren` | multi | [SelectFolderChildren, ScrollToSelectedTracks] |
+- `FolderParent` | multi | [SelectFolderParent, ScrollToSelectedTracks] |
+- `Folder` | multi | [SelectFolder, ScrollToSelectedTracks] |
+- `ResetFeedbackWindow` | func | library/library.lua:52 | Marks the reavim feedback GUI window closed by writing `feedback.open=false` into REAPER ext-state (utils/reaper_state.setKeys). No direct reaper.* command.
+- `FreezeTrack` | id | 41223 |
+- `GlueItemIgnoringTimeSelection` | id | 40362 |
+- `GlueItems` | multi | [SaveItemSelection, SelectItems, GlueSelectedItemsInTimeSelection, RestoreItemSelection] |
+- `GlueSelectedItemsInTimeSelection` | id | 41588 |
+- `GoToEnd` | table-meta | 40037 | midi
+- `GoToStart` | table-meta | 40036 | midi
+- `GroupItems` | id | 40032 |
+- `HealItemsSplits` | id | 40548 |
+- `CreateMeasures` | id | 40338 |
+- `CreateProjectTempo` | id | 40843 |
+- `InnerFolderAndParent` | multi | [FolderParent, SelectFolder] |
+- `InnerFolder` | multi | [FolderParent, SelectOnlyFoldersChildren] |
+- `InsertAutomationItem` | id | 42082 |
+- `InsertDefaultSizeNote` | table-meta | 40051 | midi
+- `InsertNote` | multi | [MidiTimeSelectionStart, InsertDefaultSizeNote, MidiTimeSelectionStart, SelectNearestNote, FitNotes] |
+- `InsertOrExtendMidiItem` | id | 42069 |
+- `InsertTrackAbove` | table-meta | _SWS_INSRTTRKABOVE | rep
+- `InsertTrackBelow` | table-meta | 40001 | rep
+- `Insert4EnvelopePointsAtTimeSelection` | id | 40726 |
+- `ShiftEnvelopePointsUp` | table-meta | 41180 | rep
+- `ShiftEnvelopePointsUpATinyBit` | table-meta | 42381 | rep
+- `ShiftEnvelopePointsDown` | table-meta | 41181 | rep
+- `ShiftEnvelopePointsDownATinyBit` | table-meta | 42382 | rep
+- `InvertVoicingDownwards` | table-meta | 40910 | midi, rep
+- `InvertVoicingUpwards` | table-meta | 40909 | midi, rep
+- `ApplyFxToItem` | id | 40209 |
+- `Item` | func | custom_actions/selection.lua:11 (innerItem) | Sets time selection to the single item under the edit cursor on selected tracks. Calls reaper.GetCursorPosition, reaper.GetSet_LoopTimeRange.
+- `ItemNormalize` | id | 40108 |
+- `ItemSplitSelRight` | named | _SWS_AWSPLITXFADELEFT |
+- `JoinNotes` | multi | [SelectNotes, JoinSelectedNotes] |
+- `JoinSelectedNotes` | table-meta | 40456 | midi
+- `LastItemEnd` | func | custom_actions/movement.lua:16 | Moves edit cursor to end of last big item on selected tracks. reaper.SetEditCurPos.
+- `LastTrack` | multi | [func custom_actions/movement.lua:139 (lastTrack), ScrollToSelectedTracks] | lastTrack selects the final track via reaper.GetNumTracks/GetTrack/SetOnlyTrackSelected.
+- `Left10Pix` | table-meta | _XENAKIOS_MOVECUR10PIX_LEFT | rep
+- `Left40Pix` | table-meta | [Left10Pix] | reps=4, rep
+- `LeftGridDivision` | table-meta | 40646 | rep
+- `LeftMidiGridDivision` | table-meta | 40047 | midi, rep
+- `LoopEnd` | id | 40633 |
+- `LoopSelection` | multi | [SetTimeSelectionToLoopSelection] | string alias to another action
+- `LoopStart` | id | 40632 |
+- `MakeFolder` | named | _SWS_MAKEFOLDER |
+- `MarkedRegion` | table-meta | func library/marks.lua:92 (recallMarkedRegion) | reg. Recalls stored mark's time range and scrolls there. reaper.GetSet_LoopTimeRange + utils.scrollToPosition; project_state storage.
+- `MarkedTimelinePosition` | table-meta | func library/marks.lua:77 (recallMarkedTimelinePosition) | reg. Moves edit cursor to a stored mark position (region marks use left edge). reaper.SetEditCurPos.
+- `MarkedTracks` | table-meta | func library/marks.lua:103 (recallMarkedTracks) | reg. Restores stored current-track and track-selection of a mark via utils.setCurrentTrack/setTrackSelection.
+- `Mark` | table-meta | func library/marks.lua:52 (save) | reg. Saves time sel, cursor pos, track pos/selection under a register; adds a project marker/region depending on mode. reaper.GetSet_LoopTimeRange, GetCursorPosition, AddProjectMarker, DeleteProjectMarker.
+- `MatchedTrackBackward` | multi | [MatchTrackNameBackward, ScrollToSelectedTracks] |
+- `MatchedTrackForward` | multi | [MatchTrackNameForward, ScrollToSelectedTracks] |
+- `MatchTrackNameBackward` | func | library/library.lua:12 | Prompts for a string (reaper.GetUserInputs), finds previous track matching it (utils.getMatchedTrack), selects it (reaper.SetOnlyTrackSelected), stores search in state machine; shows feedback message on miss.
+- `MatchTrackNameForward` | func | library/library.lua:24 | Same as above, searching forward.
+- `MidiCCMoveLeftByGrid` | table-meta | 40672 | rep
+- `MidiCCMoveLeftByPixel` | table-meta | 40674 | rep
+- `MidiCCMoveRightByGrid` | table-meta | 40673 | rep
+- `MidiCCMoveRightByPixel` | table-meta | 40675 | rep
+- `MidiLearnLastTouchedFxParam` | id | 41144 |
+- `MidiLoadNoteCCNames` | id | 40409 |
+- `MidiOptionAllowAllMediaItemsEditableInNotationView` | id | 41774 |
+- `MidiOptionAllowCCShapeInBankAndLSBLanes` | id | 42100 |
+- `MidiOptionAvoidAutomaticallySettingMIDIItemsFromOtherTracksEditable` | id | 40901 |
+- `MidiOptionEnableExtendingParentMediaItem` | id | 40817 |
+- `MidiOptionToggleAlwaysSnapNotesToTheLeftItSnap` | id | 40748 |
+- `MidiPaste` | table-meta | 40011 | midi, rep
+- `MidiSaveNoteCCNames` | id | 40410 |
+- `MidiTimeSelectionEnd` | table-meta | 40881 | midi
+- `MidiTimeSelectionStart` | table-meta | 40880 | midi
+- `DrumsView` | table-meta | 40043 | midi
+- `EventView` | table-meta | 40056 | midi
+- `NotationView` | table-meta | 40954 | midi
+- `PianoRollView` | table-meta | 40042 | midi
+- `MidiViewNoteRowsHideUnused` | id | 40453 |
+- `MidiViewNoteRowsHideUnusedAndUnnamed` | id | 40454 |
+- `MidiViewNoteRowsShowAll` | id | 40452 |
+- `MidiZoomContent` | table-meta | 40466 | midi
+- `MidiZoomInHoriz` | table-meta | 1012 | midi, rep
+- `MidiZoomInVert` | table-meta | 40111 | midi, rep
+- `MidiZoomLoopSelection` | table-meta | 40726 | midi
+- `MidiZoomOutHoriz` | table-meta | 1011 | midi, rep
+- `MidiZoomOutVert` | table-meta | 40112 | midi, rep
+- `MidiZoomTimeSelection` | multi | [SaveLoopSelection, SetLoopSelectionToTimeSelection, MidiZoomLoopSelection, RestoreLoopSelection] |
+- `MinimizeTracks` | named | _SWS_MINTRACKS |
+- `MixerShowHideChildrenOfSelectedTrack` | id | 41665 |
+- `ModulateLastTouchedFxParam` | id | 41143 |
+- `MousePositionIgnoreSnap` | id | 40514 |
+- `MousePosition` | multi | [MousePositionIgnoreSnap, SnappedPosition] |
+- `NextTransientInSelectedItems` | table-meta | 40375 | rep
+- `PrevTransientInSelectedItems` | table-meta | 40376 | rep
+- `MoveNoteDownOctave` | table-meta | 40180 | midi, rep
+- `MoveNoteDownSemitone` | table-meta | 40178 | midi, rep
+- `MoveNoteLeft` | table-meta | 40183 | midi, rep
+- `MoveNoteLeftFine` | table-meta | 40181 | midi, rep
+- `MoveNoteRight` | table-meta | 40184 | midi, rep
+- `MoveNoteRightFine` | table-meta | 40182 | midi, rep
+- `MoveNoteAndCursorRight` | table-meta | [RightMidiGridDivision, MoveNoteRight] | midi, rep
+- `MoveNoteAndCursorLeft` | table-meta | [LeftMidiGridDivision, MoveNoteLeft] | midi, rep
+- `MoveNoteUpOctave` | table-meta | 40179 | midi, rep
+- `MoveNoteUpSemitone` | table-meta | 40177 | midi, rep
+- `MoveRedo` | table-meta | _SWS_EDITCURREDO | rep
+- `MoveSelectedItemLeftToEditCursor` | id | 41306 |
+- `MoveSelectedItemRightToEditCursor` | id | 41307 |
+- `MoveToFirstItem` | multi | [SelectFirstItemOnSelectedTracks, MoveToFirstItem] | NOTE: references itself by name (recursive self-reference in second element).
+- `MoveToMousePositionAndPlay` | multi | [MousePosition, Play] |
+- `MoveUndo` | table-meta | _SWS_EDITCURUNDO | rep
+- `NewProjectTab` | id | 40859 |
+- `Next10Track` | table-meta | [NextTrack] | reps=10, rep
+- `Next4Beats` | table-meta | [NextBeat] | reps=4, rep
+- `Next4Measures` | table-meta | [NextMeasure] | reps=4, rep
+- `Next5Track` | table-meta | [NextTrack] | reps=5, rep
+- `NextBeat` | id | 40841 |
+- `NextBigItemEnd` | table-meta | func custom_actions/movement.lua:126 (nextBigItemEnd) | rep. Edit cursor to next big-item end after cursor; reaper.GetCursorPosition, SetEditCurPos.
+- `NextBigItemStart` | table-meta | func custom_actions/movement.lua:102 (nextBigItemStart) | rep. Edit cursor to next big-item start; reaper.SetEditCurPos.
+- `NextEnvelope` | table-meta | 41864 | rep
+- `NextEnvelopePoint` | table-meta | _SWS_BRMOVEEDITTONEXTENV | rep
+- `NextFolderNear` | table-meta | [_SWS_SELNEARESTNEXTFOLDER, ScrollToSelectedTracks] | rep
+- `NextItemEnd` | table-meta | func custom_actions/movement.lua:130 (nextItemEnd) | rep. Edit cursor to next item end; reaper.SetEditCurPos.
+- `NextItemStart` | table-meta | func custom_actions/movement.lua:106 (nextItemStart) | rep. Edit cursor to next item start; reaper.SetEditCurPos.
+- `NextMarker` | table-meta | 40173 | rep
+- `NextMeasure` | table-meta | 40839 | rep
+- `NextNoteEnd` | table-meta | [SelectNextNote, EventSelectionEnd] | rep
+- `NextNoteSamePitchEnd` | table-meta | [SelectNextNoteSamePitch, EventSelectionEnd] | rep
+- `NextNoteSamePitchStart` | table-meta | [SelectNextNoteSamePitch, EventSelectionStart] | rep
+- `NextNoteStart` | table-meta | [SelectNextNote, EventSelectionStart] | rep
+- `NextRegion` | table-meta | [SetLoopRegionToNextRegion, LoopStart, SetTimeSelectionToLoopSelection] | rep
+- `NextTab` | table-meta | 40861 | rep
+- `NextTake` | table-meta | 40125 | rep
+- `NextTrack` | table-meta | 40285 | rep
+- `NextTrackMatchBackward` | table-meta | [RepeatTrackNameMatchBackward, ScrollToSelectedTracks] | rep
+- `NextTrackMatchForward` | table-meta | [RepeatTrackNameMatchForward, ScrollToSelectedTracks] | rep
+- `NextTransientInItem` | table-meta | [SaveItemSelection, SelectItemsUnderEditCursor, NextTransientInSelectedItems, RestoreItemSelection] | rep
+- `CalculateTransientGuides` | id | 42028 |
+- `SplitItemAtTransients` | named | _XENAKIOS_SPLIT_ITEMSATRANSIENTS |
+- `ClearTransientGuides` | id | 42027 |
+- `InsertStretchMarker` | id | 41842 |
+- `DeleteStretchMarker` | id | 41859 |
+- `NextStretchMarker` | id | 41860 |
+- `PrevStretchMarker` | id | 41861 |
+- `IncreaseTransientDetectionThreshold` | table-meta | 40218 | rep
+- `DecreaseTransientDetectionThreshold` | table-meta | 40219 | rep
+- `IncreaseTransientDetectionSensitivity` | table-meta | 41537 | rep
+- `DecreaseTransientDetectionSensitivity` | table-meta | 41536 | rep
+- `AdjustTransientDetection` | id | 41208 |
+- `NoOp` | id | 65535 | dummy/no-op command id
+- `NudgeTrackPanLeft10Times` | table-meta | [NudgeTrackPanLeft] | reps=10, rep
+- `NudgeTrackPanLeft` | table-meta | 40283 | rep
+- `NudgeTrackPanRight10Times` | table-meta | [NudgeTrackPanRight] | reps=10, rep
+- `NudgeTrackPanRight` | table-meta | 40284 | rep
+- `NudgeTrackVolumeDownBy1` | table-meta | [NudgeTrackVolumeDown] | reps=20, rep
+- `NudgeTrackVolumeDownBy1Tenth` | table-meta | [NudgeTrackVolumeDown] | reps=2, rep
+- `NudgeTrackVolumeUp` | table-meta | 40115 | rep
+- `NudgeTrackVolumeUpBy1` | table-meta | [NudgeTrackVolumeUp] | reps=20, rep
+- `NudgeTrackVolumeUpBy1Tenth` | table-meta | [NudgeTrackVolumeUp] | reps=2, rep
+- `OnlySelectItemsCrossingTimeAndTrackSelection` | multi | [UnselectItems, SelectItemsCrossingTimeAndTrackSelection] |
+- `OpenInMidiEditor` | multi | [SaveTrkScreenSet1, ZoomItemSelection, 40153] |
+- `OpenProject` | id | 40025 |
+- `PasteAbove` | table-meta | [PrevTrack, Paste] | rep
+- `PasteFxChain` | table-meta | _S&M_SMART_PST_FXCHAIN | rep
+- `PasteItem` | table-meta | 40058 | rep
+- `Paste` | table-meta | _SWS_AWPASTE | rep, pre=SaveEditCursorPosition, post=RestoreEditCursorPosition. extended_defaults omits the pre/post actions.
+- `Pause` | id | 1008 |
+- `PitchDown` | table-meta | 40050 | midi, rep
+- `PitchDown7` | table-meta | [PitchDown] | reps=7, rep
+- `PitchDownOctave` | table-meta | 40188 | midi, rep
+- `PitchUp` | table-meta | 40049 | midi, rep
+- `PitchUp7` | table-meta | [PitchUp] | reps=7, rep
+- `PitchUpOctave` | table-meta | 40187 | midi, rep
+- `PitchCursorDownOctave` | table-meta | 40188 | midi, rep
+- `PitchCursorUpOctave` | table-meta | 40187 | midi, rep
+- `PitchCursorDown` | table-meta | 40050 | midi, rep
+- `PitchCursorUp` | table-meta | 40049 | midi, rep
+- `Play` | id | 1007 |
+- `PlayAndLoop` | table-meta | [SetLoopSelectionToTimeSelection, SaveEditCursorPosition, LoopStart, Play, RestoreEditCursorPosition] | setTime
+- `PlayFromMousePosition` | named | _BR_PLAY_MOUSECURSOR |
+- `PlayFromTimeSelectionStart` | multi | [SaveEditCursorPosition, TimeSelectionStart, Play, RestoreEditCursorPosition] |
+- `PlayMacro` | table-meta | (no command payload) | reg, meta, rep. Pure meta-command: macro playback handled by the state machine, not a REAPER command.
+- `PlayPositionIgnoreSnap` | id | 40434 |
+- `PlayPosition` | multi | [PlayPositionIgnoreSnap, SnappedPosition] |
+- `Prev10Track` | table-meta | [PrevTrack] | reps=10, rep
+- `Prev4Beats` | table-meta | [PrevBeat] | reps=4, rep
+- `Prev4Measures` | table-meta | [PrevMeasure] | reps=4, rep
+- `Prev5Track` | table-meta | [PrevTrack] | reps=5, rep
+- `PrevBeat` | table-meta | 40842 | rep
+- `PrevBigItemStart` | table-meta | func custom_actions/movement.lua:78 (prevBigItemStart) | rep. Edit cursor to previous big-item start; reaper.GetCursorPosition, SetEditCurPos.
+- `PrevEnvelope` | table-meta | 41863 | rep
+- `PrevEnvelopePoint` | table-meta | _SWS_BRMOVEEDITTOPREVENV | rep
+- `SelNextEnvelopePoint` | table-meta | _SWS_BRMOVEEDITSELNEXTENV | rep. extended_defaults uses _BR_ENV_SEL_NEXT_POINT instead.
+- `SelPrevEnvelopePoint` | table-meta | _SWS_BRMOVEEDITSELPREVENV | rep. extended_defaults uses _BR_ENV_SEL_PREV_POINT instead.
+- `AddNextEnvelopePointSel` | table-meta | _SWS_BRMOVEEDITTONEXTENVADDSELL | rep
+- `AddPrevEnvelopePointSel` | table-meta | _SWS_BRMOVEEDITTOPREVENVADDSELL | rep. extended_defaults uses the ...TONEXTENVADDSELL string here (likely a copy/paste bug).
+- `PrevFolderNear` | table-meta | [_SWS_SELNEARESTPREVFOLDER, ScrollToSelectedTracks] | rep
+- `PrevItemStart` | table-meta | func custom_actions/movement.lua:82 (prevItemStart) | rep. Edit cursor to previous item start; reaper.SetEditCurPos.
+- `PrevMarker` | table-meta | 40172 | rep
+- `PrevMeasure` | table-meta | 40840 | rep
+- `PrevNoteEnd` | table-meta | [SelectPrevNote, PitchCursorToSelectedNote, EventSelectionEnd] | rep
+- `PrevNoteSamePitchEnd` | table-meta | [SelectPrevNoteSamePitch, EventSelectionEnd] | rep
+- `PrevNoteSamePitchStart` | table-meta | [SelectPrevNoteSamePitch, EventSelectionStart] | rep
+- `PrevNoteStart` | table-meta | [SelectPrevNote, EventSelectionStart] | rep
+- `PrevRegion` | table-meta | [SetLoopRegionToPrevRegion, LoopStart, SetTimeSelectionToLoopSelection] | rep
+- `PrevTab` | table-meta | 40862 | rep
+- `PrevTake` | table-meta | 40126 | rep
+- `PrevTrack` | table-meta | 40286 | rep
+- `PrevTransientInItem` | table-meta | [SaveItemSelection, SelectItemsUnderEditCursor, PrevTransientInSelectedItems, RestoreItemSelection] | rep
+- `NextTransientInItemMinusFadeTime` | table-meta | [SaveItemSelection, SelectItemsUnderEditCursor, NextTransientInSelectedItemsMinusFadeTime, RestoreItemSelection] | rep
+- `PrevTransientInItemMinusFadeTime` | table-meta | [SaveItemSelection, SelectItemsUnderEditCursor, PrevTransientInSelectedItemsMinusFadeTime, RestoreItemSelection] | rep
+- `NextTransientInSelectedItemsMinusFadeTime` | named | _XENAKIOS_MOVECURNEXT_TRANSMINUSFADE |
+- `PrevTransientInSelectedItemsMinusFadeTime` | named | _XENAKIOS_MOVECURPREV_TRANSMINUSFADE |
+- `ProjectEnd` | func | custom_actions/movement.lua:11 | Edit cursor to project length. reaper.GetProjectLength, SetEditCurPos.
+- `ProjectStart` | func | custom_actions/movement.lua:7 | Edit cursor to 0. reaper.SetEditCurPos.
+- `ProjectTimeline` | func | custom_actions/selection.lua:6 (innerProjectTimeline) | Time-selects the entire project (0..project length). reaper.GetProjectLength, GetSet_LoopTimeRange.
+- `Quantize` | table-meta | 40009 | midi
+- `RecallMark` | table-meta | lib.marks.recall — BROKEN: no `recall` function exists in library/marks.lua, resolves to nil | reg
+- `RecordConditional` | multi | [Stop, ToggleRecordConditional] |
+- `RecordMacro` | table-meta | (no command payload) | meta, reg, regOpt. Pure meta-command for macro recording.
+- `RecordOrStop` | named | _SWS_RECTOGGLE |
+- `Record` | table-meta | [SaveEditCursorPosition, TimeSelectionStart, RecordConditional, RestoreEditCursorPosition] | setTime
+- `Redo` | table-meta | 40030 | rep
+- `Region` | func | custom_actions/selection.lua:42 (innerRegion) | Time-selects the region under the edit cursor. reaper.GetLastMarkerAndCurRegion + utils.selectRegion.
+- `RegionSelectItems` | id | 40717 |
+- `RemoveMarker` | id | 40613 |
+- `RemoveRegion` | id | 40615 |
+- `RemoveTimeSelection` | id | 40635 |
+- `RemoveTrack` | id | 40005 |
+- `RenameTrack` | id | 40696 |
+- `RenameTakeSourceFile` | named | _XENAKIOS_RENMTAKEANDSOURCE |
+- `RenameTake` | named | _XENAKIOS_RENMTAKE |
+- `RenameTakeAndSourceFile` | named | _XENAKIOS_RENMTAKEANDSOURCE |
+- `RenderProject` | id | 40015 |
+- `RenderProjectWithLastSetting` | id | 41824 |
+- `RenderTrack` | named | _SWS_AWRENDERSTEREOSMART |
+- `RepeatLastCommand` | table-meta | (no command payload) | meta, rep. Pure meta-command (dot-repeat).
+- `RepeatTrackNameMatchBackward` | func | library/library.lua:44 | Repeats last track-name search in reverse direction; state_interface.getLastSearchedTrackNameAndDirection + reaper.SetOnlyTrackSelected.
+- `RepeatTrackNameMatchForward` | func | library/library.lua:36 | Repeats last track-name search in same direction.
+- `ResetAllControlSurfaceDevices` | id | 42348 |
+- `ResetAllMidiDevices` | id | 41175 |
+- `ResetControlDevices` | multi | [ResetAllMidiDevices, ResetAllControlSurfaceDevices] |
+- `ResetSelection` | multi | [SelectOnlyCurrentTrack, UnselectItems, UnselectEnvelopePoints, UnselectAllEvents] |
+- `Reset` | multi | [Stop, SetModeNormal, SetRecordModeNormal, ResetSelection, RemoveTimeSelection] |
+- `ResetSelectionMidi` | multi | [UnselectEnvelopePoints, UnselectAllEvents] |
+- `ResetMidi` | multi | [Stop, SetModeNormal, ResetSelectionMidi, RemoveTimeSelection] |
+- `ResetTrackToNormal` | multi | [UnarmSelectedTracks, UnarmAllEnvelopes, SetAutomationModeTrimRead] |
+- `RestoreEditCursorPosition` | named | _BR_RESTORE_CURSOR_POS_SLOT_16 |
+- `RestoreItemSelection` | named | _SWS_RESTALLSELITEMS1 |
+- `RestoreLastItemSelection` | named | _SWS_RESTLASTSEL |
+- `RestoreLoopSelection` | named | _SWS_RESTLOOP5 |
+- `RestoreTimeSelection` | named | _SWS_RESTTIME5 |
+- `RestoreTrackSelection` | named | _SWS_TOGSAVESEL |
+- `Right10Pix` | table-meta | _XENAKIOS_MOVECUR10PIX_RIGHT | rep
+- `Right40Pix` | table-meta | [Right10Pix] | reps=4, rep
+- `RightGridDivision` | table-meta | 40647 | rep
+- `RightMidiGridDivision` | table-meta | 40048 | midi, rep
+- `SaveEditCursorPosition` | named | _BR_SAVE_CURSOR_POS_SLOT_16 |
+- `SaveItemSelection` | named | _SWS_SAVEALLSELITEMS1 |
+- `SaveLoopSelection` | named | _SWS_SAVELOOP5 |
+- `SaveProject` | id | 40026 |
+- `SaveProjectWithNewVersion` | id | 41895 |
+- `SaveTimeSelection` | named | _SWS_SAVETIME5 |
+- `SaveTrackSelection` | named | _SWS_SAVESEL |
+- `ScrollToPlayPosition` | id | 40150 |
+- `ScrollToEditCursor` | named | _SWS_HSCROLL10 |
+- `ScrollToSelectedTracks` | id | 40913 |
+- `CenterCursor` | named | _SWS_HSCROLL50 | extended_defaults: multi [ScrollToSelectedTracks, _SWS_HSCROLL50]
+- `SelectAllItems` | id | 40182 |
+- `SelectAllNotesAtPitch` | table-meta | 41746 | midi
+- `SelectAllTracks` | id | 40296 |
+- `SelectedItems` | multi | [RemoveTimeSelection, _SWS_SAFETIMESEL] |
+- `SelectedNotes` | table-meta | 40752 | midi
+- `SelectEnvelopePoints` | func | custom_actions/envelope.lua:34 (SelectPointsCrossingTimeSelection) | Wrapped in 1-elem table. Selects all points of the selected envelope inside the time selection. reaper.GetSet_LoopTimeRange2, GetSelectedEnvelope, CountEnvelopePoints, GetEnvelopePoint, SetEnvelopePoint.
+- `SelectEventsInTimeSelection` | table-meta | 40876 | midi
+- `SelectFirstItemOnSelectedTracks` | named | _XENAKIOS_SELFIRSTITEMSOFTRACKS |
+- `SelectFirstOfSelectedTracks` | named | _XENAKIOS_SELFIRSTOFSELTRAX |
+- `SelectFolderChildren` | named | _SWS_SELCHILDREN |
+- `SelectFolderParent` | named | _SWS_SELPARENTS |
+- `SelectFolder` | named | _SWS_SELCHILDREN2 |
+- `Selection` | multi | [NoOp] | string alias to NoOp (placeholder selector)
+- `SelectItemsAndSplit` | multi | [OnlySelectItemsCrossingTimeAndTrackSelection, SplitItemsAtTimeSelection] |
+- `SelectItemsCrossingTimeAndTrackSelection` | id | 40718 |
+- `SelectItemsInGroups` | id | 40034 |
+- `SelectItemsOnTrack` | id | 40421 |
+- `SelectItems` | multi | [SelectItemsCrossingTimeAndTrackSelection] | string alias to another action
+- `SelectItemsUnderEditCursor` | named | _XENAKIOS_SELITEMSUNDEDCURSELTX |
+- `SelectLastOfSelectedTracks` | named | _XENAKIOS_SELLASTOFSELTRAX |
+- `SelectLastTouchedTrack` | id | 40505 |
+- `SelectNearestNote` | table-meta | 40425 | midi
+- `SelectNextNote` | table-meta | [40413, PitchCursorToSelectedNote] | midi
+- `SelectNextNoteSamePitch` | table-meta | 40428 | midi
+- `SelectNoteClosestToEditCursor` | table-meta | 40426 | midi
+- `SelectNotes` | multi | [SelectNotesStartingInTimeSelection] | string alias to another action
+- `SelectNotesStartingInTimeSelection` | table-meta | 40877 | midi
+- `SelectOnlyCurrentTrack` | func | custom_actions/selection.lua:35 (onlyCurrentTrack) | Reduces selection to first selected track. reaper.GetSelectedTrack, SetOnlyTrackSelected.
+- `SelectOnlyFoldersChildren` | named | _SWS_SELCHILDREN |
+- `SelectPrevNote` | table-meta | [40414, PitchCursorToSelectedNote] | midi
+- `SelectPrevNoteSamePitch` | table-meta | 40427 | midi
+- `SelectTracks` | table-meta | (no command payload) | setTrack. Pure flag entry; track selection handled by the state machine.
+- `ToggleItemDefaultFadeInAndOut` | id | 41194 |
+- `SetAutomationModeLatch` | id | 40404 |
+- `SetAutomationModeLatchAndArm` | multi | [SetAutomationModeLatch, ArmAllEnvelopes] |
+- `SetAutomationModeLatchPreview` | id | 42023 |
+- `SetAutomationModeRead` | id | 40401 |
+- `SetAutomationModeTouch` | id | 40402 |
+- `SetAutomationModeTrimRead` | id | 40400 |
+- `SetRippleEditAllTracks` | id | 40311 |
+- `SetRippleEditOff` | id | 40309 |
+- `SetRippleEditPerTrack` | id | 40310 |
+- `FirstTrackWithItem` | func | custom_actions/movement.lua:157 | Selects the first track that has media items. reaper.GetNumTracks, GetTrack, GetTrackNumMediaItems, SetOnlyTrackSelected.
+- `DuplicateTimeline` | table-meta | [SaveTrackSelection, SelectAllTracks, CopyItems, TimeSelectionEnd, SetRippleEditAllTracks, FirstTrackWithItem, Paste, SetRippleEditOff, RestoreTrackSelection] | rep
+- `ExplodeTakesInPlace` | id | 40642 |
+- `ExplodeTakesInOrder` | id | 40643 |
+- `ToggleBetweenReadAndTouchAutomationMode` | id | 41109 |
+- `QuantizeItems` | id | 40316 |
+- `ExplodeTakesInAcrossTracks` | id | 40224 |
+- `SetAutomationModeWrite` | id | 40403 |
+- `OpenConsole` | named | _SWSCONSOLE |
+- `SetFirstSelectedTrackAsLastTouchedTrack` | id | 40914 |
+- `SetGlobalAutomationModeLatch` | id | 40881 |
+- `SetGlobalAutomationModeLatchPreview` | id | 42022 |
+- `SetGlobalAutomationModeOff` | id | 40876 |
+- `SetGlobalAutomationModeRead` | id | 40879 |
+- `SetGlobalAutomationModeTouch` | id | 40880 |
+- `SetGlobalAutomationModeTrimRead` | id | 40878 |
+- `SetGlobalAutomationModeWrite` | id | 40882 |
+- `SetGridDivision` | func | custom_actions/custom_actions.lua:60 | Prompts user (reaper.GetUserInputs) for a fraction/number and sets project grid via reaper.SetProjectGrid.
+- `SetItemFadeBoundaries` | multi | [SaveItemSelection, UnselectItems, SelectItemsCrossingTimeAndTrackSelection, SetSelectedItemFadeBoundaries, RestoreItemSelection] |
+- `SetItemsTimebaseToBeatsPosLengthAndRate` | named | _SWS_AWITEMTBASEBEATALL |
+- `ViewTakeEnvelopes` | id | 41974 |
+- `SetItemsTimebaseToBeatsPos` | named | _SWS_AWITEMTBASEBEATPOS |
+- `SetItemsTimebaseToDefault` | named | _SWS_AWITEMTBASEPROJ |
+- `SetItemsTimebaseToTime` | named | _SWS_AWITEMTBASETIME |
+- `SetLoopEnd` | id | 40223 |
+- `SetLoopRegionToNextRegion` | named | _SWS_SELNEXTREG |
+- `SetLoopRegionToPrevRegion` | named | _SWS_SELPREVREG |
+- `SetLoopSelectionToTimeSelection` | id | 40622 |
+- `SetLoopStart` | id | 40222 |
+- `SetMidiGridDivision` | func | custom_actions/custom_actions.lua:47 | Prompts for grid division and applies to MIDI editor grid. reaper.GetUserInputs, SetMIDIEditorGrid, Main_OnCommand(_SN_FOCUS_MIDI_EDITOR).
+- `SetModeNormal` | func | library/state.lua:7 | Sets reavim state machine mode to "normal" (state_interface.setMode; no reaper command).
+- `PasteItemFxChain` | table-meta | _S&M_COPYFXCHAIN9 | rep
+- `SetModeVisualTimeline` | func | library/state.lua:23 | Sets mode to "visual_timeline" and runs reaper.Main_OnCommand(40625) (time-selection start).
+- `ClearSelectedTimeline` | func | custom_actions/custom_actions.lua:55 | Identical body to ClearTimeSelection: collapses time selection to cursor. reaper.GetCursorPosition, GetSet_LoopTimeRange.
+- `ClearTimelineSelectionAndSetModeVisualTimeline` | multi | [ClearSelectedTimeline, SetModeVisualTimeline] |
+- `SetModeVisualTrack` | func | library/state.lua:11 | Selects last-touched track, records its index as visual pivot, sets mode "visual_track". reaper.GetLastTouchedTrack, SetOnlyTrackSelected, GetMediaTrackInfo_Value.
+- `SetModeRecord` | func | lib.state.setModeRecord — BROKEN: no such function in library/state.lua, resolves to nil |
+- `SetProjectTimebaseToBeatsPosLengthAndRate` | named | _SWS_AWTBASEBEATALL |
+- `SetProjectTimebaseToBeatsPos` | named | _SWS_AWTBASEBEATPOS |
+- `SetProjectTimebaseToTime` | named | _SWS_AWTBASETIME |
+- `SetRecordInput` | id | 40496 |
+- `SetRecordMidiOutput` | id | 40500 |
+- `SetRecordMidiOverdub` | id | 40503 |
+- `SetRecordMidiReplace` | id | 40504 |
+- `SetRecordMidiTouchReplace` | id | 40852 |
+- `SetRecordModeNormal` | id | 40252 |
+- `SetRecordMonitorOnly` | id | 40498 |
+- `SetSelectedItemFadeBoundaries` | named | _SWS_AWFADESEL |
+- `SetTimeSelectionEnd` | id | 40626 |
+- `SetTimeSelectionStart` | id | 40625 |
+- `SetTimeSelectionToLoopSelection` | id | 40623 |
+- `SetTrackMidiAllChannels` | named | _S&M_MIDI_INPUT_ALL_CH |
+- `TimeSelectionShiftedLeft` | id | 40037 |
+- `TimeSelectionShiftedRight` | id | 40038 |
+- `ShowActionList` | id | 40605 |
+- `ShowMidiActionList` | table-meta | 40420 | midi
+- `ShowNextFx` | table-meta | _S&M_WNONLY2 | rep
+- `ShowPreferences` | id | 40016 |
+- `ShowPrevFx` | table-meta | _S&M_WNONLY1 | rep
+- `ShowProjectSettings` | id | 40021 |
+- `RoutingMatrix` | id | 40251 |
+- `ShowTrackFreezeDetails` | id | 41654 |
+- `ToggleShowTrackManager` | id | 40906 |
+- `ToggleShowTrackRouting` | id | 40293 |
+- `ToggleShowWiringDiagram` | id | 42031 |
+- `SnappedPosition` | func | custom_actions/movement.lua:168 (snap) | Snaps the edit cursor to the grid. reaper.GetCursorPosition, SnapToGrid, SetEditCurPos.
+- `AddAndNameSnapshot` | named | _SWSSNAPSHOT_NEWEDIT |
+- `CopyCurrentSnapshot` | named | _SWSSNAPSHOT_COPY |
+- `PasteSnapshot` | named | _SWSSNAPSHOT_PASTE |
+- `DeleteCurrentSnapshot` | named | _SWSSNAPSHOT_DELCUR |
+- `DeleteTracksFromCurrentSnapshot` | named | _SWSSNAPSHOT_DEL |
+- `ToggleSnapshotsWindow` | named | _SWSSNAPSHOT_OPEN |
+- `RecallCurrentSnapshot` | named | _SWSSNAPSHOT_GET |
+- `RecallNextSnapshot` | table-meta | _SWSSNAPSHOT_GET_NEXT | rep
+- `RecallPrevSnapshot` | table-meta | _SWSSNAPSHOT_GET_PREVIOUS | rep
+- `RecallSnapshot1` | named | _SWSSNAPSHOT_GET1 |
+- `RecallSnapshot2` | named | _SWSSNAPSHOT_GET2 |
+- `RecallSnapshot3` | named | _SWSSNAPSHOT_GET3 |
+- `RecallSnapshot4` | named | _SWSSNAPSHOT_GET4 |
+- `RecallSnapshot5` | named | _SWSSNAPSHOT_GET5 |
+- `RecallSnapshot6` | named | _SWSSNAPSHOT_GET6 |
+- `RecallSnapshot7` | named | _SWSSNAPSHOT_GET7 |
+- `RecallSnapshot8` | named | _SWSSNAPSHOT_GET8 |
+- `RecallSnapshot9` | named | _SWSSNAPSHOT_GET9 |
+- `SaveTracksToCurrentSnapshot` | named | _SWSSNAPSHOT_SAVE |
+- `DeleteAllSnapshots` | named | _SWSSNAPSHOT_DELALL |
+- `SplitItemsAtEditCursor` | multi | [UnselectItems, SelectItemsUnderEditCursor, SplitItemsUnderEditCursor, UnselectItems] |
+- `SplitItemsAtTimeSelection` | func | custom_actions/custom_actions.lua:68 | Runs command 40061 (split at time selection) only if any items are selected (avoids splitting everything). reaper.CountSelectedMediaItems, Main_OnCommand.
+- `SplitItemsUnderEditCursor` | id | 40757 |
+- `StartOfSel` | table-meta | 40440 | midi
+- `StartOfSelectedItems` | id | 41173 |
+- `StartStop` | id | 40044 |
+- `Stop` | id | 1016 |
+- `StopAndSaveRecordedMedia` | id | 40667 |
+- `StopRecordMacro` | table-meta | (no command payload) | meta. Pure meta-command ending macro recording.
+- `SwitchTimelineSelectionSide` | func | library/state.lua:31 | Jumps edit cursor between start (40630) and end (40631) of time selection and flips the stored side in state machine. reaper.Main_OnCommand.
+- `TapTempo` | id | 1134 |
+- `TimeSelectionEnd` | id | 40631 |
+- `InsertTrackFromTemplateSlot1` | named | _S&M_ADD_TRTEMPLATE1 |
+- `InsertTrackFromTemplateSlot2` | named | _S&M_ADD_TRTEMPLATE2 |
+- `InsertTrackFromTemplateSlot3` | named | _S&M_ADD_TRTEMPLATE3 |
+- `InsertTrackFromTemplateSlot4` | named | _S&M_ADD_TRTEMPLATE4 |
+- `CreateNewSnapshotWithTracks` | named | _SWSSNAPSHOT_NEWSEL |
+- `RecallPreviousSnapshot` | named | _SWSSNAPSHOT_GET_PREVIOUS |
+- `SaveTrackAsTemplate` | id | 40392 |
+- `TimeSelection` | multi | [NoOp] | string alias to NoOp (placeholder selector)
+- `TimeSelectionStart` | id | 40630 |
+- `ToggleArmAllEnvelopes` | named | _S&M_TGLARMALLENVS |
+- `ToggleArmEnvelope` | id | 40863 |
+- `ToggleAutoCrossfade` | id | 40041 |
+- `ToggleCountInBeforePlayback` | named | _SWS_AWCOUNTPLAYTOG |
+- `ToggleCountInBeforeRec` | named | _SWS_AWCOUNTRECTOG |
+- `ToggleEnvelopePointsMoveWithItems` | id | 40070 |
+- `ToggleFloatingWindows` | id | 41074 |
+- `ToggleFxBypass` | id | 8 |
+- `ToggleTakeFxBypass` | named | _S&M_TGL_TAKEFX_BYP |
+- `ToggleEnvelopeBypass` | id | 40883 |
+- `ToggleLoop` | id | 1068 |
+- `ToggleLoopSelectionFollowsTimeSelection` | id | 40621 |
+- `ToggleMetronome` | id | 40364 |
+- `ToggleMidiEditorUsesMainGridDivision` | id | 42010 |
+- `ToggleMidiSnap` | table-meta | 1014 | midi
+- `ToggleMute` | id | 6 |
+- `ToggleMuteItem` | id | 40175 |
+- `TogglePanEnvelope` | id | 40407 |
+- `TogglePlaybackAutoScroll` | id | 40036 |
+- `TogglePlaybackPreroll` | id | 41818 |
+- `ToggleRecord` | multi | [SetRecordModeNormal, 1013] |
+- `StopRecord` | multi | [StartStop, SetModeNormal] |
+- `ToggleRecordConditional` | named | _SWS_AWRECORDCOND |
+- `ToggleRecordingAutoScroll` | id | 40262 |
+- `ToggleRecordingPreroll` | id | 41819 |
+- `ToggleRecordToTapeMode` | id | 41186 |
+- `ToggleShowRegionMarkerManager` | id | 40326 |
+- `RegionPlaylist` | named | _S&M_SHOW_RGN_PLAYLIST |
+- `ToggleShowAllEnvelope` | id | 41151 |
+- `ToggleShowAllEnvelopeGlobal` | id | 41152 |
+- `ToggleShowFx1` | named | _S&M_TOGLFLOATFX1 |
+- `ToggleShowFx2` | named | _S&M_TOGLFLOATFX2 |
+- `ToggleShowFx3` | named | _S&M_TOGLFLOATFX3 |
+- `ToggleShowFx4` | named | _S&M_TOGLFLOATFX4 |
+- `ToggleShowFx5` | named | _S&M_TOGLFLOATFX5 |
+- `ToggleShowFx6` | named | _S&M_TOGLFLOATFX6 |
+- `ToggleShowFx7` | named | _S&M_TOGLFLOATFX7 |
+- `ToggleShowFx8` | named | _S&M_TOGLFLOATFX8 |
+- `ToggleShowFxChain` | named | _S&M_TOGLFXCHAIN |
+- `ToggleShowTakeFxChain` | id | 40638 |
+- `ToggleShowFx` | named | _S&M_WNTGL5 |
+- `ToggleShowSelectedEnvelope` | id | 40884 |
+- `ToggleShowTracksInMixer` | id | 41592 |
+- `ToggleSnap` | id | 1157 |
+- `ToggleSolo` | id | 7 |
+- `ToggleSoloItem` | id | 41557 |
+- `toggleSoloExclusive` | func | custom_actions/tracks.lua:71 (soloExclusive) | Wrapped in 1-elem table. Unsolos all tracks (Main_OnCommand 40340), then solos the first selected track if it wasn't soloed. reaper.GetSelectedTrack, GetMediaTrackInfo_Value, SetMediaTrackInfo_Value("I_SOLO").
+- `UnsoloAllItems` | id | 41185 |
+- `ToggleAutomaticRecordArm` | id | 40740 |
+- `ToggleStopAtEndOfTimeSelectionIfNoRepeat` | id | 41834 |
+- `ToggleViewMixer` | id | 40078 |
+- `ToggleVolumeEnvelope` | id | 40406 |
+- `SelectWidthEnvelope` | id | 41870 |
+- `ToggleTakeMuteEnvelope` | id | 40695 |
+- `ToggleTakePanEnvelope` | id | 40694 |
+- `ToggleTakePitchEnvelope` | id | 41612 |
+- `ToggleTakeVolumeEnvelope` | id | 40693 |
+- `SetTrackInputToMatchFirstSelected` | named | _SWS_INPUTMATCH |
+- `TrackToggleSendToParent` | named | _SWS_TOGMPSEND |
+- `TrackWithNumber` | func | custom_actions/movement.lua:145 | Prompts for a track number (reaper.GetUserInputs) and selects that track. reaper.GetTrack, SetOnlyTrackSelected.
+- `TrimItemLeftEdge` | id | 41305 |
+- `TrimItemRightEdge` | id | 41311 |
+- `TrimSelectedNoteLeftEdgeToEditCursor` | id | 40790 |
+- `TrimSelectedNoteRightEdgeToEditCursor` | id | 40791 |
+- `UnarmAllEnvelopes` | id | 41163 |
+- `UnarmSelectedTracks` | named | _XENAKIOS_SELTRAX_RECUNARMED |
+- `UncollapseFolder` | named | _SWS_UNCOLLAPSE |
+- `Undo` | table-meta | 40029 | rep
+- `UnfreezeTrack` | id | 41644 |
+- `UnmuteAllTracks` | id | 40339 |
+- `UnselectAllEvents` | table-meta | 40214 | midi
+- `UnselectEnvelopePoints` | id | 40331 |
+- `UnselectItems` | id | 40289 |
+- `UnselectTracks` | id | 40297 |
+- `UnsoloAllTracks` | id | 40340 |
+- `VerticalScrollEnd` | named | _XENAKIOS_TVPAGEEND |
+- `VerticalScrollStart` | named | _XENAKIOS_TVPAGEHOME |
+- `ToggleShowInputFxChain` | id | 40844 |
+- `ViewFxChainMaster` | id | 40846 |
+- `ZoomAllItems` | multi | [SaveItemSelection, SelectAllItems, ZoomItemSelection, RestoreItemSelection] |
+- `ZoomAllTracks` | multi | [SaveTrackSelection, SelectAllTracks, ZoomTrackSelection, RestoreTrackSelection] |
+- `ZoomInHoriz` | table-meta | 1012 | rep
+- `ZoomInVert` | table-meta | 40111 | rep
+- `ZoomItemSelection` | named | _SWS_HZOOMITEMS |
+- `ZoomOutHoriz` | table-meta | 1011 | rep
+- `ZoomOutVert` | table-meta | 40112 | rep
+- `ZoomProjectTimeline` | id | 40295 |
+- `ZoomProject` | multi | [ZoomAllTracks, ZoomAllItems] |
+- `ZoomRedo` | table-meta | _SWS_REDOZOOM | rep
+- `ZoomTimeAndTrackSelection` | multi | [ZoomTrackSelection, ZoomTimeSelection] |
+- `ZoomTimeSelection` | id | 40031 |
+- `ZoomTrackSelection` | named | _SWS_VZOOMFITMIN |
+- `ZoomUndo` | table-meta | _SWS_UNDOZOOM | rep
+- `NudgeTrackVolumeDown` | id | 40116 | source comment: 0.05 dB
+- `PlayAndSkipTimeSelection` | id | 40317 |
+- `LengthenNotes` | table-meta | 40446 | midi
+- `ShortenNotes` | table-meta | 40447 | midi
+- `ToggleUsedCC` | table-meta | _S&M_ME_PIANO_CYCLACTION3 | midi
+- `PitchCursorToSelectedNote` | table-meta | func custom_actions/midi.lua:14 | midi. Sets the MIDI editor's pitch cursor (active_note_row) to the pitch of the first selected note. reaper.MIDIEditor_GetActive, MIDIEditor_GetTake, MIDI_CountEvts, MIDI_GetNote, MIDIEditor_SetSetting_int.
+- `JumpToNextNote` | table-meta | func custom_actions/midi.lua:30 (jump_to_next_note) | midi, rep. Edit cursor to start of next note after cursor. reaper.MIDI_GetNote, MIDI_GetProjTimeFromPPQPos, GetCursorPosition, SetEditCurPos.
+- `JumpToPrevNote` | table-meta | func custom_actions/midi.lua:42 (jump_to_prev_note) | midi, rep. Edit cursor to start of previous note before cursor (iterates notes backwards). Same APIs as above.
+- `InsertG` | table-meta | [UnselectAllEvents, 41089] | midi
+- `InsertGb` | table-meta | [UnselectAllEvents, 41088] | midi
+- `InsertF` | table-meta | [UnselectAllEvents, 41087] | midi
+- `InsertE` | table-meta | [UnselectAllEvents, 41086] | midi
+- `InsertEb` | table-meta | [UnselectAllEvents, 41085] | midi
+- `InsertD` | table-meta | [UnselectAllEvents, 41084] | midi
+- `InsertDb` | table-meta | [UnselectAllEvents, 41083] | midi
+- `InsertC` | table-meta | [UnselectAllEvents, 41082] | midi
+- `InsertB` | table-meta | [UnselectAllEvents, 41093] | midi
+- `InsertBb` | table-meta | [UnselectAllEvents, 41092] | midi
+- `InsertA` | table-meta | [UnselectAllEvents, 41091] | midi
+- `InsertAb` | table-meta | [UnselectAllEvents, 41090] | midi
+- `InsertChordG` | table-meta | [InsertG, LeftMidiGridDivision] | midi
+- `InsertChordGb` | table-meta | [InsertGb, LeftMidiGridDivision] | midi
+- `InsertChordF` | table-meta | [InsertF, LeftMidiGridDivision] | midi
+- `InsertChordE` | table-meta | [InsertE, LeftMidiGridDivision] | midi
+- `InsertChordEb` | table-meta | [InsertEb, LeftMidiGridDivision] | midi
+- `InsertChordD` | table-meta | [InsertD, LeftMidiGridDivision] | midi
+- `InsertChordDb` | table-meta | [InsertDb, LeftMidiGridDivision] | midi
+- `InsertChordC` | table-meta | [InsertC, LeftMidiGridDivision] | midi
+- `InsertChordB` | table-meta | [InsertB, LeftMidiGridDivision] | midi
+- `InsertChordBb` | table-meta | [InsertBb, LeftMidiGridDivision] | midi
+- `InsertChordA` | table-meta | [InsertA, LeftMidiGridDivision] | midi
+- `InsertChordAb` | table-meta | [InsertAb, LeftMidiGridDivision] | midi
+- `CurrentTrack` | multi | [] (empty table) | placeholder/no-op selector — no commands, no flags
+- `IncreaseGrid` | table-meta | 40786 | rep
+- `DecreaseGrid` | table-meta | 40783 | rep
+- `StoreCursorPosition` | table-meta | func custom_actions/movement.lua:174 (storeCursorPosition) | rep. Pushes current cursor position onto a "cursorPositionStack" persisted via utils/reaper_state. reaper.GetCursorPosition.
+- `RestoreCursorPosition` | table-meta | func custom_actions/movement.lua:184 (restoreCursorPosition) | rep. Pops the stack and moves the cursor back. reaper.SetEditCurPos.
+- `NextBigNoteEnd` | table-meta | [UnselectAllEvents, func custom_actions/midi.lua:166 (nextBigNoteEnd)] | midi, rep. Cursor to end of next merged "big note" group in MIDI editor. reaper.MIDI_GetNote, MIDI_GetProjTimeFromPPQPos, SetEditCurPos.
+- `NextBigNoteStart` | table-meta | [UnselectAllEvents, func custom_actions/midi.lua:170 (nextBigNoteStart)] | midi, rep
+- `PrevBigNoteEnd` | table-meta | [UnselectAllEvents, func custom_actions/midi.lua:174 (prevBigNoteEnd)] | midi, rep
+- `PrevBigNoteStart` | table-meta | [UnselectAllEvents, func custom_actions/midi.lua:178 (prevBigNoteStart)] | midi, rep
+- `QuitReaper` | id | 40004 |
+- `CloseUndockedMidiEditorOrPassToMainWindow` | table-meta | [40477, func custom_actions/midi.lua:191 (LoadScreenSetWhenClosingEditor)] | midi. The func just runs reaper.Main_OnCommand(40444) (load track-view screenset 1) after closing the editor.
+- `NextTransientInItems` | table-meta | [SaveItemSelection, SelectItemsOnTrack, 40375, RestoreItemSelection] | rep
+- `PrevTransientInItems` | table-meta | [SaveItemSelection, SelectItemsOnTrack, 40376, RestoreItemSelection] | rep
+- `ActivateNextMidiTrack` | table-meta | 40835 | midi, rep
+- `ActivatePrevMidiTrack` | table-meta | 40836 | midi, rep
+- `ReverseItems` | id | 41051 |
+- `PasteItemBeforeCursor` | table-meta | func custom_actions/items.lua:8 (paste_before) | rep. Pastes the clipboard item so it ENDS at the edit cursor: inserts a temp track, pastes, trims right edge to cursor, cuts, deletes temp track, pastes onto original track. Chain of reaper.Main_OnCommand calls (40001, 40058, 41307, 40318, 40699, 40005) + NamedCommandLookup(_XENAKIOS_DOSTORECURPOS/_DORECALLCURPOS, _SWS_SAVESEL/_RESTORESEL).
+- `PitchItemDownSemi` | table-meta | 40205 | rep
+- `PitchItemUpSemi` | table-meta | 40204 | rep
+- `PitchItemDownOct` | table-meta | 40516 | rep
+- `PitchItemUpOct` | table-meta | 40515 | rep
+- `ShowEnvelopeLastTouchedFxParam` | id | 41142 |
+- `Flam` | func | custom_actions/drums.lua:48 | Wrapped in 1-elem table. For each selected item, creates a single grace-note "flam" copy 40 ms before the item with reduced volume/pitch and short fades. reaper.GetMediaItemInfo_Value, SetMediaItemInfo_Value, SetMediaItemTakeInfo_Value; utils.CopyMediaItemToTrack.
+- `Ras3` | func | custom_actions/drums.lua:55 | Same as Flam but 2 grace copies (3-stroke ruff).
+- `Ras5` | func | custom_actions/drums.lua:62 | Same as Flam but 4 grace copies (5-stroke ruff).
+- `Crescendo` | func | custom_actions/drums.lua:69 | Ramps item volumes (D_VOL) and take pitch (D_PITCH) up across selected items per track toward the last item's volume. reaper.GetMediaItemInfo_Value, SetMediaItemInfo_Value, SetMediaItemTakeInfo_Value.
+- `Decrescendo` | func | custom_actions/drums.lua:73 | Inverse of Crescendo: ramps volumes/pitch down from the first item's volume.
+- `DynamicSplit` | id | 40760 |
+- `QuantizeTool` | func | custom_actions/drums.lua:120 | Runs the ReaScript named command _RS61423f4f1224e18018576b5e3e1af80ebbd67f7e via reaper.NamedCommandLookup + Main_OnCommand (external quantize-tool script).
+- `SplitAtStretchMarkers` | named | _BR_SPLIT_SEL_ITEM_STRETCH_MARKERS |
+- `ClearItemStretchMarkers` | id | 41844 |
+- `ClearTransientsAndStretchMarkers` | multi | [ClearItemStretchMarkers, ClearItemTransients] | NOTE: `ClearItemTransients` is not defined anywhere in either actions file — dangling reference.
+- `Set2msFades` | func | custom_actions/items.lua:34 (set2msFades) | Wrapped in 1-elem table. Sets D_FADEINLEN/D_FADEOUTLEN = 0.002 s on every selected item in selected tracks. reaper.SetMediaItemInfo_Value.
+- `MediaExplorer` | id | 50124 |
+- `LoopItem` | named | _SWS_LOOPITEMSECTION |
+- `TrackVolumeUp3` | table-meta | func custom_actions/tracks.lua:23 (trackVolumeUp3) | rep. Multiplies each selected track's D_VOL by +3 dB. reaper.GetMediaTrackInfo_Value, SetMediaTrackInfo_Value.
+- `TrackVolumeDown3` | table-meta | func custom_actions/tracks.lua:15 (trackVolumeDown3) | rep. Same, -3 dB.
+- `ClearEnvelopePointSelection` | id | 40331 |
+- `InsertEnvelopePoint` | multi | [ClearEnvelopePointSelection, 40106] |
+- `InsertEnvelopePointsAtSelection` | named | _BR_INSERT_2_ENV_POINT_TIME_SEL |
+- `BezierPointShape` | id | 40683 |
+- `FastEndPointShape` | id | 40429 |
+- `FastStartPointShape` | id | 40428 |
+- `LinearPointShape` | id | 40189 |
+- `SlowStartEndPointShape` | id | 40424 |
+- `SquarePointShape` | id | 40190 |
+- `SavePointSelection` | named | _BR_SAVE_ENV_SEL_SLOT_1 |
+- `RestorePointSelection` | named | _BR_RESTORE_ENV_SEL_SLOT_1 |
+- `SelectedPoints` | multi | [RemoveTimeSelection, func custom_actions/envelope.lua:6 (setTimeSelectionToSelectedEnvelopePoints)] | func sets time selection spanning first..last selected envelope point. reaper.GetSelectedEnvelope, CountEnvelopePoints, GetEnvelopePoint, GetSet_LoopTimeRange.
+- `AllTrackEnvelopePoints` | multi | [SavePointSelection, SelectAllPoints, SelectedPoints, RestorePointSelection] |
+- `SelectAllPoints` | id | 40332 |
+- `SetPointMin` | func | custom_actions/envelope.lua:238 | Wrapped in 1-elem table. Pegs all selected points of the selected envelope to the envelope's minimum value (pegPoint helper handles env type/scaling). reaper.GetEnvelopeStateChunk, SNM_GetIntConfigVar, GetEnvelopeScalingMode, ScaleToEnvelopeMode, SetEnvelopePoint.
+- `SetPointMax` | func | custom_actions/envelope.lua:242 | Same, pegs to maximum.
+- `SetPointCenter` | func | custom_actions/envelope.lua:246 | Same, pegs to center value.
+- `MoveEnvelopePointDown` | table-meta | func custom_actions/envelope.lua:230 (moveEnvelopePointDown) | rep. Lowers selected envelope point values by 3 (raw units) via pegPoint("down"); reaper.SetEnvelopePoint.
+- `MoveEnvelopePointUp` | table-meta | func custom_actions/envelope.lua:234 (moveEnvelopePointUp) | rep. Raises by 3.
+- `Repl` | func | custom_actions/dev.lua:10 | Wrapped in 1-elem table. Launches an external ReaScript REPL: Main_OnCommand(NamedCommandLookup("_RS9aebe6a6a706099d8a0af623f132ce89ed88ac10")).
+- `commandIdLookup` | func | custom.dev.commandIdLookup — BROKEN: no such function in custom_actions/dev.lua, table resolves to {nil} |
+- `RenameTrackToVstiPresetName` | func | custom_actions/tracks.lua:47 | Wrapped in 1-elem table. Renames each selected track to its first VSTi's preset name (or FX name). reaper.TrackFX_GetInstrument, TrackFX_GetFXName, TrackFX_GetPreset, GetSetMediaTrackInfo_String.
+- `ProjectBay` | id | 41157 |
+- `RouteToBusses` | func | custom_actions/routing.lua:61 (routeTracksToBusses) | Wrapped in 1-elem table. For every track whose name contains "bus", routes all same-colored non-child tracks to it and removes their master send. reaper.CountTracks, GetSetMediaTrackInfo_String, GetMediaTrackInfo_Value, GetParentTrack, CreateTrackSend, SetMediaTrackInfo_Value.
+- `BuildBusses` | func | custom_actions/routing.lua:91 (buildBusses) | Wrapped in 1-elem table. Inserts a bus track for each prefix in a hardcoded Busses list, applies SWS auto-color, routes matching-colored tracks to it, deletes unused buses. reaper.InsertTrackAtIndex, GetSetMediaTrackInfo_String, Main_OnCommand(_SWSAUTOCOLOR_APPLY), GetTrackNumSends, DeleteTrack.
+- `AddTextOrnament` | table-meta | 41780 | midi
+- `ExplodeRoutineFromAnnotations` | table-meta | func custom_actions/midi_arranging.lua:280 (assignOneTrackPerTag) | midi. Reads notation/text sysex tags on notes and explodes each tag onto a new named track with a new MIDI item containing that tag's notes. reaper.MIDI_GetTextSysexEvt, MIDI_GetNote, InsertTrackAtIndex, CreateNewMIDIItemInProj, MIDI_InsertNote, MIDI_Sort.
+- `ImplodeItemsOntoSingleTrack` | multi | [40644, GlueItemsIgnoringTimeSelection] |
+- `SelectBottomNotes` | table-meta | func custom_actions/kawa.lua:391 (select_bottom_note) | midi. Selects only the lowest note of each chord in the MIDI editor. reaper.MIDI_GetNote, MIDI_SetNote, MIDIEditor_OnCommand(40214), UpdateArrange.
+- `SelectTopNotes` | table-meta | func custom_actions/kawa.lua:398 (select_top_note) | midi. Selects only the highest note of each chord.
+- `SelectMiddleNotes` | table-meta | func custom_actions/kawa.lua:405 (select_middle_note) | midi. Selects only inner chord notes (not top/bottom).
+- `SelectAllButTop` | table-meta | func custom_actions/kawa.lua:417 (select_all_but_top) | midi
+- `SelectAllButBottom` | table-meta | func custom_actions/kawa.lua:428 (select_all_but_bottom) | midi
+- `SelectAllButMiddle` | table-meta | func custom_actions/kawa.lua:441 (select_all_but_middle) | midi
+- `drop2` | table-meta | func custom_actions/kawa.lua:483 (drop_2) | midi. Transposes the 2nd-from-top chord note down an octave. reaper.MIDI_SetNote.
+- `drop3` | table-meta | func custom_actions/kawa.lua:473 (drop_3) | midi. Drops the 3rd chord voice an octave.
+- `drop24` | table-meta | func custom_actions/kawa.lua:463 (drop2_4) | midi. Drops the 2nd and 4th chord voices an octave.
+- `doubleTopOctUp` | table-meta | func custom_actions/kawa.lua:494 (doubleTopNotesUp) | midi. Duplicates top chord notes an octave up. reaper.MIDI_InsertNote.
+- `doubleBottomOctDown` | table-meta | func custom_actions/kawa.lua:507 (doubleBottomNotesDown) | midi. Duplicates bottom chord notes an octave down.
+- `doubleOctDown` | table-meta | func custom_actions/kawa.lua:537 | midi. Duplicates selected/all notes -12 semitones (double_notes helper, reaper.MIDI_InsertNote).
+- `doubleSeventhDown` | table-meta | func custom_actions/kawa.lua:545 | midi. -10 semitones.
+- `doubleSixthDown` | table-meta | func custom_actions/kawa.lua:553 | midi. -9 semitones.
+- `doubleFifthDown` | table-meta | func custom_actions/kawa.lua:561 | midi. -7 semitones.
+- `doubleFourthDown` | table-meta | func custom_actions/kawa.lua:569 | midi. -5 semitones.
+- `doubleThirdDown` | table-meta | func custom_actions/kawa.lua:577 | midi. -4 semitones.
+- `doubleOctUp` | table-meta | func custom_actions/kawa.lua:533 | midi. +12 semitones.
+- `doubleSeventhUp` | table-meta | func custom_actions/kawa.lua:541 | midi. +10 semitones.
+- `doubleSixthUp` | table-meta | func custom_actions/kawa.lua:549 | midi. +9 semitones.
+- `doubleFifthUp` | table-meta | func custom_actions/kawa.lua:557 | midi. +7 semitones.
+- `doubleFourthUp` | table-meta | func custom_actions/kawa.lua:565 | midi. +5 semitones.
+- `doubleThirdUp` | table-meta | func custom_actions/kawa.lua:573 | midi. +4 semitones.
+- `toggleKeySnap` | table-meta | func custom_actions/midi.lua:182 (toggleKeySnap) | midi. Toggles the MIDI editor Key Snap checkbox via js_ReaScriptAPI window messages. reaper.MIDIEditor_GetActive, JS_Window_FindChildByID, JS_WindowMessage_Send.
+- `forceSelectedNotesToKey` | table-meta | 40767 | midi
+- `soliHarmonize` | table-meta | func custom_actions/midi_arranging.lua:288 (soli_close_position) | midi. Close-position soli harmonization: reads chord symbols from take marker sysex events and inserts harmony notes under each top note via harmonizer.harmonize. reaper.MIDI_GetTextSysexEvt, BR_GetMidiSourceLenPPQ, MIDI_GetPPQPosFromProjQN, MIDI_InsertNote.
+- `insertChordSymbol` | table-meta | func custom_actions/midi_arranging.lua:334 (insert_chord) | midi. Prompts for a chord symbol (reaper.GetUserInputs) and inserts it as marker + notation sysex events at the cursor, replacing existing ones. reaper.MIDI_GetPPQPosFromProjTime, MIDI_DeleteTextSysexEvt, MIDI_InsertTextSysexEvt.
+- `TrimRightEdgeFromMouse` | func | custom_actions/items.lua:160 (trimRightEdgeFromMouse) | Wrapped in 1-elem table. Moves edit cursor to (snapped) mouse position, selects item under mouse, trims its right edge to cursor, restores cursor. reaper.Main_OnCommand(40514, 40528, 41310, 40289), SnapToGrid, GetToggleCommandStateEx, NamedCommandLookup(_XENAKIOS_DOSTORECURPOS/_DORECALLCURPOS).
+- `TrimLeftEdgeFromMouse` | func | custom_actions/items.lua:164 | Same, trims left edge (41300).
+- `FadeItemInFromMouse` | func | custom_actions/items.lua:152 | Same mechanism, fades item in to cursor (40509).
+- `FadeItemOutFromMouse` | func | custom_actions/items.lua:156 | Same, fade-out from cursor (40510).
+- `SplitAtMouse` | id | 42575 |
+- `jumpToBar` | table-meta | func custom_actions/movement.lua:196 (jumpToBarNumber) | midi. Prompts for a bar number and moves edit cursor there. reaper.GetUserInputs, TimeMap2_beatsToTime, MoveEditCursor.
+- `pasteRhythmToPitches` | func | custom_actions/pasteRhythm.lua:309 (pasteRhythm) | Wrapped in 1-elem table. Pastes clipboard MIDI as a new take (Main_OnCommand 40603), extracts its rhythm, deletes existing notes and re-inserts them with the pasted rhythm but original pitches/channels, then deletes the temp take(s) (40129). reaper.MIDI_CountEvts, MIDI_GetNote, MIDI_DeleteNote, MIDI_InsertNote, GetActiveTake/SetActiveTake.
+- `ExplodeNoteRows` | id | 40920 |
+- `SplitItemsAtNoteStart` | func | custom_actions/items.lua:77 (splitItemsAtNoteStart) | Wrapped in 1-elem table. Opens items in MIDI editor, collects distinct note start times, splits each selected MIDI item at every note start, closes editor. reaper.Main_OnCommand(40153), MIDIEditor_OnCommand(40006/40477), MIDI_GetNote, MIDI_GetProjTimeFromPPQPos, SplitMediaItem.
+- `MidiItemStart` | table-meta | func custom_actions/movement.lua:34 (midi.takeStart) | midi. Edit cursor to start position of the MIDI editor's item. reaper.MIDIEditor_GetTake, GetMediaItemTake_Item, GetMediaItemInfo_Value, SetEditCurPos.
+- `MidiItemEnd` | table-meta | func custom_actions/movement.lua:43 (midi.takeEnd) | midi. Edit cursor to end (position+length) of the MIDI editor's item.
+- `MoveItemUp` | table-meta | func custom_actions/movement.lua:223 (moveItemUp) | rep. Moves selected items to the track above and selects that track. reaper.GetMediaItem_Track, GetMediaTrackInfo_Value, MoveMediaItemToTrack, SetOnlyTrackSelected.
+- `MoveItemDown` | table-meta | func custom_actions/movement.lua:227 (moveItemDown) | rep. Same, track below.
+- `SelectPointsTimeSelection` | id | 40330 |
+- `InsertToggleAtTimeSelection` | func | custom_actions/envelope.lua:159 (insertToggleAtTimeSelection) | Wrapped in 1-elem table. Inserts a min-value point at time-selection start and a max-value point at its end on the selected envelope (square toggle). reaper.GetSet_LoopTimeRange2, GetSelectedEnvelope, InsertEnvelopePoint.
+- `InvertSelectedPoints` | id | 40334 |
+- `devAction` | func | custom_actions/dev.lua:102 | Wrapped in 1-elem table. Dev scratch action; currently runs ReaScript _RS114902ed228531973d119e1f8fbf47639e9097c6 (shortcutManager demo) via NamedCommandLookup + Main_OnCommand.
+- `VrtlBtn1` | func | custom_actions/midi_controller.lua:210 (devAction) | Wrapped in 1-elem table. Demo mod-routing action: sets a JS LFO as mod source and a dummy JS slider as mod destination via setModSource/setModDestination (TrackFX_AddByName, TrackFX_SetPreset, SetExtState, ultraschall ParmMod chunk editing, SetTrackStateChunk).
+- `VrtlBtn2` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn3` | func | inline closure at definitions/defaults/actions.lua:884 → custom_actions/midi_controller.lua:166 (setModDestination) | Sets the "JS: Use slider1 for parameter modulation linking. [Dummy]" FX param 0 as parameter-modulation destination linked to the stored mod source. reaper.GetExtState, TrackFX_AddByName, ultraschall ParmModTable APIs, SetTrackStateChunk.
+- `VrtlBtn4` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn5` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn6` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn7` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn8` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn9` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn10` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn11` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn12` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn13` | func | inline closure at definitions/defaults/actions.lua:898 → custom_actions/midi_controller.lua:107 (setModSource) | Registers the "LFO" JS FX (alias LFO_ALIAS, param 10) as mod source, persisting a Modulator record in ext-state. reaper.TrackFX_AddByName, TrackFX_GetFXName, SetExtState, GetTrackStateChunk/SetTrackStateChunk.
+- `VrtlBtn14` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn15` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `VrtlBtn16` | func | custom_actions/midi_controller.lua:210 (devAction) | Same as VrtlBtn1.
+- `ToggleShowEnvelopesForTracks` | id | 40890 |
+- `InsertFxAtSlot` | func | custom_actions/fx.lua:43 (insertFXAtSlot) | Wrapped in 1-elem table. Prompts for an FX-chain slot number, opens the FX browser on a temp dummy track, then (deferred poll via reaper.defer + Undo_CanUndo2) copies the newly added FX into that slot on every previously selected track and deletes the dummy track. reaper.GetUserInputs, InsertTrackAtIndex, Main_OnCommand(40271), TrackFX_CopyToTrack, DeleteTrack.
+- `InsertProjectMarker` | id | 40157 |
+- `InsertTakeMarker` | id | 42385 |
+- `NextProjectMarker` | table-meta | 40173 | rep
+- `PreviousProjectMarker` | table-meta | 40172 | rep
+- `NextTakeMarker` | table-meta | 42394 | rep
+- `PrevTakeMarker` | table-meta | 42393 | rep
+- `SaveTrkScreenSet1` | id | 40464 |
+- `LoadTrkScreenSet1` | id | 40444 |
+- `MuteEvents` | table-meta | 40055 | midi
+- `RemoveContentsOfTimeSel` | id | 40201 |
+- `MoveTimeSelToCursor` | id | 40396 |
+- `CopyTimeSelToCursor` | id | 40397 |
+- `StretchItemEndToCursor` | func | inline closure at definitions/defaults/actions.lua:916 → custom_actions/items.lua:125 (stretchItem("end")) | Stretches each selected item so its end reaches the edit cursor, compensating take playrates (D_PLAYRATE) so audio stays aligned. reaper.GetMediaItemInfo_Value, SetMediaItemInfo_Value, GetTake, GetMediaItemTakeInfo_Value, SetMediaItemTakeInfo_Value, UpdateItemInProject.
+- `StretchItemStartToCursor` | func | inline closure at definitions/defaults/actions.lua:917 → custom_actions/items.lua:125 (stretchItem("start")) | Same but stretches the item start to the cursor (also runs Main_OnCommand 41205 to move item to cursor).
+- `InsertSilence` | named | _S&M_INSERT_SILENCE_MB |
+
+## extended_defaults/actions.lua
+
+The file exists and is a standalone copy (it does not `require` or merge the defaults file). It contains 779 actions: all 778 names above EXCEPT `MasterTrack`, plus `ToggleShowMaster` and `FxDevices`. Complete diff vs defaults:
+
+- `CloseWindow` | table-meta | [LoadTrkScreenSet1, 2] | midi — adds LoadTrkScreenSet1 before closing
+- `EnterTrackAbove` | multi | [InsertTrackAbove, ColorTrackWithTrackBelow, RenameTrack] |
+- `EnterTrackBelow` | multi | [InsertTrackBelow, ColorTrackWithTrackAbove, RenameTrack] |
+- `ToggleShowMaster` | id | 40075 | replaces defaults' `MasterTrack` name (same command id)
+- `Paste` | table-meta | _SWS_AWPASTE | rep only — no pre_action/post_action (defaults wraps with Save/RestoreEditCursorPosition)
+- `SelNextEnvelopePoint` | table-meta | _BR_ENV_SEL_NEXT_POINT | rep (defaults: _SWS_BRMOVEEDITSELNEXTENV)
+- `SelPrevEnvelopePoint` | table-meta | _BR_ENV_SEL_PREV_POINT | rep (defaults: _SWS_BRMOVEEDITSELPREVENV)
+- `AddPrevEnvelopePointSel` | table-meta | _SWS_BRMOVEEDITTONEXTENVADDSELL | rep — same string as AddNextEnvelopePointSel (likely a bug; defaults uses ...TOPREVENVADDSELL)
+- `CenterCursor` | multi | [ScrollToSelectedTracks, _SWS_HSCROLL50] | (defaults: bare named _SWS_HSCROLL50)
+- `FxDevices` | func | custom_actions/dev.lua:6 (fxDevices) | extended_defaults ONLY. Wrapped in 1-elem table. Launches external "FX Devices" ReaScript: Main_OnCommand(NamedCommandLookup("_RSa0b0ec0b58437033fddcf576a71873629fafcdc7")).
+- Cosmetic: defaults has an `---@type Action[]` annotation line; `AllTrackEnvelopePoints` appears one line earlier in defaults. No semantic difference.
+
+All other 769 entries are identical to the defaults list above.
+
+## Broken / noteworthy references (both files)
+
+- `RecallMark` → `lib.marks.recall` does not exist (library/marks.lua has no `recall`) — resolves to nil.
+- `SetModeRecord` → `lib.state.setModeRecord` does not exist (library/state.lua) — resolves to nil.
+- `commandIdLookup` → `custom.dev.commandIdLookup` does not exist (custom_actions/dev.lua) — table is effectively empty.
+- `ClearTransientsAndStretchMarkers` references action name `ClearItemTransients`, which is not defined in either file.
+- `MoveToFirstItem` references itself as its own second step.
+- `CurrentTrack` is an empty table; `Selection`/`TimeSelection` alias `NoOp` (65535) — placeholder "selector" actions for the state machine.
+- extended_defaults `AddPrevEnvelopePointSel` points at the NEXT-point SWS command (copy/paste bug).
+
+## Summary counts (defaults/actions.lua, 778 actions)
+
+| kind | count |
+|---|---|
+| id | 241 |
+| named | 121 |
+| multi | 66 (incl. 5 single-string aliases to other actions and 1 empty table: CurrentTrack) |
+| func | 72 (incl. 4 inline closures; 2 are nil refs: SetModeRecord, commandIdLookup) |
+| table-meta | 278 (incl. 1 nil func ref: RecallMark; 5 with no command payload: PlayMacro, RecordMacro, RepeatLastCommand, StopRecordMacro, SelectTracks) |
+
+Total: 778.
+
+extended_defaults/actions.lua: 779 actions — same distribution shifted by its diffs: `MasterTrack` (id) renamed `ToggleShowMaster` (id), `CenterCursor` moves named→multi, plus one extra func (`FxDevices`): id 241, named 120, multi 67, func 73, table-meta 278.
+
+Flag usage across defaults (occurrence counts in source, for sizing the Zig action struct): midiCommand 136, prefixRepetitionCount 168, repetitions 18, registerAction 8, registerOptional 1, metaCommand 4, setTimeSelection 2, setTrackSelection 1, pre_action/post_action 1 (Paste, defaults only).

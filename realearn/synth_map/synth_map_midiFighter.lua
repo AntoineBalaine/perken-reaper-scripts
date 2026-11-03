@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Midi-fighter-twister: Synth map
 -- @version 0.0.1
 -- @author Perken

@@ -1,0 +1,17 @@
+@description Perken Utilities: editing helpers (extension)
+@author Perken
+@version 0.1.0
+@provides
+  [linux64] reaper_perken_utilities.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/perken-utilities-v$version/reaper_perken_utilities-linux-x86_64.so
+  [linux-aarch64] reaper_perken_utilities.so https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/perken-utilities-v$version/reaper_perken_utilities-linux-aarch64.so
+  [darwin64] reaper_perken_utilities.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/perken-utilities-v$version/reaper_perken_utilities-macos-x86_64.dylib
+  [darwin-arm64] reaper_perken_utilities.dylib https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/perken-utilities-v$version/reaper_perken_utilities-macos-aarch64.dylib
+  [win64] reaper_perken_utilities.dll https://github.com/AntoineBalaine/perken-reaper-scripts/releases/download/perken-utilities-v$version/reaper_perken_utilities-windows-x86_64.dll
+@changelog
+  First release as a ReaPack package.
+@link
+  Source repository https://github.com/AntoineBalaine/perken-reaper-scripts
+@about
+  # Perken Utilities
+
+  Drums, chord voicings, item, track and envelope tools, batch rename. Every action is listed as Perken: <name>.

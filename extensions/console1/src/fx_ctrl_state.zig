@@ -1,0 +1,373 @@
+const std = @import("std");
+const c1 = @import("c1.zig");
+const MapStore = @import("mappings.zig");
+const reaper = @import("reaper").reaper;
+const pReaper = @import("pReaper.zig");
+const ModulesList = @import("statemachine.zig").ModulesList;
+const PhysicalModule = @import("statemachine.zig").PhysicalModule;
+pub const TrackState = @import("track_state.zig");
+const DefaultFx = @import("settings.zig").DefaultFx;
+const Preferences = @import("settings.zig").Preferences;
+const MappingsList = @import("mappings_list.zig");
+
+// Mode-specific state structures
+pub const FxControlState = @This();
+
+pub const TrackList = struct {
+    pub const TrackNameSize = 32; // Including null terminator
+    pub const PageSize = 20;
+
+    // Fixed size buffer for track names
+    /// `color` is the color of the track in the TCP, as an ImGui color made readable on a dark face, or 0 for none.
+    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8, color: c_int = 0 },
+    name_count: usize = 0,
+    blink_counter: u8 = 0, // For LED blinking
+
+    pub fn init() TrackList {
+        return .{
+            .track_names = undefined,
+        };
+    }
+};
+
+pub const ModulesOrder = enum(u8) {
+    @"EQ-S-C" = 0x7F,
+    @"S-C-EQ" = 0x3F,
+    @"S-EQ-C" = 0x0,
+};
+
+pub const SCRouting = enum(u8) {
+    off = 0x0,
+    toShape = 0x7F,
+    toComp = 0x3F,
+};
+
+// Value types for different CC controls
+const ParamValue = struct {
+    normalized: f64 = 0.0,
+    formatted: ?[:0]const u8 = null,
+};
+
+const TrackValue = struct {
+    is_selected: bool = false,
+    track_number: ?usize = null, // null if no track at this position
+};
+
+const MeterValue = struct {
+    current_value: f64 = 0.0,
+    peak_value: f64 = 0.0,
+};
+
+/// Union to handle different types of controls
+const ControlValue = union(enum) {
+    param: ParamValue, // For FX parameters
+    track: TrackValue, // For track selection buttons
+    meter: MeterValue, // For meters
+    button: bool, // For simple on/off buttons (mute, solo, etc.)
+};
+
+/// Track FX state and mappings
+track_state: TrackState = .{},
+
+/// Static map containing all the CCs and their labels.
+///
+/// Unfortunately, I can’t use an enum map
+/// because of the eval branch quota limitations on large enums.
+values: std.AutoArrayHashMapUnmanaged(c1.CCs, ControlValue),
+/// The allocator of `values`, which is unmanaged.
+values_allocator: std.mem.Allocator,
+scRouting: SCRouting = .off,
+filter_to_comp: bool = false,
+/// The milliseconds of the host at which each knob was last turned on the controller, and 0 for a knob that was not.
+knob_touched_ms: [256]u64 = @splat(0),
+/// The milliseconds of the host at the frame that is being drawn. Because the UI library has no clock of its own, the
+/// host sets it before each frame, and the panel compares it with `knob_touched_ms`.
+now_ms: u64 = 0,
+/// How far the gate and the compressor of the selected track pull the signal down, in dB, as the plugins say it. The host
+/// reads them before each frame, and the panel shows them as meters. A gate whose plugin does not report it has none, which
+/// is null, and its module has no meter. The compressor always has one: its value is zero when the plugin reports nothing.
+gate_reduction_db: ?f64 = null,
+comp_reduction_db: ?f64 = null,
+/// The level of the output of the selected track in dB, for the left and the right channel, as the meter of the panel shows
+/// it. The host reads it while the DAW plays, and it falls to the floor when the DAW does not.
+out_level_db: [2]f64 = .{ out_level_floor_db, out_level_floor_db },
+/// Whether the DAW was playing when the meters were last read. The meters show their value under the mouse only then.
+meters_playing: bool = false,
+/// Which track and which plugins the meters of reduction were last asked about, so that they are asked again, once, when
+/// that changes while the DAW is stopped.
+reduction_key: u64 = 0,
+/// Whether shift is held on the controller, which the host sets before each frame, as it does `now_ms`.
+shift_held: bool = false,
+/// The volume and the pan of the selected track, normalized, as the knobs of the output show them. Because a map can assign a
+/// plugin parameter to these two knobs, the `values` of Out_Vol and Out_Pan hold that parameter then, and the track has its own.
+track_volume: f64 = 0,
+track_pan: f64 = 0.5,
+
+/// Display settings
+display: ?u8 = null,
+vol_lastpos: u8 = 0,
+
+/// Which knob CC is currently in value-text-edit mode, or null if none.
+editing_cc: ?c1.CCs = null,
+/// Input buffer for the value text input. Populated by the panel when entering edit mode.
+edit_buf: [24]u8 = std.mem.zeroes([24]u8),
+
+/// Paging
+/// 0-based page number
+current_page: u8 = 0,
+track_list: TrackList,
+
+pub fn init(gpa: std.mem.Allocator) FxControlState {
+    var values: std.AutoArrayHashMapUnmanaged(c1.CCs, ControlValue) = .empty;
+
+    // Initialize with appropriate types and labels
+    inline for (comptime std.enums.values(c1.CCs)) |cc| {
+        values.put(gpa, cc, switch (cc) {
+            // Track selection buttons
+            .Tr_tr1, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr2, .Tr_tr20, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9 => .{ .track = .{} },
+            // Meters
+            .Shp_Mtr, .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => .{ .meter = .{} },
+            // Hardcoded track control buttons (not FX-mappable)
+            .Out_mute,
+            .Out_solo,
+            .Inpt_phase_inv,
+            => .{ .button = false },
+            // Mappable button CCs stored as params to support discrete FX values
+            .Comp_comp,
+            .Eq_eq,
+            .Eq_hp_shape,
+            .Eq_lp_shape,
+            .Shp_hard_gate,
+            .Shp_shape,
+            => .{ .param = .{} },
+            // Everything else is a parameter
+            else => .{ .param = .{} },
+        }) catch unreachable;
+    }
+
+    return .{
+        .values = values,
+        .values_allocator = gpa,
+        .track_list = TrackList.init(),
+    };
+}
+
+pub fn deinit(self: *@This()) void {
+    self.values.deinit(self.values_allocator);
+}
+
+/// Whether the map of the selected track assigns a plugin parameter to the volume or the pan knob, in which case the track
+/// has these two only while shift is held.
+pub fn isKnobMapped(self: *const @This(), cc: c1.CCs) bool {
+    std.debug.assert(cc == .Out_Vol or cc == .Out_Pan);
+    return self.track_state.forward_map.get(cc) != null;
+}
+
+/// Whether the volume or the pan knob drives the track, which it does when no parameter is assigned to it, or while shift is
+/// held, as the shifted knobs of a map that assigns them are the track's.
+pub fn knobDrivesTrack(self: *const @This(), cc: c1.CCs, shift_held: bool) bool {
+    return shift_held or !self.isKnobMapped(cc);
+}
+
+// Tuple contains: isLoaded, idxInContainer
+pub const ModuleCheck = std.EnumArray(PhysicalModule, @Tuple(&.{ bool, u8 }));
+// TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
+
+pub const Track = @This();
+
+// To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index.
+// e.g. to address the third item in the container at the second position of the track FX chain for tr,
+// the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2.
+// This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic.
+pub fn getSubContainerIdx(self: *@This(), subidx: u8, container_idx: c_int, mediaTrack: reaper.MediaTrack) c_int {
+    _ = self;
+    return 0x2000000 + (subidx * (reaper.TrackFX_GetCount(mediaTrack) + 1)) + container_idx;
+}
+
+/// if container_idx is provided, then load the chain into it.
+/// validate track
+/// NOTE: track validation is meant to fail silently.
+/// The level that the output meter has when there is no signal.
+pub const out_level_floor_db: f64 = -120;
+
+/// How long the value of a knob stays on the panel after the controller turned it, in milliseconds.
+pub const value_popup_ms = 500;
+
+pub fn touchKnob(self: *@This(), cc: c1.CCs, now_ms: u64) void {
+    self.knob_touched_ms[@backingInt(cc)] = now_ms;
+}
+
+/// Whether the controller turned the knob a moment ago, so that the panel shows its value as the mouse would.
+pub fn knobPopupVisible(self: *const @This(), cc: c1.CCs) bool {
+    const touched = self.knob_touched_ms[@backingInt(cc)];
+    return touched != 0 and self.now_ms -| touched <= value_popup_ms;
+}
+
+pub fn validateTrack(
+    self: *@This(),
+    newOrder: ?ModulesOrder,
+    mediaTrack: reaper.MediaTrack,
+    reRoute: ?SCRouting,
+    manual_routing: bool,
+    default_fx: DefaultFx,
+    map_store: *MapStore,
+    preferences: *const Preferences,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    mappings_list: *MappingsList,
+) !void {
+    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*, allocator, io, mappings_list);
+    self.track_state.getLabels(mediaTrack);
+
+    if (!manual_routing) {
+        self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
+    }
+
+    if (newOrder) |order| {
+        self.track_state.setModulesOrder(order, mediaTrack, coverage);
+    }
+}
+
+/// Routes the side chain of the track to the gate or to the compressor, or turns it off. Because `validateTrack` puts
+/// the modules back in the preferred order, calling it for the Sidechain button undid the order that the Order button
+/// had set, and the routing is the only thing that this button changes.
+pub fn routeSideChain(self: *@This(), mediaTrack: reaper.MediaTrack, routing: SCRouting, manual_routing: bool) void {
+    if (manual_routing) return;
+    self.scRouting = self.getSetSideChainRouting(mediaTrack, routing);
+}
+
+fn getSetSideChainRouting(
+    self: *@This(),
+    mediaTrack: reaper.MediaTrack,
+    new_routing: ?SCRouting,
+) SCRouting {
+    const locs = switch (self.track_state.mode) {
+        .multi_fx => |l| l,
+        // Side-chain routing is skipped in channel strip mode
+        .channel_strip => return .off,
+    };
+    const gate_loc = locs.get(.GATE);
+    const comp_loc = locs.get(.COMP);
+
+    // Early return if modules aren't found
+    if (gate_loc == null or comp_loc == null) return .off;
+
+    // Get current track channels
+    const track_channels = reaper.GetMediaTrackInfo_Value(mediaTrack, "I_NCHAN");
+
+    // If only getting current routing
+    if (new_routing == null) {
+        // Return .off if track can't support sidechain
+        if (track_channels < 4) return .off;
+
+        const gate_connected = getSetFxSC(mediaTrack, gate_loc.?.fx_index, null);
+        const comp_connected = getSetFxSC(mediaTrack, comp_loc.?.fx_index, null);
+
+        // Check for invalid state (both connected)
+        if (gate_connected and comp_connected) {
+            // Turn off the comp
+            _ = getSetFxSC(mediaTrack, comp_loc.?.fx_index, .turnOff);
+            return .toShape;
+        }
+
+        return if (!gate_connected and !comp_connected)
+            .off
+        else if (gate_connected)
+            .toShape
+        else
+            .toComp;
+    }
+
+    { // Setting new routing
+        const routing = new_routing.?;
+
+        // If turning off, just disable both
+        if (routing == .off) {
+            // TODO: remove tr channels 3 and 4 if no other fx are connected
+            _ = getSetFxSC(mediaTrack, gate_loc.?.fx_index, .turnOff);
+            _ = getSetFxSC(mediaTrack, comp_loc.?.fx_index, .turnOff);
+            return .off;
+        }
+
+        // Ensure track has enough channels for sidechain
+        if (track_channels < 4) {
+            _ = pReaper.SetMediaTrackInfo_Value(.{ mediaTrack, "I_NCHAN", @as(f64, 4) });
+        }
+
+        // Set new routing
+        _ = getSetFxSC(
+            mediaTrack,
+            gate_loc.?.fx_index,
+            if (routing == .toShape) .turnOn else .turnOff,
+        );
+        _ = getSetFxSC(
+            mediaTrack,
+            comp_loc.?.fx_index,
+            if (routing == .toComp) .turnOn else .turnOff,
+        );
+
+        return routing;
+    }
+}
+
+const ScChange = enum { turnOn, turnOff };
+
+/// turn fx side chain on channels 3-4.
+/// returns whether the FX' chan 3-4 are connected
+fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
+    // WARNING: brittle - I'm assuming that both channels  have the same toggles here
+    // if they go out of sync (e.g. «chan3 is toggled, chan4 isn't»), this result will be false.
+    var connected = true;
+
+    // since we expect chan#3 & chan#4 to go in fxIn#3 & fxIn#4, we can use the same var for both.
+    const channels = [2]u8{ 2, 3 };
+    const isOutput: u8 = 0; // input = 0, output = 1
+
+    var hi32: c_int = 0;
+
+    for (channels) |channel| {
+        // Get current pins
+        var low32 = reaper.TrackFX_GetPinMappings(tr, subIdx, isOutput, channel, &hi32);
+        const channelMask = std.math.pow(u8, 2, channel);
+        const isConnected = (low32 & channelMask) > 0;
+        if (onOff) |onoff| {
+            if (isConnected) {
+                // would this work?    low32 = low32 & channelMask;
+                switch (onoff) {
+                    .turnOn => connected = isConnected,
+                    else => {
+                        low32 = low32 - channelMask; // disconnect
+                        const pinSuccess = pReaper.TrackFX_SetPinMappings(.{ tr, subIdx, isOutput, channel, low32, hi32 });
+                        connected = if (pinSuccess) !isConnected else isConnected;
+                    },
+                }
+            } else {
+                switch (onoff) {
+                    .turnOff => connected = isConnected,
+                    else => {
+                        low32 = low32 + channelMask; // connect
+                        const pinSuccess = pReaper.TrackFX_SetPinMappings(.{ tr, subIdx, isOutput, channel, low32, hi32 });
+                        connected = if (pinSuccess) !isConnected else isConnected;
+                    },
+                }
+            }
+        } else {
+            connected = isConnected;
+        }
+    }
+    return connected;
+}
+
+test "a knob that the controller turned shows its value for a moment, and one that it did not does not" {
+    var state = FxControlState.init(std.testing.allocator);
+    defer state.deinit();
+    state.now_ms = 5000;
+    try std.testing.expect(!state.knobPopupVisible(.Eq_HiGain));
+    state.touchKnob(.Eq_HiGain, 5000);
+    try std.testing.expect(state.knobPopupVisible(.Eq_HiGain));
+    try std.testing.expect(!state.knobPopupVisible(.Eq_LoGain));
+    state.now_ms = 5000 + value_popup_ms;
+    try std.testing.expect(state.knobPopupVisible(.Eq_HiGain));
+    state.now_ms = 5000 + value_popup_ms + 1;
+    try std.testing.expect(!state.knobPopupVisible(.Eq_HiGain));
+}

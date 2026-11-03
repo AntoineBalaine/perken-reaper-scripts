@@ -1,4 +1,5 @@
 --[[
+@noindex
 @description ReaVim: Vim mode for reaper
 @version
   0.0.3

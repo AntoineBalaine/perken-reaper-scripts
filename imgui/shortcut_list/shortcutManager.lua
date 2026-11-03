@@ -1,4 +1,5 @@
 --[[
+@noindex
 @description Shortcut Manager: a utility for managing shortcuts in the ImGui context
 @version
   0.0.1

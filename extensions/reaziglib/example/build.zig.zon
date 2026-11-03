@@ -1,0 +1,13 @@
+.{
+    .name = .reaper_hello,
+    .fingerprint = 0xb2b7cb81a6d6bfb8,
+    .version = "0.0.0",
+    .dependencies = .{
+        .reaziglib = .{
+            .path = "..",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}

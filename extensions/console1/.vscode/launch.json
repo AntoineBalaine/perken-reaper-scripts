@@ -1,0 +1,78 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lua",
+      "request": "attach",
+      "name": "LuaPanda",
+      "cwd": "${workspaceFolder}",
+      "connectionPort": 8818,
+      "stopOnEntry": false,
+      "useCHook": true,
+      "address": "localhost"
+    },
+    {
+      "name": "(gdb) Launch",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/Applications/REAPER.app/Contents/MacOS/REAPER", // SET PATH TO REAPER
+      "args": ["new"],
+      "stopAtEntry": false,
+      "cwd": "${fileDirname}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        }
+      ]
+    },
+
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "TestDebug",
+      "program": "/Users/antoine/Documents/personnel/experiments/zigwrap/.zig-cache/o/d6ea737d1d670ad1640777ea2600b70d/reaper_zig_tests",
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "build test",
+      "program": "zig build test",
+      "args": ["build", "test", "--", "--test-filter=${input:testName}"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ReaperDebug",
+      "program": "/Applications/REAPER.app/Contents/MacOS/REAPER",
+      "args": ["new"],
+      "cwd": "${workspaceFolder}",
+      "initCommands": ["command source ${workspaceFolder}/.lldbinit"]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Tests",
+      "preLaunchTask": "build-test-debug",
+      "program": "${workspaceFolder}/zig-out/bin/reaper_zig_tests",
+      "cwd": "${workspaceFolder}",
+      "initCommands": ["command source ${workspaceFolder}/.lldbinit"]
+    }
+  ]
+}
