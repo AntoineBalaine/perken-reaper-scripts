@@ -14,10 +14,18 @@ const log = std.log.scoped(.mft_browser);
 const Reading = enum { not_read, ready, failed };
 var reading: Reading = .not_read;
 
+/// The source that the unit tests give the browser, in place of the plugins that REAPER has.
+pub var test_source: ?fx_browser.Source = null;
+
 /// The source of the levels of the browser, with `mapped_count` plugins that have a map at the top of the first level, or null when the plugins could
 /// not be read. The unit tests have no REAPER to read them from, so they get null.
 pub fn get(globals: *mft_globals.MftGlobals, mapped_count: usize) ?fx_browser.Source {
-    if (comptime builtin.is_test) return null;
+    if (comptime builtin.is_test) {
+        const source = test_source orelse return null;
+        var with_count = source;
+        with_count.mapped_count = mapped_count;
+        return with_count;
+    }
     if (reading == .not_read) {
         fx_parser.init(globals.arena.allocator(), mft_globals.hostIo()) catch |err| {
             log.err("the plugins could not be read: {s}", .{@errorName(err)});

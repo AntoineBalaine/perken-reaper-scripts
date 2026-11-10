@@ -246,6 +246,12 @@ fn addMftTarget(
     const c_mod = cBindings(b, target, optimize, wdl_dep, reaper_sdk_dep);
     lib.root_module.addImport("c", c_mod);
 
+    // The components of the windows of the Console 1, which the window of the FX selection draws with (see src/c1_components.zig).
+    const c1_components = b.createModule(.{ .root_source_file = b.path("src/c1_components.zig"), .target = target, .optimize = optimize });
+    c1_components.addImport("ini", ini.module("ini"));
+    reaziglib.addSharedModules(reazig_dep, c1_components);
+    lib.root_module.addImport("c1_components", c1_components);
+
     const client_install: *std.Build.Step.InstallArtifact = if (is_macos) blk: {
         reaziglib.addMacosSdk(b, lib);
         lib.root_module.linkFramework("AppKit", .{});
@@ -337,6 +343,7 @@ fn addMftTarget(
         .optimize = optimize,
     }) });
     mft_test.root_module.addImport("c", c_mod);
+    mft_test.root_module.addImport("c1_components", c1_components);
     const mft_test_options = b.addOptions();
     mft_test_options.addOption(bool, "test", true);
     mft_test_options.addOption(bool, "headless", false);

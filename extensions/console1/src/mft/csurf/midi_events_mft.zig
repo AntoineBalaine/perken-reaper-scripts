@@ -75,17 +75,6 @@ pub fn closeFxSel(globals: *MftGlobals, page: MftActiveModule) void {
     showCurrentFrame(globals);
 }
 
-// The page of a module, which has the same name.
-fn pageOf(module: MappableModule) MftActiveModule {
-    return switch (module) {
-        .INPUT => .INPUT,
-        .GATE => .GATE,
-        .EQ => .EQ,
-        .COMP => .COMP,
-        .OUTPUT => .OUTPUT,
-    };
-}
-
 fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals: *MftGlobals) void {
     const io = mft_globals.hostIo();
     state.setNote("");
@@ -100,6 +89,13 @@ fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals
         if (!pressed) return;
         outcome = mft_fxsel.press(state, cc, source);
     }
+    applyOutcome(globals, state, outcome);
+}
+
+/// Does what an event of the FX SEL mode asked for, beyond the change of its state. The events of the controller come here at once, and those of the
+/// window through `pollFxSel`.
+pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome: mft_fxsel.Outcome) void {
+    const io = mft_globals.hostIo();
     switch (outcome) {
         .none => {},
         .leave => closeFxSel(globals, state.return_page),
@@ -111,7 +107,7 @@ fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals
             };
             if (mft_fx.loadPlugin(track, state.module, name)) {
                 // The controller goes to the page of the module that got the plugin.
-                closeFxSel(globals, pageOf(state.module));
+                closeFxSel(globals, mft_fxsel.pageOf(state.module));
             } else {
                 state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
             }
@@ -121,6 +117,15 @@ fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals
             state.setNote(std.fmt.bufPrint(&buf, "{s} is not done yet.", .{action.label()}) catch "Not done yet.");
         },
     }
+}
+
+/// Carries out what the window of the FX SEL mode chose. The window draws in the timer of the panel, which does not load plugins, so it leaves its
+/// choice in the state and the run of the surface does it.
+pub fn pollFxSel(globals: *MftGlobals) void {
+    const state = &(globals.mft.fxsel orelse return);
+    const outcome = state.pending;
+    state.pending = .none;
+    if (outcome != .none) applyOutcome(globals, state, outcome);
 }
 
 fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {

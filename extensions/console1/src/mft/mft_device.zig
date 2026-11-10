@@ -719,10 +719,13 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     inline for (@typeInfo(MftActiveModule).@"enum".field_names) |field_name| {
         widest = @max(widest, widgets.textSize(kit, field_name).w);
     }
+    // The name of the FX Selection mode has to fit in the card too.
+    const fxsel_name = "FX SELECTION";
+    widest = @max(widest, widgets.textSize(kit, fxsel_name).w);
     widgets.popFont(kit, pushed);
     imgui.api.SetCursorScreenPos(ctx, x + pad, y + pad);
     if (view.fxsel_labels != null) {
-        widgets.display(kit, "FX SEL", view.fxsel_color, widest + 20);
+        widgets.display(kit, fxsel_name, view.fxsel_color, widest + 20);
     } else {
         widgets.display(kit, @tagName(view.active), view.color(view.active), widest + 20);
     }

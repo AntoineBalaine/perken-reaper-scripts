@@ -18,6 +18,9 @@ const device = @import("mft_device.zig");
 const mft_fxsel = @import("mft_fxsel.zig");
 const browser_source = @import("mft_browser_source.zig");
 const fx_browser = @import("fx_browser");
+const c1 = @import("c1_components");
+const card_kit = c1.panel_card;
+const c1_theme = c1.c1_theme;
 const colors = @import("mft_colors.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -30,8 +33,6 @@ var ready = false;
 // in it, so both are made and dropped with the context.
 var fonts: panel_fonts.Fonts = .{};
 var kit: widgets.Panel = .{};
-// The FX SEL mode has a window of its own, as in the Console 1, so it has its own kit state: the heights that the cards of a window measured belong to it.
-var fxsel_kit: widgets.Panel = .{};
 // Whether the device is folded to its header row. Because the player folds the panel for the whole session, the state
 // is kept when the context is dropped.
 var folded = false;
@@ -201,7 +202,6 @@ fn dropContext() void {
     ctx = null;
     fonts = .{};
     kit = .{};
-    fxsel_kit = .{};
 }
 
 /// Where the window opens the first time, in pixels from the top left of the screen.
@@ -290,74 +290,256 @@ fn draw(globals: *MftGlobals) !void {
     if (show_cards) drawWizard(globals);
 }
 
-/// The rows that the list of plugins shows at a time. The cursor stays in the middle when the list is longer.
-const browser_rows = 12;
+/// Where the window of the FX Selection opens the first time, to the right of the device, and how big it is.
+const fxsel_window_x: f64 = window_x + 640;
+const fxsel_window_w: f64 = 460;
+const fxsel_window_h: f64 = 480;
 
-/// The card of the FX SEL mode, under the device: the module that the mode works on, the list of what can be done to it or the list of plugins
-/// that can be loaded for it, with the cursor on its entry, and a line that says what the last press did.
-fn drawFxSelList(k: *widgets.Panel, globals: *MftGlobals) void {
-    const state = &(globals.mft.fxsel orelse return);
-    const accent = colors.hueToRgb(mft_fxsel.hue);
-    var buf: [160:0]u8 = undefined;
-    const title = std.mem.printSentinel(&buf, "FX SEL: {s}", .{@tagName(state.module)}, 0) catch "FX SEL";
-    if (!widgets.beginCard(k, title, null, null, accent)) return;
-    defer widgets.endCard(k);
+/// The heading of the window, engraved as the names of the modules are, but in the color of the module that the mode works on.
+fn drawFxSelHeading(text: [:0]const u8, color: c_int) !void {
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
+    defer imgui.PopFont(.{ctx}) catch {};
+    var x: f64 = undefined;
+    var y: f64 = undefined;
+    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
+    var w: f64 = undefined;
+    var h: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, text, &w, &h });
+    const dl = try imgui.GetWindowDrawList(.{ctx});
+    try imgui.DrawList_AddText(.{ dl, x + 1, y + 1, theme.text_engraved_shadow, text });
+    try imgui.DrawList_AddText(.{ dl, x, y, color, text });
+    try imgui.Dummy(.{ ctx, w, h });
+}
 
-    switch (state.screen) {
-        .actions => {
-            imgui.api.TextColored(ctx, theme.grey, "Turn the encoder 13 and push it, or push a shortcut on the top row. The module is chosen with the buttons of the bottom row.");
-            inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
-                const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
-                const line = std.mem.printSentinel(&buf, "{s} {s}", .{ if (state.action_cursor == i) ">" else " ", action.label() }, 0) catch "";
-                imgui.api.TextColored(ctx, if (state.action_cursor == i) accent else theme.grey, line);
+/// The path of the menus that are open, as a line of names.
+fn fxSelBreadcrumb(buf: [:0]u8, state: *const mft_fxsel.FxSelState, source: fx_browser.Source) [:0]const u8 {
+    var length: usize = 0;
+    buf[0] = 0;
+    var level: fx_browser.Level = .root;
+    for (state.browse_path[0..state.browse_depth]) |index| {
+        const text = mft_fxsel.entryName(state, source, level, index);
+        const written = std.fmt.bufPrint(buf[length .. buf.len - 1], "{s}{s}", .{ if (length > 0) "  >  " else "", text }) catch break;
+        length += written.len;
+        level = fx_browser.enter(source, level, index) orelse break;
+    }
+    buf[length] = 0;
+    return buf[0..length :0];
+}
+
+/// The search field of the browser: it takes the keyboard when the browser opens, so that what is typed goes in it right away, and it has a hint
+/// while it is empty.
+fn drawFxSelSearch(state: *mft_fxsel.FxSelState) !void {
+    if (state.focus_search) {
+        try imgui.SetKeyboardFocusHere(.{ctx});
+        state.focus_search = false;
+    }
+    try imgui.SetNextItemWidth(.{ ctx, 240 });
+    _ = try imgui.InputText(.{ ctx, "##fxsel_search", @as([*]u8, @ptrCast(&state.search)), state.search.len, null, null });
+    const active = try imgui.IsItemActive(.{ctx});
+    state.syncSearch();
+    if (state.search[0] == 0 and !active) {
+        var x1: f64 = undefined;
+        var y1: f64 = undefined;
+        var x2: f64 = undefined;
+        var y2: f64 = undefined;
+        try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
+        try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
+        const hint = "Type to search";
+        var hint_w: f64 = undefined;
+        var hint_h: f64 = undefined;
+        try imgui.CalcTextSize(.{ ctx, hint, &hint_w, &hint_h });
+        const dl = try imgui.GetWindowDrawList(.{ctx});
+        try imgui.DrawList_AddText(.{ dl, x1 + 8, (y1 + y2) / 2 - hint_h / 2, theme.text_dim, hint });
+    }
+}
+
+/// What the keys of the computer do in the window, as the controller does: the arrows move the cursor by one entry and the page keys by a page,
+/// Enter chooses the entry, and Escape steps back.
+fn fxSelKeys(state: *mft_fxsel.FxSelState, source: ?fx_browser.Source, page: i32) !mft_fxsel.Outcome {
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) mft_fxsel.moveCursor(state, 1, source);
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) mft_fxsel.moveCursor(state, -1, source);
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageDown })) mft_fxsel.moveCursor(state, page, source);
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageUp })) mft_fxsel.moveCursor(state, -page, source);
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Enter }) or try imgui.IsKeyPressed(.{ ctx, imgui.Key_KeypadEnter })) return mft_fxsel.press(state, mft_fxsel.list_encoder, source);
+    if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) return mft_fxsel.press(state, mft_fxsel.cancel_encoder, source);
+    return .none;
+}
+
+/// The rows of the first screen, which are the actions that can be done to the module.
+fn drawFxSelActions(state: *mft_fxsel.FxSelState, room: f64, overhead: f64, row_height: f64) !mft_fxsel.Outcome {
+    var outcome: mft_fxsel.Outcome = .none;
+    const card = try card_kit.beginCard(ctx, "##fxsel_actions", "Actions", @max(room - overhead, row_height * 3));
+    if (card.visible) {
+        inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
+            const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
+            if (try card_kit.row(ctx, action.label(), false, state.action_cursor == i, &state.scroll_dirty)) {
+                state.action_cursor = @intCast(i);
+                outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
+            }
+        }
+    }
+    try card_kit.endCard(ctx, card.plate);
+    return outcome;
+}
+
+/// The rows of the plugins that have a map, which are the first rows of the first level.
+fn drawFxSelMapped(state: *mft_fxsel.FxSelState, source: fx_browser.Source, outcome: *mft_fxsel.Outcome) !void {
+    const on_first_level = state.browse_depth == 0;
+    for (0..state.browser.count) |i| {
+        if (try card_kit.row(ctx, state.browser.get(i), false, on_first_level and state.cursor() == i, &state.scroll_dirty)) {
+            outcome.* = mft_fxsel.clickEntry(state, i, source);
+        }
+    }
+}
+
+/// The rows of a level that is not the first one. Because a list of plugins can have thousands of them, its rows are walked once.
+fn drawFxSelLevel(state: *mft_fxsel.FxSelState, source: fx_browser.Source, level: fx_browser.Level, outcome: *mft_fxsel.Outcome) !void {
+    switch (level) {
+        .root => {},
+        .fx_list => |plugins| {
+            var index: usize = 0;
+            for (plugins.keys()) |listed_name| {
+                if (!fx_browser.isListed(listed_name)) continue;
+                if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(listed_name)), false, state.cursor() == index, &state.scroll_dirty)) {
+                    outcome.* = mft_fxsel.clickEntry(state, index, source);
+                }
+                index += 1;
             }
         },
-        .browse => {
-            const source = browser_source.get(globals, state.browser.count) orelse {
-                imgui.api.TextColored(ctx, theme.grey, "The list of plugins could not be read.");
-                if (state.noteText().len > 0) imgui.api.TextColored(ctx, theme.amber, state.noteText());
-                return;
-            };
-            const level = state.level(source);
+        else => {
+            const menus_end = fx_browser.leafStart(level);
             const count = fx_browser.entryCount(source, level);
-            if (count == 0) {
-                imgui.api.TextColored(ctx, theme.grey, "Nothing in this list.");
-            } else {
-                const cursor: usize = state.cursor();
-                const first = if (cursor < browser_rows / 2) 0 else @min(cursor - browser_rows / 2, if (count > browser_rows) count - browser_rows else 0);
-                const last = @min(count, first + browser_rows);
-                for (first..last) |i| {
-                    const name = mft_fxsel.entryName(state, source, level, i);
-                    const arrow = if (fx_browser.isMenu(source, level, i)) " >" else "";
-                    const line = std.mem.printSentinel(&buf, "{s} {s}{s}", .{ if (cursor == i) ">" else " ", name, arrow }, 0) catch "";
-                    imgui.api.TextColored(ctx, if (cursor == i) accent else theme.grey, line);
+            for (0..count) |index| {
+                const label = fx_browser.entryName(source, level, index) orelse continue;
+                if (try card_kit.row(ctx, label, index < menus_end, state.cursor() == index, &state.scroll_dirty)) {
+                    outcome.* = mft_fxsel.clickEntry(state, index, source);
                 }
-                const where = std.mem.printSentinel(&buf, "{d} of {d}", .{ cursor + 1, count }, 0) catch "";
-                imgui.api.TextColored(ctx, theme.grey, where);
             }
         },
     }
-    if (state.noteText().len > 0) imgui.api.TextColored(ctx, theme.amber, state.noteText());
 }
 
-/// Where the window of the FX SEL mode opens the first time, to the right of the device.
-const fxsel_window_x: f64 = window_x + 640;
+/// The contents of the browser: the search, the line of the menus that are open, and the cards of the level or of the results.
+fn drawFxSelBrowser(state: *mft_fxsel.FxSelState, source: fx_browser.Source, room: f64, overhead: f64, row_height: f64) !mft_fxsel.Outcome {
+    var outcome: mft_fxsel.Outcome = .none;
+    const level = state.level(source);
+    if (state.searching()) {
+        var hits: [fx_browser.search_capacity]@import("fuzzy").Ranked = undefined;
+        const count = fx_browser.search(source, state.searchText(), &hits);
+        state.search_cursor = @min(state.search_cursor, @as(u16, @intCast(count -| 1)));
+        const card = try card_kit.beginCard(ctx, "##fxsel_results", "Results", @max(room - overhead, row_height * 3));
+        if (card.visible) {
+            for (hits[0..count], 0..) |hit, i| {
+                const name = fx_browser.pluginAt(source, hit.index) orelse continue;
+                if (try card_kit.row(ctx, name, false, i == state.search_cursor, &state.scroll_dirty)) outcome = mft_fxsel.clickEntry(state, i, source);
+            }
+        }
+        try card_kit.endCard(ctx, card.plate);
+        return outcome;
+    }
+    switch (level) {
+        .root => {
+            // The plugins that have a map are in one card, and the menus of the browser in another.
+            const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.rootMenuCount(source))) + 4;
+            const mapped_height = @max(room - menus_height - overhead * 2, row_height * 3);
+            const mapped_card = try card_kit.beginCard(ctx, "##fxsel_mapped", "Mapped plugins", mapped_height);
+            if (mapped_card.visible) try drawFxSelMapped(state, source, &outcome);
+            try card_kit.endCard(ctx, mapped_card.plate);
 
-/// The window of the FX SEL mode, which is a window of its own and is shown only while the mode is open.
+            const menus_card = try card_kit.beginCard(ctx, "##fxsel_menus", "Browse", menus_height);
+            if (menus_card.visible) {
+                var listed: usize = 0;
+                for (std.enums.values(fx_browser.RootMenu)) |menu| {
+                    if (source.hidden_menus.contains(menu)) continue;
+                    const index = source.mapped_count + listed;
+                    listed += 1;
+                    if (try card_kit.row(ctx, mft_fxsel.rootMenuName(menu), fx_browser.isMenu(source, level, index), state.browse_depth == 0 and state.cursor() == index, &state.scroll_dirty)) {
+                        outcome = mft_fxsel.clickEntry(state, index, source);
+                    }
+                }
+            }
+            try card_kit.endCard(ctx, menus_card.plate);
+        },
+        else => {
+            var title_buf: [128:0]u8 = undefined;
+            const crumb = fxSelBreadcrumb(&title_buf, state, source);
+            // The card is named after the menu that is open, which is the last name of the line.
+            const title: [:0]const u8 = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
+            const card = try card_kit.beginCard(ctx, "##fxsel_level", @ptrCast(title), @max(room - overhead, row_height * 3));
+            if (card.visible) try drawFxSelLevel(state, source, level, &outcome);
+            try card_kit.endCard(ctx, card.plate);
+        },
+    }
+    return outcome;
+}
+
+/// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It is
+/// drawn with the components of the Console 1: the cards and the rows, and the heading in the color of the module.
 fn drawFxSelWindow(globals: *MftGlobals) !void {
-    if (globals.mft.fxsel == null) return;
-    fxsel_kit.ctx = ctx;
-    fxsel_kit.fonts = fonts;
+    const state = &(globals.mft.fxsel orelse return);
+    // The cards of the Console 1 draw in its fonts, which are the ones of this panel here.
+    c1_theme.fonts.TAB = fonts.tab;
     theme.push(ctx);
     defer theme.pop(ctx);
     if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
     defer if (fonts.text != null) imgui.api.PopFont(ctx);
+
     imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
-    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_AlwaysAutoResize;
-    const visible = try imgui.Begin(.{ ctx, "MFT FX SEL", null, flags });
+    imgui.api.SetNextWindowSize(ctx, fxsel_window_w, fxsel_window_h, &imgui.Cond_FirstUseEver);
+    // The window has no title bar, since the heading says what it is, and its padding is the one of the cards, which have their own.
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 6, 6);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar;
+    const visible = try imgui.Begin(.{ ctx, "MFT FX Selection", null, flags });
+    var window_vars: c_int = 1;
+    imgui.api.PopStyleVar(ctx, &window_vars);
     if (!visible) return;
     defer imgui.End(.{ctx}) catch {};
-    drawFxSelList(&fxsel_kit, globals);
+
+    const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
+    var heading_buf: [64:0]u8 = undefined;
+    try drawFxSelHeading(std.mem.printSentinel(&heading_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection", accent);
+
+    const source: ?fx_browser.Source = if (state.screen == .browse) browser_source.get(globals, state.browser.count) else null;
+    if (state.screen == .browse) {
+        try drawFxSelSearch(state);
+        if (source) |data| {
+            var crumb_buf: [512:0]u8 = undefined;
+            const crumb = fxSelBreadcrumb(&crumb_buf, state, data);
+            if (crumb.len > 0) {
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+                try imgui.Text(.{ ctx, crumb });
+                try imgui.PopStyleColor(.{ ctx, 1 });
+            }
+        }
+    }
+
+    // What the cards share: the height under the heading, less the line under them for the note.
+    var available_w: f64 = undefined;
+    var available_h: f64 = undefined;
+    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
+    const overhead = try card_kit.cardOverhead(ctx);
+    const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
+    const note_room: f64 = if (state.noteText().len > 0) row_height else 0;
+    const room = @max(available_h - note_room, 120);
+    const page: i32 = @intCast(@max(1, @as(usize, @intFromFloat(@max(room - overhead, 0) / @max(row_height, 1))) -| 1));
+
+    var outcome: mft_fxsel.Outcome = .none;
+    switch (state.screen) {
+        .actions => outcome = try drawFxSelActions(state, room, overhead, row_height),
+        .browse => if (source) |data| {
+            outcome = try drawFxSelBrowser(state, data, room, overhead, row_height);
+        } else {
+            try imgui.Text(.{ ctx, "The list of plugins could not be read." });
+        },
+    }
+    if (outcome == .none) outcome = try fxSelKeys(state, source, page);
+    if (state.noteText().len > 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, state.noteText() });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+    // The surface carries the choice out on its next run.
+    if (outcome != .none) state.pending = outcome;
 }
 
 /// What the device shows this frame: the colors of the modules, the parameters of the active module, the encoders that
@@ -700,5 +882,47 @@ test "the FX SEL mode has a window of its own, drawn on both screens with the st
         state.browse_cursors[0] = cursor;
         try drawWindows(&globals);
     }
+    try mock.assertBalanced();
+}
+
+test "the FX Selection window draws the browser with its cards, a menu that is open, and the results of a search, with the stacks balanced" {
+    const t = std.testing;
+    const types = @import("fx_parser_types");
+    var chains: types.Directory = .{ .path = "/chains", .name = "chains", .subdirs = null, .files = null };
+    var templates: types.Directory = .{ .path = "/templates", .name = "templates", .subdirs = null, .files = null };
+    var by_type = types.FxByType.initFill(.{});
+    defer for (&by_type.values) |*list| list.deinit(t.allocator);
+    var tags: types.FxTags = .{ .category = .{}, .developer = .{} };
+    try by_type.getPtr(.VST).put(t.allocator, "ReaEQ", {});
+    try by_type.getPtr(.VST).put(t.allocator, "ReaComp", {});
+    browser_source.test_source = .{ .mapped_count = 0, .fx_chains = &chains, .track_templates = &templates, .plugins_by_type = &by_type, .tags = &tags, .hidden_menus = mft_fxsel.hidden_menus };
+    defer browser_source.test_source = null;
+
+    var mock = MockImGui.init(t.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .browse;
+    state.browser.add("VST: ReaEQ (Cockos)");
+    try drawWindows(&globals);
+    // The menu of all the plugins, then the list of the VST ones, which scrolls to the cursor.
+    state.browse_depth = 1;
+    state.browse_path[0] = 1;
+    try drawWindows(&globals);
+    state.browse_depth = 2;
+    state.browse_path[1] = 0;
+    state.browse_cursors[2] = 1;
+    try drawWindows(&globals);
+    // A search takes the place of the cards.
+    state.resetBrowser();
+    const text = "rea";
+    @memcpy(state.search[0..text.len], text);
+    state.search[text.len] = 0;
+    state.syncSearch();
+    try drawWindows(&globals);
     try mock.assertBalanced();
 }

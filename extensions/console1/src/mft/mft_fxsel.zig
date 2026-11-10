@@ -9,6 +9,7 @@ const std = @import("std");
 const mft_state = @import("mft_state.zig");
 const mappings = @import("mft_mappings.zig");
 const fx_browser = @import("fx_browser");
+const fuzzy = @import("fuzzy");
 
 pub const MappableModule = mappings.MappableModule;
 
@@ -150,6 +151,17 @@ pub const FxSelState = struct {
     /// The page that the controller was on when the mode opened, which it goes back to when the mode closes.
     return_page: mft_state.MftActiveModule = .TRANSPORT,
     browser: BrowserList = .{},
+    /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
+    /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
+    search: [96:0]u8 = @splat(0),
+    search_cursor: u16 = 0,
+    search_hash: u64 = 0,
+    /// Whether the list has to scroll to the cursor, which is so after the controller or a key moved it.
+    scroll_dirty: bool = true,
+    /// Whether the search has to take the keyboard, which is so when the browser opens and after the mouse chose something.
+    focus_search: bool = true,
+    /// What the window chose, which the surface carries out on its next run: a window draws in the timer of the panel and cannot load a plugin.
+    pending: Outcome = .none,
     /// A line that tells the player what the last press did or why it did nothing, which the panel shows under the list.
     note: [96:0]u8 = @splat(0),
 
@@ -177,6 +189,29 @@ pub const FxSelState = struct {
     /// The level that is open, or the first one when the path leads nowhere (the data changed).
     pub fn level(self: *const FxSelState, source: fx_browser.Source) fx_browser.Level {
         return fx_browser.levelAt(source, self.browse_path[0..self.browse_depth]) orelse .root;
+    }
+
+    /// The text of the search without the spaces around it.
+    pub fn searchText(self: *const FxSelState) []const u8 {
+        return std.mem.trim(u8, std.mem.sliceTo(&self.search, 0), " \t");
+    }
+
+    pub fn searching(self: *const FxSelState) bool {
+        return self.screen == .browse and self.searchText().len > 0;
+    }
+
+    /// Puts the cursor of the results on the best one when the text changed since the cursor was placed.
+    pub fn syncSearch(self: *FxSelState) void {
+        const hash = std.hash.Wyhash.hash(0, self.searchText());
+        if (hash == self.search_hash) return;
+        self.search_hash = hash;
+        self.search_cursor = 0;
+        self.scroll_dirty = true;
+    }
+
+    pub fn clearSearch(self: *FxSelState) void {
+        self.search[0] = 0;
+        self.syncSearch();
     }
 
     pub fn action(self: *const FxSelState) Action {
@@ -219,8 +254,24 @@ fn move(cursor: anytype, steps: i32, count: usize) void {
 pub fn listCount(state: *const FxSelState, source: ?fx_browser.Source) usize {
     return switch (state.screen) {
         .actions => action_count,
-        .browse => if (source) |data| fx_browser.entryCount(data, state.level(data)) else 0,
+        .browse => blk: {
+            const data = source orelse break :blk 0;
+            if (state.searching()) {
+                var hits: [fx_browser.search_capacity]fuzzy.Ranked = undefined;
+                break :blk fx_browser.search(data, state.searchText(), &hits);
+            }
+            break :blk fx_browser.entryCount(data, state.level(data));
+        },
     };
+}
+
+/// Moves the cursor of the list that is shown, the results of the search or the level that is open, by `steps` entries.
+pub fn moveCursor(state: *FxSelState, steps: i32, source: ?fx_browser.Source) void {
+    state.scroll_dirty = true;
+    switch (state.screen) {
+        .actions => move(&state.action_cursor, steps, action_count),
+        .browse => if (state.searching()) move(&state.search_cursor, steps, listCount(state, source)) else move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
+    }
 }
 
 /// A turn of an encoder. Only the encoder 13 does something: it scrolls the list of the screen, one entry for each `ticks_per_step` ticks.
@@ -230,10 +281,7 @@ pub fn turn(state: *FxSelState, encoder: usize, delta: i8, source: ?fx_browser.S
     const steps = @divTrunc(total, ticks_per_step);
     state.scroll_ticks = @intCast(total - steps * ticks_per_step);
     if (steps == 0) return .none;
-    switch (state.screen) {
-        .actions => move(&state.action_cursor, steps, action_count),
-        .browse => move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
-    }
+    moveCursor(state, steps, source);
     return .none;
 }
 
@@ -242,14 +290,24 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
         .load_fx => {
             state.screen = .browse;
             state.resetBrowser();
+            state.focus_search = true;
             return .fill_browser;
         },
         .select_preset, .save_preset, .create_mapping => return .{ .not_done = action },
     }
 }
 
-/// Confirms the entry that the cursor is on in the browser: a menu opens, and a plugin is loaded.
+/// Confirms the entry that the cursor is on in the browser: a menu opens, and a plugin is loaded. While there is a search, the entry is the result
+/// that the cursor is on.
 fn confirmEntry(state: *FxSelState, source: fx_browser.Source) Outcome {
+    state.scroll_dirty = true;
+    if (state.searching()) {
+        var hits: [fx_browser.search_capacity]fuzzy.Ranked = undefined;
+        const count = fx_browser.search(source, state.searchText(), &hits);
+        if (count == 0) return .none;
+        const name = fx_browser.pluginAt(source, hits[@min(state.search_cursor, count - 1)].index) orelse return .none;
+        return .{ .load_plugin = name };
+    }
     const level = state.level(source);
     const index = state.cursor();
     var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
@@ -281,8 +339,15 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
         return switch (state.screen) {
             .actions => .leave,
             .browse => blk: {
-                // Back leaves the menu that is open, and the browser when it is on the first level.
-                if (state.browse_depth > 0) state.browse_depth -= 1 else state.screen = .actions;
+                state.scroll_dirty = true;
+                // Back clears what was typed first, then leaves the menu that is open, and the browser when it is on the first level.
+                if (state.searching()) {
+                    state.clearSearch();
+                } else if (state.browse_depth > 0) {
+                    state.browse_depth -= 1;
+                } else {
+                    state.screen = .actions;
+                }
                 break :blk .none;
             },
         };
@@ -296,6 +361,25 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
     // The top row has a shortcut for each action on the first screen.
     if (state.screen == .actions and encoder < action_count) return runAction(state, @fromBackingInt(@intCast(encoder)));
     return .none;
+}
+
+/// A click of the mouse on the entry `index` of the list that is shown: the cursor goes to it, and it is confirmed, as a press of the encoder does.
+pub fn clickEntry(state: *FxSelState, index: usize, source: fx_browser.Source) Outcome {
+    if (state.screen != .browse) return .none;
+    if (state.searching()) state.search_cursor = @intCast(index) else state.browse_cursors[state.browse_depth] = @intCast(index);
+    state.focus_search = true;
+    return confirmEntry(state, source);
+}
+
+/// The page of the controller that has the name of a module.
+pub fn pageOf(module: MappableModule) mft_state.MftActiveModule {
+    return switch (module) {
+        .INPUT => .INPUT,
+        .GATE => .GATE,
+        .EQ => .EQ,
+        .COMP => .COMP,
+        .OUTPUT => .OUTPUT,
+    };
 }
 
 /// What the window of an encoder says in the mode: the word of a turn, the word of a press, and whether the encoder is the module that is chosen.
@@ -498,4 +582,70 @@ test "label: the windows of the first screen and of the browser" {
     try t.expectEqualStrings("-", label(&state, 0).press);
     try t.expectEqualStrings("Scroll", label(&state, list_encoder).turn.?);
     try t.expectEqualStrings("Back", label(&state, cancel_encoder).press);
+}
+
+test "typing a search ranks the plugins, the encoder scrolls the results, a press loads the one under the cursor, and Back clears the text first" {
+    const t = std.testing;
+    var data = TestData{};
+    try data.init(t.allocator);
+    defer data.deinit(t.allocator);
+    try data.by_type.getPtr(.VST).put(t.allocator, "ReaGate", {});
+    var state = FxSelState{};
+    _ = press(&state, list_encoder, null);
+    const source = data.source(0);
+    try t.expect(!state.searching());
+
+    const text = "rea";
+    @memcpy(state.search[0..text.len], text);
+    state.search[text.len] = 0;
+    state.syncSearch();
+    try t.expect(state.searching());
+    try t.expectEqual(@as(usize, 3), listCount(&state, source));
+    try t.expectEqual(@as(u16, 0), state.search_cursor);
+    // The results scroll with the encoder, and stop at their ends.
+    scroll(&state, 1, source);
+    try t.expectEqual(@as(u16, 1), state.search_cursor);
+    scroll(&state, 9, source);
+    try t.expectEqual(@as(u16, 2), state.search_cursor);
+    const picked = press(&state, list_encoder, source);
+    try t.expect(std.mem.startsWith(u8, picked.load_plugin, "Rea"));
+    // A click on a result moves the cursor to it and loads it.
+    const clicked = clickEntry(&state, 0, source);
+    try t.expect(std.mem.startsWith(u8, clicked.load_plugin, "Rea"));
+    try t.expectEqual(@as(u16, 0), state.search_cursor);
+    // A search that matches nothing has no results and loads nothing.
+    const none = "zzzz";
+    @memcpy(state.search[0..none.len], none);
+    state.search[none.len] = 0;
+    state.syncSearch();
+    try t.expectEqual(@as(usize, 0), listCount(&state, source));
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, source));
+    // Back clears the text and stays in the browser, and the next one leaves it.
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, source));
+    try t.expect(!state.searching());
+    try t.expectEqual(Screen.browse, state.screen);
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, source));
+    try t.expectEqual(Screen.actions, state.screen);
+}
+
+test "a click on an entry of the first level opens the menu or loads the plugin, and the keys move the cursor like the encoder" {
+    const t = std.testing;
+    var data = TestData{};
+    try data.init(t.allocator);
+    defer data.deinit(t.allocator);
+    var state = FxSelState{};
+    _ = press(&state, list_encoder, null);
+    state.browser.add("VST: ReaEQ (Cockos)");
+    const source = data.source(state.browser.count);
+    const mapped = clickEntry(&state, 0, source);
+    try t.expectEqualStrings("VST: ReaEQ (Cockos)", mapped.load_plugin);
+    try t.expectEqual(Outcome.none, clickEntry(&state, 1, source));
+    try t.expectEqual(@as(u8, 1), state.browse_depth);
+    state.scroll_dirty = false;
+    moveCursor(&state, 1, source);
+    try t.expect(state.scroll_dirty);
+    try t.expectEqual(@as(u16, 1), state.cursor());
+    // The first screen has no entries to click.
+    var first = FxSelState{};
+    try t.expectEqual(Outcome.none, clickEntry(&first, 0, source));
 }
