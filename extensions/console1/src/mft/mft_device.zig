@@ -221,48 +221,51 @@ pub const Encoder = struct {
     pressed: bool = false,
     /// An icon to draw on the cap instead of the pointer.
     icon: ?icons.Icon = null,
+    /// How big the encoder is drawn, 1 being the size of the device. The mapping panel draws the encoders of its plates smaller.
+    scale: f64 = 1.0,
 };
 
 /// Draws one encoder around (cx, cy): a ring of eleven white LEDs around a round rubber cap that sits in a well. The
 /// LEDs light up to the value, and only a value lights them.
 pub fn drawEncoder(dl: Dl, cx: f64, cy: f64, e: Encoder) void {
+    const k = e.scale;
     // The ring: the LEDs are white, and lit up to the value.
     for (0..led_count) |i| {
         const t = @as(f64, @floatFromInt(i)) / (led_count - 1);
         const a = sweep_from + (sweep_to - sweep_from) * t;
-        const x = cx + @cos(a) * led_ring_r;
-        const y = cy + @sin(a) * led_ring_r;
+        const x = cx + @cos(a) * led_ring_r * k;
+        const y = cy + @sin(a) * led_ring_r * k;
         const lit = if (e.value) |value| t <= value + 0.001 else false;
         if (lit) {
-            widgets.circleFilled(dl, x, y, led_r + 2.5, widgets.faded(white, 0x1C));
-            widgets.circleFilled(dl, x, y, led_r, white);
+            widgets.circleFilled(dl, x, y, (led_r + 2.5) * k, widgets.faded(white, 0x1C));
+            widgets.circleFilled(dl, x, y, led_r * k, white);
         } else {
-            widgets.circleFilled(dl, x, y, led_r - 0.4, rgba(0x060607FF));
-            widgets.circle(dl, x, y, led_r - 0.4, rgba(0xFFFFFF14), 1);
+            widgets.circleFilled(dl, x, y, (led_r - 0.4) * k, rgba(0x060607FF));
+            widgets.circle(dl, x, y, (led_r - 0.4) * k, rgba(0xFFFFFF14), 1);
         }
     }
 
     // The well the cap sits in.
-    widgets.circleFilled(dl, cx, cy, well_r, rgba(0x070708FF));
-    widgets.circle(dl, cx, cy, well_r, rgba(0x000000FF), 2);
-    widgets.circle(dl, cx, cy + 1, well_r + 1, rgba(0xFFFFFF18), 1);
+    widgets.circleFilled(dl, cx, cy, well_r * k, rgba(0x070708FF));
+    widgets.circle(dl, cx, cy, well_r * k, rgba(0x000000FF), 2);
+    widgets.circle(dl, cx, cy + k, well_r * k + 1, rgba(0xFFFFFF18), 1);
 
     // The cap has the layers of the knobs of the shared panel kit, which give it its volume. From the back to the
     // front: a shadow, the body, a lighter dome shifted toward the upper left, a veil of the mode's color, the edge,
     // three fine grooves, a lit arc on the upper left of the edge, and a shine. It stands out of the well and sinks a
     // little when it is pressed, and its edge takes the color of the mode while it is pressed.
-    const sink: f64 = if (e.pressed) 1.5 else 0;
-    const r = cap_r - sink * 0.5;
+    const sink: f64 = if (e.pressed) 1.5 * k else 0;
+    const r = cap_r * k - sink * 0.5;
     const y = cy + sink;
-    widgets.circleFilled(dl, cx + 1, cy + 3 - sink, r + 1, rgba(0x00000099));
+    widgets.circleFilled(dl, cx + k, cy + 3 * k - sink, r + k, rgba(0x00000099));
     widgets.circleFilled(dl, cx, y, r, theme.knob_body);
-    widgets.circleFilled(dl, cx - 1, y - 1, r - 4, theme.knob_top);
-    widgets.circleFilled(dl, cx - 1.5, y - 2, r - 9, rgba(0xFFFFFF0C));
-    widgets.circleFilled(dl, cx, y, r - 4, widgets.faded(e.color, if (e.pressed) 0x3A else 0x14));
+    widgets.circleFilled(dl, cx - k, y - k, r - 4 * k, theme.knob_top);
+    widgets.circleFilled(dl, cx - 1.5 * k, y - 2 * k, r - 9 * k, rgba(0xFFFFFF0C));
+    widgets.circleFilled(dl, cx, y, r - 4 * k, widgets.faded(e.color, if (e.pressed) 0x3A else 0x14));
     widgets.circle(dl, cx, y, r, if (e.pressed) e.color else theme.knob_edge, 1);
-    widgets.circle(dl, cx, y, r - 3, rgba(0xFFFFFF14), 1);
-    widgets.circle(dl, cx, y, r - 6, rgba(0x00000040), 1);
-    widgets.circle(dl, cx, y, r - 9, rgba(0xFFFFFF0C), 1);
+    widgets.circle(dl, cx, y, r - 3 * k, rgba(0xFFFFFF14), 1);
+    widgets.circle(dl, cx, y, r - 6 * k, rgba(0x00000040), 1);
+    widgets.circle(dl, cx, y, r - 9 * k, rgba(0xFFFFFF0C), 1);
     widgets.arc(dl, cx, y, r - 0.5, pi, pi * 1.5, rgba(0xFFFFFF40), 1.5);
     widgets.circleFilled(dl, cx - r * 0.35, y - r * 0.4, r * 0.22, rgba(0xFFFFFF1E));
 
@@ -275,7 +278,7 @@ pub fn drawEncoder(dl: Dl, cx: f64, cy: f64, e: Encoder) void {
         const c = @cos(a);
         const s = @sin(a);
         widgets.line(dl, cx + c * r * 0.3, y + s * r * 0.3, cx + c * r * 0.86, y + s * r * 0.86, white, 2);
-        widgets.circleFilled(dl, cx + c * r * 0.86, y + s * r * 0.86, 2.2, e.color);
+        widgets.circleFilled(dl, cx + c * r * 0.86, y + s * r * 0.86, 2.2 * k, e.color);
     }
 }
 
@@ -363,17 +366,20 @@ fn drawSideKeys(kit: *widgets.Panel, dl: Dl, view: *const View, x0: f64, x1: f64
 /// The window of the color LED under an encoder: dark glass that the LED lights in `color`, as much as `strength` (0
 /// for an LED that is off).
 pub fn drawLedWindow(dl: Dl, cx: f64, y: f64, color: c_int, strength: f64) void {
-    const x1 = cx - label_w / 2;
-    const x2 = cx + label_w / 2;
-    widgets.rectFilled(dl, x1, y, x2, y + label_h, rgba(0x08080AFF), 5);
+    drawLedWindowRect(dl, cx - label_w / 2, y, cx + label_w / 2, label_h, color, strength);
+}
+
+/// The same window with the size that the caller chooses: from `x1` to `x2` across, and `height` down from `y`. The mapping panel draws it smaller.
+pub fn drawLedWindowRect(dl: Dl, x1: f64, y: f64, x2: f64, height: f64, color: c_int, strength: f64) void {
+    widgets.rectFilled(dl, x1, y, x2, y + height, rgba(0x08080AFF), 5);
     if (strength > 0) {
         const top = fadedBy(color, 0x14, strength);
         const bottom = fadedBy(color, 0x58, strength);
-        imgui.api.DrawList_AddRectFilledMultiColor(dl, x1 + 1, y + 1, x2 - 1, y + label_h - 1, top, top, bottom, bottom);
-        widgets.rectFilled(dl, x1 + 8, y + label_h - 3, x2 - 8, y + label_h - 1, fadedBy(color, 0xCC, strength), 1);
+        imgui.api.DrawList_AddRectFilledMultiColor(dl, x1 + 1, y + 1, x2 - 1, y + height - 1, top, top, bottom, bottom);
+        widgets.rectFilled(dl, x1 + 8, y + height - 3, x2 - 8, y + height - 1, fadedBy(color, 0xCC, strength), 1);
     }
-    widgets.rect(dl, x1, y, x2, y + label_h, rgba(0x000000DD), 5, 1);
-    widgets.line(dl, x1 + 5, y + label_h + 1, x2 - 5, y + label_h + 1, rgba(0xFFFFFF1E), 1);
+    widgets.rect(dl, x1, y, x2, y + height, rgba(0x000000DD), 5, 1);
+    widgets.line(dl, x1 + 5, y + height + 1, x2 - 5, y + height + 1, rgba(0xFFFFFF1E), 1);
 }
 
 /// The lettering under an encoder, where the controller's color LED is. The LED lights a small window in the color of
@@ -394,13 +400,13 @@ pub fn drawLedLabel(kit: *widgets.Panel, dl: Dl, cx: f64, y: f64, first: ?[:0]co
 }
 
 /// The sign of a press: a ring with a dot in it, which reads as a button.
-fn pressGlyph(dl: Dl, x: f64, y: f64, color: c_int) void {
+pub fn pressGlyph(dl: Dl, x: f64, y: f64, color: c_int) void {
     widgets.circle(dl, x, y, 4.4, color, 1.4);
     widgets.circleFilled(dl, x, y, 1.8, color);
 }
 
 /// The sign of a turn: an arc with an arrowhead at its end.
-fn turnGlyph(dl: Dl, x: f64, y: f64, color: c_int) void {
+pub fn turnGlyph(dl: Dl, x: f64, y: f64, color: c_int) void {
     const from = pi * 0.15;
     const to = pi * 1.65;
     const radius: f64 = 4.4;

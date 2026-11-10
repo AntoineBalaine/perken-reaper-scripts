@@ -19,6 +19,8 @@ const mft_fxsel = @import("mft_fxsel.zig");
 const browser_source = @import("mft_browser_source.zig");
 const fx_browser = @import("fx_browser");
 const colors = @import("mft_colors.zig");
+const mft_port = @import("mft_port.zig");
+const rgba = @import("ui_palette").rgba;
 const log = std.log.scoped(.mft_imgui);
 
 const plugin_name = "MFT";
@@ -547,6 +549,34 @@ fn drawFxSelSave(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int,
     }
 }
 
+// ---- the mapping panel ----
+//
+// The window that the mapping mode draws, as the mock of the design has it: one panel for all the modules at once, with a bar of keys at the left, a plate
+// for each module under the line of its plugin, and the card of the assignments. A plate has the layout of the controller, its sixteen encoders in four rows,
+// each drawn as the device draws it with the window under it that has a combo for the knob and a combo for the push, so that every control of every module
+// can be mapped at any time. The mapping of a module is saved as soon as it changes, and a save that fails leaves a mark on the plate.
+
+/// The geometry of a cell of a plate, from the mock: the encoder is 58 pixels, and the cell 88 wide.
+const map_cell_w: f64 = 88;
+const map_cell_gap: f64 = 4;
+const map_enc: f64 = 58;
+const map_role_h: f64 = 16;
+const map_win_h: f64 = 44;
+const map_cell_h: f64 = 2 + map_enc + 2 + map_role_h + map_win_h + 6;
+const map_grid_w: f64 = 4 * map_cell_w + 3 * map_cell_gap;
+const map_plate_w: f64 = map_grid_w + 28;
+
+/// The titles of the plates, which are the names that the modules have on the panel of the Console 1.
+fn mapTitle(module: mft_fxsel.MappableModule) [:0]const u8 {
+    return switch (module) {
+        .INPUT => "Input",
+        .GATE => "Shape",
+        .EQ => "Equalizer",
+        .COMP => "Compressor",
+        .OUTPUT => "Output",
+    };
+}
+
 /// The name of a parameter of an FX, or its number when REAPER gives no name.
 fn paramLabel(track: reaper.MediaTrack, fx: c_int, param: u16, buf: *[96:0]u8) [:0]const u8 {
     if (param == mappings.wet_param) return "Dry/Wet";
@@ -558,35 +588,240 @@ fn paramLabel(track: reaper.MediaTrack, fx: c_int, param: u16, buf: *[96:0]u8) [
     return std.mem.printSentinel(buf, "{d}", .{param}, 0) catch "?";
 }
 
-/// One control of the mapping: a combo that says the control and the parameter that it has, and offers the parameters of the plugin. The control that
-/// is selected is in the color of the module. Choosing a parameter selects the control and gives it the parameter.
-fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: usize, width: f64, accent: c_int) !void {
-    var id: [24:0]u8 = undefined;
-    _ = std.mem.printSentinel(&id, "##map{d}", .{index}, 0) catch return;
+/// A combo that has no frame and no arrow, as the combos in the windows of the mock are: its text is the parameter that the control has, or a dash.
+/// Choosing a parameter puts the control in focus and gives it the parameter. It returns whether the mapping changed.
+fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, control: usize, x: f64, y: f64, width: f64) !bool {
+    const mi = mft_fxsel.moduleIndex(module);
+    const fx = state.map_fx_index[mi];
+    var id: [32:0]u8 = undefined;
+    _ = std.mem.printSentinel(&id, "##map{d}_{d}", .{ mi, control }, 0) catch return false;
     var param_buf: [96:0]u8 = undefined;
-    var preview_buf: [160:0]u8 = undefined;
-    const param_text: [:0]const u8 = if (mft_fxsel.controlParam(state, index)) |p| paramLabel(track, state.map_fx_index, p, &param_buf) else "-";
-    const preview = std.mem.printSentinel(&preview_buf, "{s}: {s}", .{ mft_fxsel.controlName(index), param_text }, 0) catch "?";
-    const selected = state.map_selected == index;
-    if (selected) try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, accent });
-    defer if (selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+    const param = mft_fxsel.controlParam(state, module, control);
+    const preview: [:0]const u8 = if (param) |p| paramLabel(track, fx, p, &param_buf) else "-";
+    imgui.api.SetCursorScreenPos(ctx, x, y);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBg, 0);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgHovered, theme.amber_soft);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgActive, theme.amber_soft);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (param != null) theme.label else theme.text_dim);
+    theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 2, 0);
+    defer {
+        var vars: c_int = 1;
+        imgui.api.PopStyleVar(ctx, &vars);
+        var colors_pushed: c_int = 4;
+        imgui.api.PopStyleColor(ctx, &colors_pushed);
+    }
     try imgui.SetNextItemWidth(.{ ctx, width });
-    if (!try imgui.BeginCombo(.{ ctx, &id, preview, null })) return;
+    if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
-    mft_fxsel.selectControl(state, index);
-    if (try imgui.Selectable(.{ ctx, "-" })) mft_fxsel.assign(state, null);
+    mft_fxsel.selectControl(state, module, control);
+    var changed = false;
+    if (try imgui.Selectable(.{ ctx, "-" })) {
+        mft_fxsel.assign(state, null);
+        changed = true;
+    }
     // The dry/wet of the FX has no fixed number, so it is a choice of its own, as in the maps.
-    if (try imgui.Selectable(.{ ctx, "Dry/Wet" })) mft_fxsel.assign(state, mappings.wet_param);
-    const count: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, state.map_fx_index), 0));
+    if (try imgui.Selectable(.{ ctx, "Dry/Wet" })) {
+        mft_fxsel.assign(state, mappings.wet_param);
+        changed = true;
+    }
+    const count: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, fx), 0));
     for (0..@min(count, 1024)) |p| {
         var label_buf: [96:0]u8 = undefined;
-        if (try imgui.Selectable(.{ ctx, paramLabel(track, state.map_fx_index, @intCast(p), &label_buf) })) mft_fxsel.assign(state, @intCast(p));
+        if (try imgui.Selectable(.{ ctx, paramLabel(track, fx, @intCast(p), &label_buf) })) {
+            mft_fxsel.assign(state, @intCast(p));
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+/// A line of text at a place, in the label font of the panel.
+fn mapText(dl: imgui.DrawListPtr, x: f64, y: f64, color: c_int, text: [:0]const u8) void {
+    if (fonts.label != null) imgui.api.PushFont(ctx, fonts.label);
+    defer if (fonts.label != null) imgui.api.PopFont(ctx);
+    imgui.api.DrawList_AddText(dl, x, y, color, text);
+}
+
+/// The width of a text in the label font.
+fn mapTextWidth(text: [:0]const u8) f64 {
+    if (fonts.label != null) imgui.api.PushFont(ctx, fonts.label);
+    defer if (fonts.label != null) imgui.api.PopFont(ctx);
+    var w: f64 = 0;
+    var h: f64 = 0;
+    imgui.CalcTextSize(.{ ctx, text, &w, &h }) catch {};
+    return w;
+}
+
+/// One cell of a plate: its number, the encoder as the device draws it, the role that the control has by default, and the window with the combo of the
+/// knob (the turn line) and the combo of the push (the press line). The push of the encoders of the bottom row is global, so their press line is the name of
+/// their page and is no combo. The cell of the control that is selected is washed with amber.
+fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, index: usize, x0: f64, y0: f64, color: c_int, changed: *bool) !void {
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const mi = mft_fxsel.moduleIndex(module);
+    const has_plugin = state.map_fx_index[mi] >= 0;
+    const top = index < mappings.push_count;
+    const knob_param = mft_fxsel.controlParam(state, module, index);
+    const push_param = if (top) mft_fxsel.controlParam(state, module, mappings.knob_count + index) else null;
+    const mapped = knob_param != null or push_param != null;
+    const selected = state.module == module and (state.map_selected % mappings.knob_count == index) and (state.map_selected < mappings.knob_count or top);
+
+    if (selected) {
+        widgets.rectFilled(dl, x0, y0, x0 + map_cell_w, y0 + map_cell_h - 2, theme.amber_soft, 7);
+        widgets.rect(dl, x0, y0, x0 + map_cell_w, y0 + map_cell_h - 2, widgets.faded(theme.amber, 0x80), 7, 1);
+    }
+    var number_buf: [8:0]u8 = undefined;
+    mapText(dl, x0 + 4, y0 + 2, theme.text_dim, std.mem.printSentinel(&number_buf, "{d}", .{index + 1}, 0) catch "");
+    const value: ?f64 = if (!mapped) null else if (push_param != null and knob_param == null) 1.0 else 0.5;
+    device.drawEncoder(dl, x0 + map_cell_w / 2, y0 + 2 + map_enc / 2, .{ .value = value, .color = color, .scale = map_enc / 80.0 });
+
+    // The role is the default use of the position on the page, centered under the encoder.
+    var role_buf: [48:0]u8 = undefined;
+    const role_text = mft_port.roleLabel(module, false, index);
+    const role = std.ascii.upperString(role_buf[0..@min(role_text.len, role_buf.len - 1)], role_text);
+    role_buf[role.len] = 0;
+    const role_z: [:0]const u8 = role_buf[0..role.len :0];
+    const role_color = if (std.mem.eql(u8, role_text, "no default")) theme.text_dim else theme.label;
+    mapText(dl, x0 + (map_cell_w - mapTextWidth(role_z)) / 2, y0 + 2 + map_enc + 2, role_color, role_z);
+
+    // The window under the role: lit in the color of the module when the control is mapped, with a turn line and a press line.
+    const win_y = y0 + 2 + map_enc + 2 + map_role_h;
+    device.drawLedWindowRect(dl, x0 + 1, win_y, x0 + map_cell_w - 1, map_win_h, color, if (mapped) 0.8 else 0);
+    const zone_h = (map_win_h - 4) / 2;
+    const glyph_x = x0 + 9;
+    device.turnGlyph(dl, glyph_x, win_y + 2 + zone_h / 2, if (knob_param != null) color else theme.text_dim);
+    device.pressGlyph(dl, glyph_x, win_y + 2 + zone_h * 1.5, if (push_param != null) color else theme.text_dim);
+    const combo_x = x0 + 17;
+    const combo_w = map_cell_w - 22;
+    if (!has_plugin) {
+        mapText(dl, combo_x, win_y + 4, theme.text_dim, "-");
+        mapText(dl, combo_x, win_y + 4 + zone_h, theme.text_dim, "-");
+        return;
+    }
+    if (try drawMapCombo(state, track, module, index, combo_x, win_y + 2, combo_w)) changed.* = true;
+    if (top) {
+        if (try drawMapCombo(state, track, module, mappings.knob_count + index, combo_x, win_y + 2 + zone_h, combo_w)) changed.* = true;
+    } else {
+        // The press line of the bottom row says the page that the push selects, which is no combo because that push is global.
+        mapText(dl, combo_x, win_y + 4 + zone_h, theme.text_dim, @tagName(@as(MftActiveModule, @fromBackingInt(@intCast(index - 8)))));
+    }
+    // A click on the cell that is not on a combo selects its knob, as touching its encoder does.
+    imgui.api.SetCursorScreenPos(ctx, x0, y0);
+    var cell_id: [32:0]u8 = undefined;
+    _ = std.mem.printSentinel(&cell_id, "##cell{d}_{d}", .{ mi, index }, 0) catch return;
+    if (imgui.api.InvisibleButton(ctx, &cell_id, map_cell_w, 2 + map_enc, null)) mft_fxsel.selectControl(state, module, index);
+}
+
+/// A plate: the line of the plugin above it, and under it the title of the module and the grid of its sixteen cells. The plate of the module in focus has
+/// the color of its module.
+fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, color: c_int, changed: *bool) !void {
+    const mi = mft_fxsel.moduleIndex(module);
+    const focus = state.module == module;
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    // The line of the plugin: its name, and a key that opens its window. A module that has none says so.
+    var head_buf: [200:0]u8 = undefined;
+    const plugin = std.mem.sliceTo(&state.map_fx_name[mi], 0);
+    const head = if (state.map_fx_index[mi] >= 0) std.mem.printSentinel(&head_buf, "{s}##plugin{d}", .{ plugin, mi }, 0) catch "?" else std.mem.printSentinel(&head_buf, "no plugin: load one with Load FX##plugin{d}", .{mi}, 0) catch "?";
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, if (state.map_fx_index[mi] >= 0) theme.label else theme.text_dim });
+    if (try imgui.Selectable(.{ ctx, head })) {
+        // The plugin of a module is swapped from the browser, which opens for that module.
+        state.module = module;
+        state.screen = .browse;
+        state.resetBrowser();
+        state.focus_search = true;
+        state.pending = .fill_browser;
+    }
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    if (state.map_error[mi][0] != 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_error[mi], 0) });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+    if (!widgets.beginCard(&fxsel_kit, mapTitle(module), map_plate_w, null, if (focus) color else null)) return;
+    defer widgets.endCard(&fxsel_kit);
+    const origin = widgets.cursorScreenPos(&fxsel_kit);
+    imgui.api.Dummy(ctx, map_grid_w, 4 * map_cell_h);
+    for (0..mappings.knob_count) |i| {
+        const col: f64 = @floatFromInt(i % 4);
+        const row: f64 = @floatFromInt(i / 4);
+        try drawMapCell(state, track, module, i, origin.x + col * (map_cell_w + map_cell_gap), origin.y + row * map_cell_h, color, changed);
     }
 }
 
-/// The window of the mapping mode, which is a window of its own: the sixteen knobs and the eight pushes of the plugin, each with a combo of its
-/// parameters, as the mapping panel of the Console 1 has for its controls. The encoders select the control that they touch, a parameter that is moved in
-/// the plugin is learned by the selected control, and the module buttons change the module in focus.
+/// A round key of the bar at the left of the panel. It returns whether it was clicked.
+fn drawMapKey(id: [:0]const u8, kind: enum { learn, single, close }, on: bool, enabled: bool, tip: [:0]const u8) bool {
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const at = widgets.cursorScreenPos(&fxsel_kit);
+    const size: f64 = 32;
+    const clicked = imgui.api.InvisibleButton(ctx, id, size, size, null);
+    const hovered = imgui.api.IsItemHovered(ctx, null);
+    const cx = at.x + size / 2;
+    const cy = at.y + size / 2;
+    const lit = on and kind == .learn;
+    widgets.circleFilled(dl, cx, cy + 2, size / 2, rgba(0x00000099));
+    widgets.circleFilled(dl, cx, cy, size / 2, if (lit) rgba(0xE03A3AFF) else theme.knob_top);
+    widgets.circle(dl, cx, cy, size / 2, if (hovered and enabled) theme.amber else theme.knob_edge, 1);
+    const tone = if (lit) rgba(0xFFFFFFFF) else if (!enabled) theme.text_dim else if (hovered) theme.amber else theme.label;
+    switch (kind) {
+        .learn => widgets.circleFilled(dl, cx, cy, 5.5, tone),
+        .single => {
+            widgets.rect(dl, cx - 6.5, cy - 6.5, cx + 6.5, cy + 6.5, tone, 2.5, 1.7);
+            widgets.circleFilled(dl, cx, cy, 2.2, tone);
+        },
+        .close => {
+            widgets.line(dl, cx - 5, cy - 5, cx + 5, cy + 5, tone, 1.9);
+            widgets.line(dl, cx - 5, cy + 5, cx + 5, cy - 5, tone, 1.9);
+        },
+    }
+    if (hovered) widgets.tooltip(&fxsel_kit, tip);
+    return clicked and enabled;
+}
+
+/// The card of the assignments: every control that has a parameter, in the order of the modules, the knobs and then the pushes, with a key that takes the
+/// parameter away. Its entries go down ten to a column.
+fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, color: c_int, changed: *bool) !void {
+    if (!widgets.beginCard(&fxsel_kit, "Assignments", null, null, color)) return;
+    defer widgets.endCard(&fxsel_kit);
+    const origin = widgets.cursorScreenPos(&fxsel_kit);
+    const row_h = imgui.api.GetTextLineHeightWithSpacing(ctx) + 2;
+    const column_w: f64 = 270;
+    var count: usize = 0;
+    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
+        const module = @field(mft_fxsel.MappableModule, field_name);
+        const mi = mft_fxsel.moduleIndex(module);
+        for (0..mft_fxsel.control_count) |control| {
+            const param = mft_fxsel.controlParam(state, module, control) orelse continue;
+            const is_push = control >= mappings.knob_count;
+            var param_buf: [96:0]u8 = undefined;
+            var line_buf: [220:0]u8 = undefined;
+            const role = mft_port.roleLabel(module, is_push, if (is_push) control - mappings.knob_count else control);
+            const line = std.mem.printSentinel(&line_buf, "{s} {s}{s} > {s}", .{ field_name, role, if (is_push) " (push)" else "", paramLabel(track, state.map_fx_index[mi], param, &param_buf) }, 0) catch "?";
+            const x = origin.x + @as(f64, @floatFromInt(count / 10)) * column_w;
+            const y = origin.y + @as(f64, @floatFromInt(count % 10)) * row_h;
+            imgui.api.SetCursorScreenPos(ctx, x, y);
+            var key_id: [32:0]u8 = undefined;
+            _ = std.mem.printSentinel(&key_id, "x##rm{d}_{d}", .{ mi, control }, 0) catch continue;
+            if (imgui.api.SmallButton(ctx, &key_id)) {
+                mft_fxsel.assignTo(state, module, control, null);
+                changed.* = true;
+            }
+            imgui.api.SameLine(ctx, null, null);
+            try imgui.Text(.{ ctx, line });
+            count += 1;
+        }
+    }
+    if (count == 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+        try imgui.Text(.{ ctx, "Nothing is assigned yet." });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    } else {
+        imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y + @as(f64, @floatFromInt(@min(count, 10))) * row_h);
+    }
+}
+
+/// The window of the mapping mode, which is a window of its own. Its keys at the left are the learn (a parameter moved in a plugin goes to the selected
+/// control), the single FX mode, and the one that leaves the mapping. The encoders select the control that they touch, and the module buttons put another
+/// module in focus.
 fn drawMappingWindow(globals: *MftGlobals) !void {
     const state = &(globals.mft.fxsel orelse return);
     if (state.screen != .map) return;
@@ -596,47 +831,59 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     defer theme.pop(ctx);
     if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
     defer if (fonts.text != null) imgui.api.PopFont(ctx);
-    imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
-    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, fxsel_padding, fxsel_padding);
-    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar | imgui.WindowFlags_AlwaysAutoResize;
+    imgui.api.SetNextWindowPos(ctx, window_x + 40, window_y + 20, &imgui.Cond_FirstUseEver, null, null);
+    imgui.api.SetNextWindowSize(ctx, 1280, 820, &imgui.Cond_FirstUseEver);
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 16, 16);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar;
     const visible = try imgui.Begin(.{ ctx, "MFT Mapping", null, flags });
     var window_vars: c_int = 1;
     imgui.api.PopStyleVar(ctx, &window_vars);
     if (!visible) return;
     defer imgui.End(.{ctx}) catch {};
 
-    const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
     const track = globals.current_track;
-    var title_buf: [256:0]u8 = undefined;
-    const title = std.mem.printSentinel(&title_buf, "Mapping - {s} - {s}", .{ @tagName(state.module), std.mem.sliceTo(&state.map_fx_name, 0) }, 0) catch "Mapping";
-    const cell_w: f64 = 200;
-    if (widgets.beginCard(&fxsel_kit, title, null, null, accent)) {
-        defer widgets.endCard(&fxsel_kit);
-        // The knobs are in the grid of the controller, four to a row.
-        for (0..mappings.knob_count) |i| {
-            if (i % 4 != 0) imgui.api.SameLine(ctx, null, null);
-            try drawMapCombo(state, track, i, cell_w, accent);
-        }
-        imgui.api.Spacing(ctx);
-        // The pushes are those of the two top rows, four to a row.
-        for (0..mappings.push_count) |i| {
-            if (i % 4 != 0) imgui.api.SameLine(ctx, null, null);
-            try drawMapCombo(state, track, mappings.knob_count + i, cell_w, accent);
-        }
-    }
-    var outcome: mft_fxsel.Outcome = .none;
-    if (widgets.pushButton(&fxsel_kit, "Save", 0)) outcome = .save_mapping;
+    const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
+    var changed = false;
+
+    // The bar of keys at the left.
+    imgui.api.BeginGroup(ctx);
+    imgui.api.Spacing(ctx);
+    imgui.api.Spacing(ctx);
+    if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) "Learn is on: touch an encoder to choose the control, then move a parameter in the plugin" else "Learn: touch an encoder, then move a parameter in the plugin window")) state.map_learn = !state.map_learn;
+    _ = drawMapKey("##single", .single, false, false, "Single FX mode: one plugin for all the modules (not done yet)");
+    if (drawMapKey("##close", .close, false, true, "Close the mapping")) state.screen = .actions;
+    imgui.api.EndGroup(ctx);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(&fxsel_kit, "Cancel", 0)) {
-        state.screen = .actions;
+
+    // The plates, as many to a row as the window has room for.
+    imgui.api.BeginGroup(ctx);
+    var available_w: f64 = undefined;
+    var available_h: f64 = undefined;
+    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
+    const per_row: usize = @max(1, @as(usize, @intFromFloat(@max((available_w + 14) / (map_plate_w + 14), 1))));
+    var placed: usize = 0;
+    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
+        const module = @field(mft_fxsel.MappableModule, field_name);
+        var plate_gap: f64 = 14;
+        if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
+        try drawMapPlate(state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
+        placed += 1;
+    }
+    try drawMapAssignments(state, track, accent, &changed);
+    // What the learn is waiting for, or what the last press said.
+    if (state.map_learn) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, "Learn is on: touch an encoder to choose the control, then move a parameter in the plugin window." });
+        try imgui.PopStyleColor(.{ ctx, 1 });
     }
     if (state.noteText().len > 0) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
         try imgui.Text(.{ ctx, state.noteText() });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
-    // The surface carries the choice out on its next run.
-    if (outcome != .none) state.pending = outcome;
+    imgui.api.EndGroup(ctx);
+    // The mapping is saved as soon as it changes.
+    if (changed and state.pending == .none) state.pending = .store_mapping;
 }
 
 /// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It
@@ -1130,7 +1377,7 @@ test "the FX Selection window draws the preset screens with the stacks balanced"
     try mock.assertBalanced();
 }
 
-test "the mapping mode has a window of its own, and the FX Selection window is not drawn while it is open" {
+test "the mapping panel draws a plate for every module, with and without a plugin, the assignments, a save error and the learn, with the stacks balanced" {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -1141,15 +1388,26 @@ test "the mapping mode has a window of its own, and the FX Selection window is n
     const state = &globals.mft.fxsel.?;
     state.screen = .map;
     state.module = .COMP;
+    // The compressor and the EQ have a plugin, and the other modules have none.
+    const comp = mft_fxsel.moduleIndex(.COMP);
+    const eq = mft_fxsel.moduleIndex(.EQ);
     const name = "VST: ReaComp (Cockos)";
-    @memcpy(state.map_fx_name[0..name.len], name);
-    state.map_edit.knobs[0] = 3;
-    state.map_edit.knobs[15] = mappings.wet_param;
-    state.map_edit.pushes[1] = .{ .param = 7 };
+    @memcpy(state.map_fx_name[comp][0..name.len], name);
+    state.map_fx_index[comp] = 3;
+    state.map_fx_index[eq] = 2;
+    state.map_edits[comp].knobs[0] = 3;
+    state.map_edits[comp].knobs[15] = mappings.wet_param;
+    state.map_edits[comp].pushes[1] = .{ .param = 7 };
+    state.map_edits[eq].knobs[9] = 4;
     state.map_selected = mappings.knob_count + 1;
     state.setNote("The mapping could not be saved.");
+    const error_text = "The map file could not be written: AccessDenied.";
+    @memcpy(state.map_error[comp][0..error_text.len], error_text);
     try drawWindows(&globals);
-    state.map_selected = 0;
+    // The learn is on, a bottom-row control is selected, and nothing is assigned anywhere.
+    state.map_learn = true;
+    state.map_selected = 9;
+    state.map_edits = @splat(.{});
     try drawWindows(&globals);
     try mock.assertBalanced();
 }

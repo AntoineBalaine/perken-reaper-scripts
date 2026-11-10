@@ -147,33 +147,49 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             }
         },
         .open_mapping => {
-            const track = globals.current_track orelse {
-                state.setNote("There is no track to map a plugin of.");
-                state.screen = .actions;
-                return;
-            };
-            const fx = mft_fx.fxForModule(track, state.module) orelse {
-                state.setNote("This module has no plugin on the track.");
-                state.screen = .actions;
-                return;
-            };
-            const name = mft_fx.fxMapName(track, fx, &state.map_fx_name) orelse {
-                state.setNote("The name of the plugin could not be read.");
-                state.screen = .actions;
-                return;
-            };
-            state.map_fx_index = fx;
-            state.map_edit = globals.map_store.get(io, state.module, name) orelse .{};
+            // The mapping mode opens whatever the track has: the panel has a plate for every module, and a module that has no plugin says so.
+            state.map_edits = @splat(.{});
+            state.map_loaded = @splat(.{});
+            state.map_fx_index = @splat(-1);
+            state.map_error = @splat(@splat(0));
+            for (&state.map_fx_name) |*name| name[0] = 0;
+            const track = globals.current_track orelse return;
+            inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
+                const module = @field(MappableModule, field_name);
+                const i = mft_fxsel.moduleIndex(module);
+                if (mft_fx.fxForModule(track, module)) |fx| {
+                    if (mft_fx.fxMapName(track, fx, &state.map_fx_name[i])) |name| {
+                        state.map_fx_index[i] = fx;
+                        state.map_edits[i] = globals.map_store.get(io, module, name) orelse .{};
+                        state.map_loaded[i] = state.map_edits[i];
+                    }
+                }
+            }
         },
+        .store_mapping => storeChangedMappings(globals, state),
         .save_mapping => {
-            const name = std.mem.sliceTo(&state.map_fx_name, 0);
-            globals.map_store.saveUser(io, state.module, state.map_fx_name[0..name.len :0], &state.map_edit) catch |err| {
-                var buf: [96]u8 = undefined;
-                state.setNote(std.fmt.bufPrint(&buf, "The mapping could not be saved ({s}).", .{@errorName(err)}) catch "The mapping could not be saved.");
-                return;
-            };
+            storeChangedMappings(globals, state);
             closeFxSel(globals, mft_fxsel.pageOf(state.module));
         },
+    }
+}
+
+/// Saves the mappings of the modules that were changed, each as the user's map of its plugin. A map that cannot be saved leaves its reason for the panel,
+/// which marks the plate of the module with it.
+pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) void {
+    const io = mft_globals.hostIo();
+    inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
+        const module = @field(MappableModule, field_name);
+        const i = mft_fxsel.moduleIndex(module);
+        if (state.map_fx_index[i] >= 0 and mft_fxsel.isChanged(state, module)) {
+            const length = std.mem.sliceTo(&state.map_fx_name[i], 0).len;
+            if (globals.map_store.saveUser(io, module, state.map_fx_name[i][0..length :0], &state.map_edits[i])) {
+                state.map_loaded[i] = state.map_edits[i];
+                state.map_error[i][0] = 0;
+            } else |err| {
+                _ = std.mem.printSentinel(&state.map_error[i], "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+            }
+        }
     }
 }
 
@@ -181,9 +197,10 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
 /// parameter of the plugin that is being mapped gives it to the control.
 pub fn learnParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16, param: u16) void {
     const state = &(globals.mft.fxsel orelse return);
-    if (state.screen != .map or track != globals.current_track) return;
-    if (state.map_fx_index != @as(c_int, fx_index)) return;
+    if (state.screen != .map or !state.map_learn or track != globals.current_track) return;
+    if (state.map_fx_index[mft_fxsel.moduleIndex(state.module)] != @as(c_int, fx_index)) return;
     mft_fxsel.assign(state, param);
+    storeChangedMappings(globals, state);
 }
 
 /// Carries out what the window of the FX SEL mode chose. The window draws in the timer of the panel, which does not load plugins, so it leaves its

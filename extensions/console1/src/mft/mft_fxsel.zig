@@ -174,12 +174,18 @@ pub const FxSelState = struct {
     /// name that it was asked for.
     save_name: [96:0]u8 = @splat(0),
     save_armed: u64 = 0,
-    /// The mapping that is being made, which is a copy of the one that the plugin has, the plugin that it is for, and the control that is selected (the
-    /// sixteen knobs first, then the eight pushes).
-    map_edit: mappings.MftModuleMapping = .{},
-    map_fx_name: [160:0]u8 = @splat(0),
-    map_fx_index: c_int = -1,
+    /// The mappings that are being made, one for each module because the mapping panel has all the modules at once: a copy of the mapping that the plugin of
+    /// the module has, the mapping that was read (to tell which ones changed), the plugin that it is for, and the control that is selected in the module in
+    /// focus (the sixteen knobs first, then the eight pushes).
+    map_edits: [mappings.module_count]mappings.MftModuleMapping = @splat(.{}),
+    map_loaded: [mappings.module_count]mappings.MftModuleMapping = @splat(.{}),
+    map_fx_name: [mappings.module_count][160:0]u8 = @splat(@splat(0)),
+    map_fx_index: [mappings.module_count]c_int = @splat(-1),
     map_selected: u8 = 0,
+    /// Whether a parameter that is moved in the plugin is learned by the selected control.
+    map_learn: bool = false,
+    /// Why the map of a module could not be saved, which the panel shows as a mark on its plate. Empty when the last save worked.
+    map_error: [mappings.module_count][96:0]u8 = @splat(@splat(0)),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -288,10 +294,12 @@ pub const Outcome = union(enum) {
     load_preset: [:0]const u8,
     /// The state of the plugin of the module is to be saved as a preset of that name, and the mode closed.
     save_preset: [:0]const u8,
-    /// The mapping of the plugin of the module is to be read from its map, to be edited.
+    /// The mappings of the plugins of all the modules are to be read from their maps, to be edited.
     open_mapping,
-    /// The mapping that was made is to be saved as the user's map of the plugin, and the mode closed.
+    /// The mappings that were changed are to be saved as the user's maps of their plugins, and the mode closed.
     save_mapping,
+    /// The mappings that were changed are to be saved, and the mode stays open: the panel saves each change as it is made.
+    store_mapping,
 };
 
 fn move(cursor: anytype, steps: i32, count: usize) void {
@@ -436,10 +444,10 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
                 state.preset_cursor = 0;
                 return .fill_presets;
             },
-            // The module in focus changes, and its mapping is read to be edited; what was changed in the other one is dropped.
+            // The module in focus changes. Its mapping is already there, since the panel has all the modules at once.
             .map => {
                 state.map_selected = 0;
-                return .open_mapping;
+                return .none;
             },
             .actions => return .none,
         }
@@ -508,30 +516,50 @@ pub fn pageOf(module: MappableModule) mft_state.MftActiveModule {
     };
 }
 
-/// Gives the selected control a parameter, or takes its parameter away when `param` is null.
+/// The place of a module in the arrays of the mapping mode.
+pub fn moduleIndex(module: MappableModule) usize {
+    return @backingInt(module);
+}
+
+/// Gives the selected control of the module in focus a parameter, or takes its parameter away when `param` is null.
 pub fn assign(state: *FxSelState, param: ?u16) void {
-    const selected = state.map_selected;
-    if (selected < mappings.knob_count) {
-        state.map_edit.knobs[selected] = param;
+    assignTo(state, state.module, state.map_selected, param);
+}
+
+/// Gives a control of a module a parameter, or takes it away when `param` is null.
+pub fn assignTo(state: *FxSelState, module: MappableModule, control: usize, param: ?u16) void {
+    std.debug.assert(control < control_count);
+    const edit = &state.map_edits[moduleIndex(module)];
+    if (control < mappings.knob_count) {
+        edit.knobs[control] = param;
     } else {
-        state.map_edit.pushes[selected - mappings.knob_count] = if (param) |p| .{ .param = p } else null;
+        edit.pushes[control - mappings.knob_count] = if (param) |p| .{ .param = p } else null;
     }
 }
 
-/// Selects a control of the mapping mode by its index.
-pub fn selectControl(state: *FxSelState, index: usize) void {
+/// Puts a control of a module in focus and selects it.
+pub fn selectControl(state: *FxSelState, module: MappableModule, index: usize) void {
     std.debug.assert(index < control_count);
+    state.module = module;
     state.map_selected = @intCast(index);
 }
 
-/// The parameter that a control has in the mapping that is being made, whatever the kind of control. A push that steps the shape of an EQ band has none.
-pub fn controlParam(state: *const FxSelState, index: usize) ?u16 {
-    if (index < mappings.knob_count) return state.map_edit.knobs[index];
-    const action = state.map_edit.pushes[index - mappings.knob_count] orelse return null;
+/// The parameter that a control of a module has in the mappings that are being made, whatever the kind of control. A push that steps the shape of an EQ
+/// band has none.
+pub fn controlParam(state: *const FxSelState, module: MappableModule, index: usize) ?u16 {
+    const edit = &state.map_edits[moduleIndex(module)];
+    if (index < mappings.knob_count) return edit.knobs[index];
+    const action = edit.pushes[index - mappings.knob_count] orelse return null;
     return switch (action) {
         .param => |p| p,
         .band => null,
     };
+}
+
+/// Whether the mapping of a module was changed since it was read.
+pub fn isChanged(state: *const FxSelState, module: MappableModule) bool {
+    const i = moduleIndex(module);
+    return !std.meta.eql(state.map_edits[i], state.map_loaded[i]);
 }
 
 const knob_names = blk: {
@@ -905,22 +933,30 @@ test "Create mapping opens the mapping mode, touching an encoder selects its con
     _ = turn(&state, 5, 1, null);
     try t.expectEqual(@as(u8, 5), state.map_selected);
     assign(&state, 12);
-    try t.expectEqual(@as(?u16, 12), controlParam(&state, 5));
+    try t.expectEqual(@as(?u16, 12), controlParam(&state, .EQ, 5));
     try t.expectEqual(Outcome.none, press(&state, 2, null));
     try t.expectEqual(@as(u8, mappings.knob_count + 2), state.map_selected);
     assign(&state, 7);
-    try t.expectEqual(@as(?u16, 7), controlParam(&state, mappings.knob_count + 2));
-    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 7 }), state.map_edit.pushes[2]);
+    try t.expectEqual(@as(?u16, 7), controlParam(&state, .EQ, mappings.knob_count + 2));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 7 }), state.map_edits[moduleIndex(.EQ)].pushes[2]);
     // A control loses its parameter.
     assign(&state, null);
-    try t.expectEqual(@as(?mappings.PushAction, null), state.map_edit.pushes[2]);
+    try t.expectEqual(@as(?mappings.PushAction, null), state.map_edits[moduleIndex(.EQ)].pushes[2]);
     // The bottom row selects knobs by a turn too, and its pushes keep their functions.
     _ = turn(&state, 15, -1, null);
     try t.expectEqual(@as(u8, 15), state.map_selected);
-    try t.expectEqual(MappableModule.EQ, state.module);
-    try t.expectEqual(Outcome.open_mapping, press(&state, 11, null));
+    // A module button puts another module in focus, and the mapping of the module that was left stays as it was made.
+    try t.expectEqual(Outcome.none, press(&state, 11, null));
     try t.expectEqual(MappableModule.COMP, state.module);
-    try t.expectEqual(@as(u8, 0), state.map_selected);
+    try t.expectEqual(@as(?u16, 12), controlParam(&state, .EQ, 5));
+    try t.expectEqual(@as(?u16, null), controlParam(&state, .COMP, 5));
+    try t.expect(isChanged(&state, .EQ));
+    try t.expect(!isChanged(&state, .COMP));
+    // A control of another module is selected by a click of the mouse, which also puts the module in focus.
+    selectControl(&state, .GATE, 3);
+    try t.expectEqual(MappableModule.GATE, state.module);
+    assignTo(&state, .OUTPUT, 0, 2);
+    try t.expectEqual(@as(?u16, 2), controlParam(&state, .OUTPUT, 0));
     // OK saves, and Cancel goes back to the actions without saving.
     try t.expectEqual(Outcome.save_mapping, press(&state, list_encoder, null));
     try t.expectEqual(Outcome.none, press(&state, cancel_encoder, null));

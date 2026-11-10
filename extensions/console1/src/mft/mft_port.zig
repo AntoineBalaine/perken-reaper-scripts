@@ -46,8 +46,8 @@ const table = [_]Entry{
     knob("Eq_LoMidGain", .EQ, 5),
     knob("Eq_HiMidGain", .EQ, 6),
     knob("Eq_HiGain", .EQ, 7),
-    knob("Eq_LoMidQ", .EQ, 10),
-    knob("Eq_HiMidQ", .EQ, 11),
+    knob("Eq_LoMidQ", .EQ, 9),
+    knob("Eq_HiMidQ", .EQ, 10),
     push("Eq_lp_shape", .EQ, 0),
     push("Eq_hp_shape", .EQ, 3),
     knob("Comp_Thresh", .COMP, 0),
@@ -63,6 +63,68 @@ const table = [_]Entry{
     knob("Out_Pan", .OUTPUT, 2),
     knob("Out_Vol", .OUTPUT, 3),
 };
+
+/// The words that the mapping panel writes for a control of the Console 1, which are its default role on the page.
+const role_words = [_]struct { control: []const u8, words: []const u8 }{
+    .{ .control = "Inpt_Gain", .words = "Gain" },
+    .{ .control = "Inpt_LoCut", .words = "Lo Cut" },
+    .{ .control = "Inpt_HiCut", .words = "Hi Cut" },
+    .{ .control = "Shp_Gate", .words = "Gate" },
+    .{ .control = "Shp_GateRelease", .words = "Release" },
+    .{ .control = "Shp_Punch", .words = "Punch" },
+    .{ .control = "Shp_sustain", .words = "Sustain" },
+    .{ .control = "Shp_shape", .words = "Shape" },
+    .{ .control = "Shp_hard_gate", .words = "Hard Gate" },
+    .{ .control = "Eq_LoFrq", .words = "Lo Frq" },
+    .{ .control = "Eq_LoMidFrq", .words = "LoMid Frq" },
+    .{ .control = "Eq_HiMidFrq", .words = "HiMid Frq" },
+    .{ .control = "Eq_HiFrq", .words = "Hi Frq" },
+    .{ .control = "Eq_LoGain", .words = "Lo Gain" },
+    .{ .control = "Eq_LoMidGain", .words = "LoMid Gain" },
+    .{ .control = "Eq_HiMidGain", .words = "HiMid Gain" },
+    .{ .control = "Eq_HiGain", .words = "Hi Gain" },
+    .{ .control = "Eq_LoMidQ", .words = "LoMid Q" },
+    .{ .control = "Eq_HiMidQ", .words = "HiMid Q" },
+    .{ .control = "Eq_lp_shape", .words = "Lo Shape" },
+    .{ .control = "Eq_hp_shape", .words = "Hi Shape" },
+    .{ .control = "Comp_Thresh", .words = "Thresh" },
+    .{ .control = "Comp_Ratio", .words = "Ratio" },
+    .{ .control = "Comp_Attack", .words = "Attack" },
+    .{ .control = "Comp_Release", .words = "Release" },
+    .{ .control = "Comp_LoCut", .words = "Lo Cut" },
+    .{ .control = "Comp_HiCut", .words = "Hi Cut" },
+    .{ .control = "Comp_GR", .words = "GR" },
+    .{ .control = "Comp_DryWet", .words = "Dry/Wet" },
+    .{ .control = "Out_Drive", .words = "Drive" },
+    .{ .control = "Out_DriveChar", .words = "Char" },
+    .{ .control = "Out_Pan", .words = "Pan" },
+    .{ .control = "Out_Vol", .words = "Volume" },
+};
+
+/// What the control at a position of a page is for by default, in the words of the mapping panel, or "no default" for a position that the page gives
+/// no control. The dry/wet is the last knob of every module, and the EQ has the bandwidths of its outer bands and the shapes of its middle ones, which
+/// the Console 1 has no control for.
+pub fn roleLabel(page: MappableModule, is_push: bool, position: usize) []const u8 {
+    for (table) |entry| {
+        if (entry.placement.page != page) continue;
+        const same = switch (entry.placement.position) {
+            .knob => |k| !is_push and k == position,
+            .push => |p| is_push and p == position,
+        };
+        if (!same) continue;
+        for (role_words) |role| {
+            if (std.mem.eql(u8, role.control, entry.name)) return role.words;
+        }
+    }
+    if (!is_push and position == 15) return "Dry/Wet";
+    if (page == .EQ) {
+        if (!is_push and position == 8) return "Lo Q";
+        if (!is_push and position == 11) return "Hi Q";
+        if (is_push and position == 1) return "LoMid Shape";
+        if (is_push and position == 2) return "HiMid Shape";
+    }
+    return "no default";
+}
 
 /// The place of a control of the Console 1, or null for a control that has none.
 pub fn place(control: []const u8) ?Placement {
@@ -284,4 +346,17 @@ test "write: a module map has its page and a strip has a section for each page t
     defer sw.deinit();
     try write(&strip, &sw.writer);
     try t.expectEqualStrings("version = 2\nmodule = STRIP\nfx_name = JS: X\n\n[INPUT]\nknob_1 = 0\n\n[EQ]\npush_4 = 10\n", sw.written());
+}
+
+test "roleLabel: the default role of a position, the dry/wet on the last knob, and no default where the page has none" {
+    const t = std.testing;
+    try t.expectEqualStrings("Gain", roleLabel(.INPUT, false, 0));
+    try t.expectEqualStrings("Thresh", roleLabel(.COMP, false, 0));
+    try t.expectEqualStrings("Lo Shape", roleLabel(.EQ, true, 0));
+    try t.expectEqualStrings("LoMid Shape", roleLabel(.EQ, true, 1));
+    try t.expectEqualStrings("Hi Q", roleLabel(.EQ, false, 11));
+    try t.expectEqualStrings("Dry/Wet", roleLabel(.GATE, false, 15));
+    try t.expectEqualStrings("GR", roleLabel(.COMP, false, 8));
+    try t.expectEqualStrings("no default", roleLabel(.INPUT, false, 9));
+    try t.expectEqualStrings("no default", roleLabel(.OUTPUT, true, 5));
 }
