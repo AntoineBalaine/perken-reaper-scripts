@@ -28,6 +28,8 @@ var ready = false;
 // in it, so both are made and dropped with the context.
 var fonts: panel_fonts.Fonts = .{};
 var kit: widgets.Panel = .{};
+// The FX SEL mode has a window of its own, as in the Console 1, so it has its own kit state: the heights that the cards of a window measured belong to it.
+var fxsel_kit: widgets.Panel = .{};
 // Whether the device is folded to its header row. Because the player folds the panel for the whole session, the state
 // is kept when the context is dropped.
 var folded = false;
@@ -176,7 +178,7 @@ fn onTimer() callconv(.c) void {
         fonts = panel_fonts.create(ctx);
         kit = .{};
     }
-    draw(globals) catch |err| {
+    drawWindows(globals) catch |err| {
         log.err("MFT panel draw error: {s}", .{@errorName(err)});
         if (imgui.last_error) |msg| log.err("imgui: {s}", .{std.mem.span(msg)});
         // Because ReaImGui destroys a context after an ImGui assertion fails, our
@@ -186,11 +188,18 @@ fn onTimer() callconv(.c) void {
     };
 }
 
+/// The window of the device and, while the FX SEL mode is open, the window of the mode.
+fn drawWindows(globals: *MftGlobals) !void {
+    try draw(globals);
+    try drawFxSelWindow(globals);
+}
+
 // Forgets the context and what was made in it: the fonts and the kit's state belong to it.
 fn dropContext() void {
     ctx = null;
     fonts = .{};
     kit = .{};
+    fxsel_kit = .{};
 }
 
 /// Where the window opens the first time, in pixels from the top left of the screen.
@@ -264,22 +273,19 @@ fn draw(globals: *MftGlobals) !void {
 
     // The settings form and the calibration card belong to the settings mode, and are not shown in the others, unless
     // a calibration is under way. Because a folded device is its header row alone, nothing is under it then.
-    const in_fxsel = globals.mft.fxsel != null;
-    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active or in_fxsel);
+    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active);
     if (show_cards) {
         imgui.api.SetCursorScreenPos(ctx, response.left, response.bottom + cards_gap);
         imgui.api.Dummy(ctx, 1, 1);
     }
     // Settings mode draws its form under the device; otherwise the buffers stay synced from preferences for the next
     // time it is opened.
-    if (show_cards and in_fxsel) {
-        drawFxSelList(globals);
-    } else if (show_cards and active == .SETTINGS) {
+    if (show_cards and active == .SETTINGS) {
         try mft_settings.drawForm(&kit, globals, moduleColor(globals, active));
     } else {
         mft_settings.markUnsynced();
     }
-    if (show_cards and !in_fxsel) drawWizard(globals);
+    if (show_cards) drawWizard(globals);
 }
 
 /// The rows that the list of plugins shows at a time. The cursor stays in the middle when the list is longer.
@@ -287,13 +293,13 @@ const browser_rows = 12;
 
 /// The card of the FX SEL mode, under the device: the module that the mode works on, the list of what can be done to it or the list of plugins
 /// that can be loaded for it, with the cursor on its entry, and a line that says what the last press did.
-fn drawFxSelList(globals: *MftGlobals) void {
+fn drawFxSelList(k: *widgets.Panel, globals: *MftGlobals) void {
     const state = &(globals.mft.fxsel orelse return);
     const accent = colors.hueToRgb(mft_fxsel.hue);
     var buf: [160:0]u8 = undefined;
     const title = std.mem.printSentinel(&buf, "FX SEL: {s}", .{@tagName(state.module)}, 0) catch "FX SEL";
-    if (!widgets.beginCard(&kit, title, null, null, accent)) return;
-    defer widgets.endCard(&kit);
+    if (!widgets.beginCard(k, title, null, null, accent)) return;
+    defer widgets.endCard(k);
 
     switch (state.screen) {
         .actions => {
@@ -322,6 +328,26 @@ fn drawFxSelList(globals: *MftGlobals) void {
         },
     }
     if (state.noteText().len > 0) imgui.api.TextColored(ctx, theme.amber, state.noteText());
+}
+
+/// Where the window of the FX SEL mode opens the first time, to the right of the device.
+const fxsel_window_x: f64 = window_x + 640;
+
+/// The window of the FX SEL mode, which is a window of its own and is shown only while the mode is open.
+fn drawFxSelWindow(globals: *MftGlobals) !void {
+    if (globals.mft.fxsel == null) return;
+    fxsel_kit.ctx = ctx;
+    fxsel_kit.fonts = fonts;
+    theme.push(ctx);
+    defer theme.pop(ctx);
+    if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
+    defer if (fonts.text != null) imgui.api.PopFont(ctx);
+    imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_AlwaysAutoResize;
+    const visible = try imgui.Begin(.{ ctx, "MFT FX SEL", null, flags });
+    if (!visible) return;
+    defer imgui.End(.{ctx}) catch {};
+    drawFxSelList(&fxsel_kit, globals);
 }
 
 /// What the device shows this frame: the colors of the modules, the parameters of the active module, the encoders that
@@ -640,7 +666,7 @@ test "a transport turn, a press and a left key light the panel while they last, 
     try std.testing.expect(globals.mft.activity.sideLit(2, now + 10 * value_linger_ms));
 }
 
-test "the FX SEL mode draws its windows and its list on both screens with the stacks balanced" {
+test "the FX SEL mode has a window of its own, drawn on both screens with the stacks balanced" {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -649,20 +675,20 @@ test "the FX SEL mode draws its windows and its list on both screens with the st
     var globals: MftGlobals = .{};
     globals.mft.fxsel = mft_fxsel.FxSelState{};
     const state = &globals.mft.fxsel.?;
-    try draw(&globals);
+    try drawWindows(&globals);
     state.action_cursor = 3;
     state.setNote("Mapping is not done yet.");
-    try draw(&globals);
+    try drawWindows(&globals);
     // The list of plugins: empty, then longer than the rows that fit, with the cursor at the start, in the middle and at the end.
     state.screen = .browse;
-    try draw(&globals);
+    try drawWindows(&globals);
     for (0..30) |i| {
         var name: [24]u8 = undefined;
         state.browser.add(std.fmt.bufPrint(&name, "JS: Plugin {d}", .{i}) catch "x");
     }
     for ([_]u16{ 0, 15, 29 }) |cursor| {
         state.browse_cursor = cursor;
-        try draw(&globals);
+        try drawWindows(&globals);
     }
     try mock.assertBalanced();
 }

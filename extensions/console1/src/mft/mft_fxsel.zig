@@ -18,6 +18,10 @@ pub const hue: u8 = 0x2B;
 pub const list_encoder = 12;
 pub const cancel_encoder = 13;
 
+/// How many ticks of the encoder scroll the list by one entry. Because the encoder sends a tick for every small turn, and a list of dozens of
+/// entries would fly past, the ticks are counted and the cursor moves once for each of these.
+pub const ticks_per_step = 6;
+
 pub const Screen = enum {
     /// The first screen: the module and the action.
     actions,
@@ -105,6 +109,8 @@ pub const FxSelState = struct {
     /// The entry of the list of actions, and the entry of the list of plugins.
     action_cursor: u8 = 0,
     browse_cursor: u16 = 0,
+    /// The ticks of the encoder that have not made a step yet, which keep the sign of the turn.
+    scroll_ticks: i16 = 0,
     /// The page that the controller was on when the mode opened, which it goes back to when the mode closes.
     return_page: mft_state.MftActiveModule = .TRANSPORT,
     browser: BrowserList = .{},
@@ -151,18 +157,22 @@ pub const Outcome = union(enum) {
     not_done: Action,
 };
 
-fn move(cursor: anytype, delta: i8, count: usize) void {
+fn move(cursor: anytype, steps: i32, count: usize) void {
     if (count == 0) return;
-    const next = @as(i32, cursor.*) + @as(i32, if (delta > 0) 1 else -1);
+    const next = @as(i32, cursor.*) + steps;
     cursor.* = @intCast(std.math.clamp(next, 0, @as(i32, @intCast(count)) - 1));
 }
 
-/// A turn of an encoder. Only the encoder 13 does something: it scrolls the list of the screen.
+/// A turn of an encoder. Only the encoder 13 does something: it scrolls the list of the screen, one entry for each `ticks_per_step` ticks.
 pub fn turn(state: *FxSelState, encoder: usize, delta: i8) Outcome {
     if (encoder != list_encoder or delta == 0) return .none;
+    const total: i32 = @as(i32, state.scroll_ticks) + delta;
+    const steps = @divTrunc(total, ticks_per_step);
+    state.scroll_ticks = @intCast(total - steps * ticks_per_step);
+    if (steps == 0) return .none;
     switch (state.screen) {
-        .actions => move(&state.action_cursor, delta, action_count),
-        .browse => move(&state.browse_cursor, delta, state.browser.count),
+        .actions => move(&state.action_cursor, steps, action_count),
+        .browse => move(&state.browse_cursor, steps, state.browser.count),
     }
     return .none;
 }
@@ -180,6 +190,7 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
 
 /// A press of an encoder.
 pub fn press(state: *FxSelState, encoder: usize) Outcome {
+    state.scroll_ticks = 0;
     if (moduleForEncoder(encoder)) |module| {
         state.module = module;
         state.browse_cursor = 0;
@@ -231,16 +242,39 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
     return .{};
 }
 
+/// Turns the encoder 13 by `entries` entries (negative for the other way), as many ticks as that takes.
+fn scroll(state: *FxSelState, entries: i32) void {
+    const sign: i8 = if (entries < 0) -1 else 1;
+    var ticks: i32 = @intCast(@abs(entries) * ticks_per_step);
+    while (ticks > 0) : (ticks -= 1) _ = turn(state, list_encoder, sign);
+}
+
+test "the encoder scrolls one entry for every few ticks, and keeps the ticks that did not make a step" {
+    const t = std.testing;
+    var state = FxSelState{};
+    for (0..ticks_per_step - 1) |_| _ = turn(&state, list_encoder, 1);
+    try t.expectEqual(@as(u8, 0), state.action_cursor);
+    _ = turn(&state, list_encoder, 1);
+    try t.expectEqual(@as(u8, 1), state.action_cursor);
+    // A fast turn that sends a large tick moves several entries at once, and the rest is kept.
+    _ = turn(&state, list_encoder, ticks_per_step + 2);
+    try t.expectEqual(@as(u8, 2), state.action_cursor);
+    try t.expectEqual(@as(i16, 2), state.scroll_ticks);
+    // A press starts the count again.
+    _ = press(&state, 5);
+    try t.expectEqual(@as(i16, 0), state.scroll_ticks);
+}
+
 test "the first screen scrolls the list, stops at its ends, and the module buttons choose the module" {
     const t = std.testing;
     var state = FxSelState{};
     try t.expectEqual(Action.load_fx, state.action());
-    _ = turn(&state, list_encoder, -1);
+    scroll(&state, -1);
     try t.expectEqual(@as(u8, 0), state.action_cursor);
-    for (0..10) |_| _ = turn(&state, list_encoder, 1);
+    scroll(&state, 10);
     try t.expectEqual(Action.create_mapping, state.action());
     // Another encoder does not scroll.
-    _ = turn(&state, 5, 1);
+    for (0..ticks_per_step) |_| _ = turn(&state, 5, 1);
     try t.expectEqual(Action.create_mapping, state.action());
 
     try t.expectEqual(Outcome.none, press(&state, 9));
@@ -259,9 +293,7 @@ test "Load FX opens the browser, which loads the entry that the cursor is on, an
     state.browser.add("VST: ReaEQ (Cockos)");
     state.browser.add("JS: 3-Band EQ");
     state.browser.add("JS: 4-Band EQ");
-    _ = turn(&state, list_encoder, 1);
-    _ = turn(&state, list_encoder, 1);
-    _ = turn(&state, list_encoder, 1);
+    scroll(&state, 3);
     try t.expectEqual(@as(u16, 2), state.browse_cursor);
     try t.expectEqual(Outcome{ .load_plugin = 2 }, press(&state, list_encoder));
     // A module button in the browser asks for the list of that module, from the top.
