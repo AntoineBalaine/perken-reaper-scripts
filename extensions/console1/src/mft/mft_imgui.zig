@@ -763,20 +763,34 @@ fn mapTitleLine(title: [:0]const u8) struct { x: f64, y: f64 } {
 }
 
 /// A button on the line of the title of a card, after the title. It returns whether it was clicked.
-fn mapTitleButton(title: [:0]const u8, label: [:0]const u8) !bool {
+/// What a button on the line of a title did, and where it was drawn, so that a key can follow it with the same top and height.
+const TitleButton = struct { clicked: bool, right: f64, top: f64, bottom: f64 };
+
+fn mapTitleButton(title: [:0]const u8, label: [:0]const u8) !TitleButton {
     const line = mapTitleLine(title);
     // A small button has no padding above its text, so its text starts where the button does.
     imgui.api.SetCursorScreenPos(ctx, line.x, line.y);
-    return imgui.api.SmallButton(ctx, label);
+    const clicked = imgui.api.SmallButton(ctx, label);
+    var x1: f64 = 0;
+    var y1: f64 = 0;
+    var x2: f64 = 0;
+    var y2: f64 = 0;
+    imgui.api.GetItemRectMin(ctx, &x1, &y1);
+    imgui.api.GetItemRectMax(ctx, &x2, &y2);
+    return .{ .clicked = clicked, .right = x2, .top = y1, .bottom = y2 };
 }
 
-/// A small square key with a wrench on it, as the key of the mock that opens the window of a plugin. It is as tall as the button of the plugin next to
-/// it, which is a small button: such a button has no padding above and under its text, so it is as tall as the font. Placed after that button on its line,
-/// the key has the same top and bottom, and so sits on the line of the title too. Its words are in its tooltip. It returns whether it was clicked.
-fn mapWrenchKey(id: [:0]const u8, tip: [:0]const u8) bool {
+/// A small square key with a wrench on it, as the key of the mock that opens the window of a plugin. It follows the button of the plugin with the top and
+/// the height that ImGui gave that button, which are read from it, so that the two are as tall as each other on the line of the title. Its words are in its
+/// tooltip. It returns whether it was clicked.
+fn mapWrenchKey(id: [:0]const u8, tip: [:0]const u8, after: TitleButton) bool {
     const dl = imgui.api.GetWindowDrawList(ctx);
-    const at = widgets.cursorScreenPos(&fxsel_kit);
-    const size = imgui.api.GetFontSize(ctx);
+    var spacing_x: f64 = 0;
+    var spacing_y: f64 = 0;
+    imgui.api.GetStyleVar(ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y);
+    const at = widgets.Point{ .x = after.right + spacing_x, .y = after.top };
+    const size = after.bottom - after.top;
+    imgui.api.SetCursorScreenPos(ctx, at.x, at.y);
     const clicked = imgui.api.InvisibleButton(ctx, id, size, size, null);
     const hovered = imgui.api.IsItemHovered(ctx, null);
     widgets.rectFilled(dl, at.x, at.y, at.x + size, at.y + size, theme.knob_top, 4);
@@ -826,16 +840,16 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         std.mem.printSentinel(&button_buf, "{s}{s}  v##plugin{d}", .{ shown, if (shown.len < plugin.len) "..." else "", mi }, 0) catch "?"
     else
         std.mem.printSentinel(&button_buf, "no plugin: Load FX  v##plugin{d}", .{mi}, 0) catch "?";
-    if (try mapTitleButton(mapTitle(module), button)) {
+    const plugin_button = try mapTitleButton(mapTitle(module), button);
+    if (plugin_button.clicked) {
         // The browser opens over the panel, which stays open and is where the controller goes back to.
         mft_fxsel.browseFromMapping(state, module);
         state.pending = .fill_browser;
     }
     // A module that has a plugin has a second button after it, which opens the window of the plugin, or closes it.
     if (state.map_fx_index[mi] >= 0 and track != null) {
-        imgui.api.SameLine(ctx, null, null);
         var ui_id: [24:0]u8 = undefined;
-        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window", plugin_button)) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
     }
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
