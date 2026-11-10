@@ -521,9 +521,11 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
             var crumb_buf: [512:0]u8 = undefined;
             const crumb = fxSelBreadcrumb(&crumb_buf, state, data);
             if (crumb.len > 0) {
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, accent });
-                try imgui.Text(.{ ctx, crumb });
-                try imgui.PopStyleColor(.{ ctx, 1 });
+                // The line is a label, so it is engraved in the font of the titles of the cards, in capitals like them.
+                var upper: [512:0]u8 = undefined;
+                const shown = std.ascii.upperString(upper[0..crumb.len], crumb);
+                upper[shown.len] = 0;
+                widgets.engravedText(&fxsel_kit, upper[0..shown.len :0], accent);
             }
         }
     }
