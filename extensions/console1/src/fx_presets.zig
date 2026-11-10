@@ -3,7 +3,7 @@
 const std = @import("std");
 const reaper = @import("reaper").reaper;
 const pReaper = @import("pReaper.zig");
-const preset_store = @import("preset_store.zig");
+const preset_store = @import("preset_store");
 const log = std.log.scoped(.fx_presets);
 
 pub const SaveError = error{

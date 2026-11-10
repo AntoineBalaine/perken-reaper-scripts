@@ -13,7 +13,7 @@ const PhysicalModule = statemachine.PhysicalModule;
 const actions = @import("actions.zig");
 const constants = @import("constants.zig");
 const fx_presets = @import("fx_presets.zig");
-const preset_store = @import("preset_store.zig");
+const preset_store = @import("preset_store");
 const step = @import("unit/step.zig");
 const log = std.log.scoped(.presets);
 

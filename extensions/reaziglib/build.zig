@@ -87,6 +87,11 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/fuzzy.zig"),
     });
 
+    // preset_store (no deps): the user presets of a plug-in, the names that its preset file has and a new preset written into it.
+    _ = b.addModule("preset_store", .{
+        .root_source_file = b.path("src/preset_store.zig"),
+    });
+
     // fx_browser: the levels of the browser of plugins, which the window of the Console 1 and the controllers share. It depends on
     // fx_parser_types and fuzzy.
     const fx_browser_mod = b.addModule("fx_browser", .{
@@ -227,6 +232,7 @@ pub fn build(b: *std.Build) void {
         "src/midi_device_config.zig",
         "src/fuzzy.zig",
         "src/fx_browser.zig",
+        "src/preset_store.zig",
         "src/panel/theme.zig",
         "src/panel/fonts.zig",
         "src/panel/widgets.zig",
@@ -507,6 +513,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "knob",
         "fuzzy",
         "fx_browser",
+        "preset_store",
         "panel_theme",
         "panel_fonts",
         "panel_widgets",
