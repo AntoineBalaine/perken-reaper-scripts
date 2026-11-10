@@ -1249,7 +1249,14 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
 
     var outcome: mft_fxsel.Outcome = .none;
     switch (state.screen) {
-        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height, card_w),
+        .actions => {
+            outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height, card_w);
+            // Under the card, the buttons do what the controller does: OK runs the action that the cursor is on, as the push of the encoder 13, and
+            // Cancel leaves the mode, as the push of the encoder 14.
+            if (widgets.pushButton(&fxsel_kit, "OK", 0)) outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
+            imgui.api.SameLine(ctx, null, null);
+            if (widgets.pushButton(&fxsel_kit, "Cancel", 0)) outcome = mft_fxsel.press(state, mft_fxsel.cancel_encoder, null);
+        },
         .browse => if (source) |data| {
             outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent, line_height, card_w, room);
         } else {
@@ -1782,5 +1789,28 @@ test "the mapping panel draws the AUTO plate with its actions and parameters, in
     const error_text = "The map file could not be written: AccessDenied.";
     @memcpy(state.map_auto_error[0..error_text.len], error_text);
     try drawWindows(&globals);
+    try mock.assertBalanced();
+}
+
+test "the OK and Cancel buttons under the actions run the action under the cursor and leave the mode" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    mock.click("##buttonCancel");
+    try drawWindows(&globals);
+    try std.testing.expectEqual(mft_fxsel.Outcome.leave, state.pending);
+
+    state.pending = .none;
+    state.action_cursor = @backingInt(mft_fxsel.Action.select_preset);
+    mock.resetInteractions();
+    mock.click("##buttonOK");
+    try drawWindows(&globals);
+    try std.testing.expectEqual(mft_fxsel.Outcome.fill_presets, state.pending);
+    try std.testing.expectEqual(mft_fxsel.Screen.presets, state.screen);
     try mock.assertBalanced();
 }
