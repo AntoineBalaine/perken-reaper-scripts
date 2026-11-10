@@ -1581,9 +1581,22 @@ test "the settings have a window of their own, which leaves the stacks balanced 
     globals.preferences.auto_insert = false;
     globals.preferences.show_plugin_ui = true;
     try drawWindows(&globals);
-    // A click on the key that cancels reads the file again, and the panel says so.
+    // A value of the knobs that is being typed has its field.
+    mft_settings.startTyping(9);
+    globals.mft.settings_cursor = 9;
+    try drawWindows(&globals);
+    // A click on the key that cancels reads the file again, says so, and asks to go back to the page.
     mock.click("##stcancel");
     try drawWindows(&globals);
+    try std.testing.expectEqualStrings("Back to the saved values.", mft_settings.statusText());
+    try std.testing.expect(globals.mft.settings_leave);
+    // A save that cannot write the file says so, and stays on the page.
+    globals.mft.settings_leave = false;
+    mock.resetInteractions();
+    mock.click("##stsave");
+    try drawWindows(&globals);
+    try std.testing.expectEqualStrings("The settings could not be saved to preferences.ini.", mft_settings.statusText());
+    try std.testing.expect(!globals.mft.settings_leave);
     try mock.assertBalanced();
 }
 

@@ -37,7 +37,8 @@ pub const MftPreferences = struct {
     color_settings: u8 = 0x49,
     color_transport: u8 = 0x6B,
     color_auto: u8 = 0x19,
-    color_output: u8 = 0x2E,
+    // The hue 3, which is far enough from the hue of the input on the wheel to tell the two pages apart.
+    color_output: u8 = 3,
     /// The color of the LEDs and of the panel in the FX Selection mode.
     color_fxsel: u8 = 0x2B,
 

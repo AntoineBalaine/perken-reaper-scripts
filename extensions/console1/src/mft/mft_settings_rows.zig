@@ -177,6 +177,26 @@ fn stepNumber(value: f32, delta: i8, step: f32, min: f32, max: f32) f32 {
     return std.math.clamp(@round(next / step) * step, min, max);
 }
 
+/// Sets a number to a value that was typed, held to its range and rounded to its step, as a turn of the encoder keeps it.
+pub fn setNumber(prefs: *MftPreferences, setting: Setting, value: f32) void {
+    switch (setting) {
+        .sensitivity => prefs.sensitivity = stepNumber(value, 0, sensitivity_step, sensitivity_min, sensitivity_max),
+        .fine => prefs.fine = stepNumber(value, 0, fine_step, fine_min, fine_max),
+        else => unreachable,
+    }
+}
+
+/// The number that a text typed for a row stands for, or null when the text is not a number. A comma is taken as the decimal point too.
+pub fn parseTyped(text: []const u8) ?f32 {
+    var buf: [32]u8 = undefined;
+    const trimmed = std.mem.trim(u8, text, " \t");
+    if (trimmed.len == 0 or trimmed.len > buf.len) return null;
+    for (trimmed, 0..) |c, i| buf[i] = if (c == ',') '.' else c;
+    const value = std.fmt.parseFloat(f32, buf[0..trimmed.len]) catch return null;
+    if (std.math.isNan(value) or std.math.isInf(value)) return null;
+    return value;
+}
+
 /// A turn of the second encoder on a row: a color goes round the wheel, a number goes up or down by its step, a switch goes on for a turn to the right
 /// and off for a turn to the left, and the mode goes to the choice on that side. A plugin is chosen with the keyboard, and a row that is not done stays.
 pub fn adjust(prefs: *MftPreferences, row: Row, delta: i8) void {
@@ -264,4 +284,19 @@ test "a row that is not done, and a plugin, stay as they are under the encoder" 
     try t.expectEqual(before.auto_insert, prefs.auto_insert);
     try t.expectEqual(@as(?usize, 2), pluginSlot(.default_eq));
     try t.expectEqual(@as(?usize, null), pluginSlot(.default_strip));
+}
+
+test "a typed number is read with a point or a comma, held to the range of its row, and rounded to its step" {
+    const t = std.testing;
+    try t.expectEqual(@as(?f32, 1.5), parseTyped(" 1.5 "));
+    try t.expectEqual(@as(?f32, 0.25), parseTyped("0,25"));
+    try t.expectEqual(@as(?f32, null), parseTyped("fast"));
+    try t.expectEqual(@as(?f32, null), parseTyped(""));
+    var prefs = MftPreferences{};
+    setNumber(&prefs, .sensitivity, 9);
+    try t.expectEqual(sensitivity_max, prefs.sensitivity);
+    setNumber(&prefs, .sensitivity, 1.23);
+    try t.expectApproxEqAbs(@as(f32, 1.25), prefs.sensitivity, 1e-5);
+    setNumber(&prefs, .fine, 0.001);
+    try t.expectEqual(fine_min, prefs.fine);
 }

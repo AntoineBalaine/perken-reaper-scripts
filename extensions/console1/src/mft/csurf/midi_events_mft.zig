@@ -231,6 +231,15 @@ pub fn learnParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16,
     storeChangedMappings(globals, state);
 }
 
+/// Goes back from the SETTINGS page to the page that was in use before it, when Save or Cancel asked for it.
+pub fn pollSettings(globals: *MftGlobals) void {
+    if (!globals.mft.settings_leave) return;
+    globals.mft.settings_leave = false;
+    if (globals.mft.active_module != .SETTINGS) return;
+    globals.mft.active_module = globals.mft.settings_return;
+    showCurrentFrame(globals);
+}
+
 /// Carries out what the window of the FX SEL mode chose. The window draws in the timer of the panel, which does not load plugins, so it leaves its
 /// choice in the state and the run of the surface does it.
 pub fn pollFxSel(globals: *MftGlobals) void {
@@ -428,6 +437,8 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     }
     if (!pressed) return;
     const module = mft_state.pageForEncoder(cc) orelse return;
+    // Save and Cancel of the settings go back to the page that was in use before them.
+    if (module == .SETTINGS and globals.mft.active_module != .SETTINGS) globals.mft.settings_return = globals.mft.active_module;
     globals.mft.active_module = module;
 
     // Switching to a mappable module inserts its default plugins onto the current track if absent, matching the Console One behavior, unless the

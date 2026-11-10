@@ -117,6 +117,10 @@ pub const MftState = struct {
     settings_cursor: u8 = 0,
     /// The ticks of the first encoder of the SETTINGS page that have not moved the highlight yet, which keep the sign of the turn.
     settings_ticks: i16 = 0,
+    /// The page that the controller was on before the SETTINGS page, which Save and Cancel go back to, and whether they asked for it: the panel draws in the
+    /// timer of the window, so the run of the surface does the going back.
+    settings_return: MftActiveModule = .TRANSPORT,
+    settings_leave: bool = false,
     // Whether the on-screen panel is shown (toggled by side button L2).
     panel_visible: bool = true,
     // Whether an encoder was turned while held in transport mode, so a press was

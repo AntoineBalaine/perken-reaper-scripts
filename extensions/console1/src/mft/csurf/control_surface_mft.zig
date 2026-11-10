@@ -141,6 +141,7 @@ export fn zRun() callconv(.c) void {
 
     midi_out.syncMeters(globals);
     midi_events.pollFxSel(globals);
+    midi_events.pollSettings(globals);
 
     // The LED test is toggled from the panel; the sweep runs here so the panel
     // stays free of the MIDI-out cImport. On stopping, restore the surface.

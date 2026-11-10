@@ -28,8 +28,25 @@ const strip_slot = 5;
 
 const NAME_IDS = [6][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out", "##strip" };
 
+/// The row of the knobs whose number is being typed, which a double click on its value starts, the text that is typed, and whether the field has to take
+/// the keyboard on the next frame.
+var edit_row: ?usize = null;
+var edit_buf: [16:0]u8 = @splat(0);
+var edit_focus = false;
+
 /// What the last key of the panel did, which the panel says under its plates.
 var status: [96:0]u8 = @splat(0);
+
+/// What the panel says under its plates, which the tests read.
+pub fn statusText() [:0]const u8 {
+    return std.mem.sliceTo(&status, 0);
+}
+
+/// Starts the typing of the value of a row, as a double click on the value does. The tests use it, since the mock does not double click.
+pub fn startTyping(index: usize) void {
+    edit_row = index;
+    edit_focus = true;
+}
 
 fn setStatus(text: []const u8) void {
     const n = @min(text.len, status.len);
@@ -123,11 +140,14 @@ pub fn save(globals: *MftGlobals) void {
     p.default_output = bufSlice(4);
     p.default_strip = bufSlice(strip_slot);
     p.saveToDisk(io, globals.resource_path) catch |err| {
-        log.err("failed to save preferences: {s}", .{@errorName(err)});
+        // The panel says it to the player, so the log only keeps a warning.
+        log.warn("failed to save preferences: {s}", .{@errorName(err)});
+        // The page stays, so that the player sees that the settings were not saved.
         setStatus("The settings could not be saved to preferences.ini.");
         return;
     };
     setStatus("Saved to preferences.ini.");
+    globals.mft.settings_leave = true;
 }
 
 /// Reads preferences.ini again, which drops the edits. The key of the panel and the push of the encoder 8 of the SETTINGS page do it.
@@ -140,6 +160,7 @@ pub fn cancel(globals: *MftGlobals) void {
     synced = false;
     if (send_hue) |send| send(globals, 0);
     setStatus("Back to the saved values.");
+    globals.mft.settings_leave = true;
 }
 
 // The width of the screen that names a row of the form, and the size of the bar that shows its value.
@@ -335,13 +356,41 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
             }
             imgui.api.SameLine(ctx, null, null);
             const value: f32 = if (r.setting == .sensitivity) p.sensitivity else p.fine;
-            imgui.api.TextColored(ctx, widgets.accent(kit), std.mem.printSentinel(&buf, "{d:.2}", .{value}, 0) catch "");
+            if (edit_row == index) {
+                // The value is typed in a field over it: Enter sets it, and Escape or a click elsewhere leaves it as it was.
+                if (edit_focus) {
+                    try imgui.SetKeyboardFocusHere(.{ctx});
+                    edit_focus = false;
+                }
+                try imgui.SetNextItemWidth(.{ ctx, 70 });
+                var flags: c_int = imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll | imgui.InputTextFlags_CharsDecimal;
+                if (imgui.api.InputText(ctx, "##stedit", &edit_buf, edit_buf.len, &flags, null)) {
+                    if (rows_mod.parseTyped(std.mem.sliceTo(&edit_buf, 0))) |typed| rows_mod.setNumber(p, r.setting, typed);
+                    edit_row = null;
+                } else if (imgui.api.IsItemDeactivated(ctx)) {
+                    edit_row = null;
+                }
+            } else {
+                imgui.api.TextColored(ctx, widgets.accent(kit), std.mem.printSentinel(&buf, "{d:.2}", .{value}, 0) catch "");
+                if (imgui.api.IsItemHovered(ctx, null)) {
+                    widgets.tooltip(kit, "Double-click to type the value");
+                    if (imgui.api.IsMouseDoubleClicked(ctx, 0)) {
+                        globals.mft.settings_cursor = @intCast(index);
+                        edit_row = index;
+                        _ = std.mem.printSentinel(&edit_buf, "{d:.2}", .{value}, 0) catch {};
+                        edit_focus = true;
+                    }
+                }
+            }
         },
         .toggle => {
             var value = rows_mod.toggleValue(p, r.setting);
-            var toggle_buf: [40:0]u8 = undefined;
-            const toggle_label = std.mem.printSentinel(&toggle_buf, "{s}##sttoggle{d}", .{ if (value) "On" else "Off", index }, 0) catch "?";
-            if (widgets.toggle(kit, toggle_label, &value)) {
+            // The switch writes its label as it is, so the label has no id in it: the row has a scope of ids of its own instead, so that the switches of
+            // two rows that both say On are told apart.
+            var scope_buf: [24:0]u8 = undefined;
+            imgui.api.PushID(ctx, std.mem.printSentinel(&scope_buf, "sttoggle{d}", .{index}, 0) catch "sttoggle");
+            defer imgui.api.PopID(ctx);
+            if (widgets.toggle(kit, if (value) "On" else "Off", &value)) {
                 globals.mft.settings_cursor = @intCast(index);
                 rows_mod.setToggle(p, r.setting, value);
             }
@@ -373,8 +422,8 @@ pub fn drawPanel(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void
     imgui.api.BeginGroup(ctx);
     imgui.api.Spacing(ctx);
     imgui.api.Spacing(ctx);
-    if (drawKey(kit, .save, true, "Save the settings")) save(globals);
-    if (drawKey(kit, .cancel, true, "Cancel: back to the saved values")) cancel(globals);
+    if (drawKey(kit, .save, true, "Save the settings, and go back to the page")) save(globals);
+    if (drawKey(kit, .cancel, true, "Cancel: back to the saved values, and to the page")) cancel(globals);
     _ = drawKey(kit, .install, false, "Install the factory presets (not done yet: the maps are installed by build-install.sh)");
     imgui.api.EndGroup(ctx);
     imgui.api.SameLine(ctx, null, null);
