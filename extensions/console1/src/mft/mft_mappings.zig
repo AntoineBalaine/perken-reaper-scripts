@@ -68,6 +68,13 @@ pub const MftModuleMapping = struct {
         return self.pushes[push];
     }
 
+    /// Whether no knob and no push has a parameter.
+    pub fn isEmpty(self: *const MftModuleMapping) bool {
+        for (self.knobs) |knob| if (knob != null) return false;
+        for (self.pushes) |push| if (push != null) return false;
+        return true;
+    }
+
     /// Assigns a knob by its position. The INI parser reads keys of the form `knob_N`.
     pub fn setSlot(self: *MftModuleMapping, slot: u4, value: u16) void {
         self.knobs[slot] = value;

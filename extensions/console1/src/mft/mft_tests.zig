@@ -11,6 +11,7 @@ test {
     _ = @import("mft_feedback.zig");
     _ = @import("mft_push.zig");
     _ = @import("mft_auto.zig");
+    _ = @import("mft_port.zig");
     _ = @import("mft_wizard.zig");
     _ = @import("mft_imgui.zig");
     _ = @import("mft_transport.zig");
