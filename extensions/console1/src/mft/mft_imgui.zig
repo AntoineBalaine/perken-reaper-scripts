@@ -242,7 +242,14 @@ fn draw(globals: *MftGlobals) !void {
     }
     for (0..3) |i| view.left_lit[i] = globals.mft.activity.sideLit(i, now_ms);
     // The pop-ups of the values follow the mouse and the held encoders, and linger for a moment after them.
-    const engaged = device.hoveredKnobs(&kit, widgets.cursorScreenPos(&kit), &view) | view.held;
+    // A held knob that has a push is not engaged: the click that follows shows what the push changed, and a turn still shows the value.
+    var push_bits: u16 = 0;
+    for (0..mappings.push_count) |i| {
+        if (view.knobs.push_mapped[i]) push_bits |= @as(u16, 1) << @intCast(i);
+    }
+    const engaged = device.hoveredKnobs(&kit, widgets.cursorScreenPos(&kit), &view) | (view.held & ~push_bits);
+    const note = &globals.mft.push_note;
+    if (note.lit(now_ms)) view.push_note = .{ .encoder = note.encoder, .text = note.text };
     view.show_value = activity.update(active, globals.current_track, &view.knobs, engaged, now_ms);
     // Only the knobs that show a value ask the plugin for its text. The other modes than the pop-up show it always.
     const wanted: u16 = if (view.value_mode == .popup) view.show_value else 0xFFFF;

@@ -133,6 +133,8 @@ pub const View = struct {
     /// The encoders whose value is shown in a pop-up, one bit each: the ones that the mouse is over, that are held or
     /// have just been turned, and those that were a moment ago.
     show_value: u16 = 0,
+    /// The pop-up of the last click on a push: the encoder and the text, or null once it has lingered.
+    push_note: ?struct { encoder: u8, text: [32:0]u8 } = null,
     /// Whether mute, solo and phase are on for the track, in the order of the keys on the right.
     side_lit: [3]bool = @splat(false),
     /// The transport encoders whose turn and whose press are lit, one bit each: the controller was used lately.
@@ -490,6 +492,12 @@ pub fn cellAt(idx: usize, gx: f64, gy: f64, mode: ValueMode) Cell {
     return .{ .cx = gx + pitch * (col + 0.5), .cy = cy, .label_y = cy + ring_r + 6 };
 }
 
+/// Whether the pop-up of a click on a push is shown on the encoder `idx`, which takes the place of the value of its knob.
+fn noteIsFor(view: *const View, idx: usize) bool {
+    const note = view.push_note orelse return false;
+    return note.encoder == idx;
+}
+
 fn isHeld(view: *const View, idx: usize) bool {
     return (view.held >> @intCast(idx)) & 1 == 1;
 }
@@ -583,6 +591,11 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = mode_color, .pressed = held });
             const push_mapped = idx < push_count and info.push_mapped[idx];
+            if (view.value_mode != .label) if (view.push_note) |note| if (note.encoder == idx) {
+                var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = mode_color };
+                @memcpy(&bubble.text, note.text[0..formatted_len :0]);
+                bubbles.add(bubble);
+            };
             if (!mapped and !push_mapped) {
                 drawLedLabel(kit, dl, cell.cx, cell.label_y, null, null, mode_color, 0);
                 return;
@@ -596,8 +609,9 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             var value_buf: [16:0]u8 = undefined;
             const text = knobText(info, idx, &name_buf, &value_buf);
             // The value is shown over the ring or in a bubble while the knob is held or has just been turned, and in the label otherwise.
-            const show = (view.show_value >> @intCast(idx)) & 1 == 1 or held;
-            showValue(kit, dl, view, cell, text.value_text, mode_color, show, bubbles);
+            // Holding a knob that has a push does not show its value, because the click that follows shows what the push changed.
+            const show = (view.show_value >> @intCast(idx)) & 1 == 1 or (held and !push_mapped);
+            showValue(kit, dl, view, cell, text.value_text, mode_color, show and !noteIsFor(view, idx), bubbles);
             if (push_mapped) {
                 // The window says what the turn does on the top line and what a click does under it. The value of the knob is in its ring and
                 // its pop-up, since the window has no line left for it.

@@ -164,7 +164,10 @@ fn pushClick(globals: *MftGlobals, push: u3) void {
     const routing = mft_fx.resolveModule(globals, track, module);
     const route = routing.pushes[push] orelse return;
     globals.mft.last_fx_index = route.fx_index;
-    mft_fx.runPush(track, route);
+    var note: [32:0]u8 = undefined;
+    mft_fx.runPush(track, route, &note);
+    const text = std.mem.sliceTo(&note, 0);
+    if (text.len > 0) globals.mft.push_note.set(push, text, std.Io.Timestamp.now(mft_globals.hostIo(), .awake).toMilliseconds());
 }
 
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {

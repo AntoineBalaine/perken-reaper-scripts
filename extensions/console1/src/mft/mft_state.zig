@@ -77,7 +77,30 @@ pub const InputActivity = struct {
     }
 };
 
+/// What the last click on a push changed, which the panel shows in a pop-up on the encoder for a moment: the new shape of an EQ band, or the new
+/// value of a parameter as the plugin writes it.
+pub const PushNote = struct {
+    encoder: u8 = 0,
+    text: [32:0]u8 = @splat(0),
+    at_ms: i64 = std.math.minInt(i64) / 2,
+
+    pub fn set(self: *PushNote, encoder: u8, text: []const u8, now_ms: i64) void {
+        const n = @min(text.len, self.text.len);
+        @memcpy(self.text[0..n], text[0..n]);
+        self.text[n] = 0;
+        self.encoder = encoder;
+        self.at_ms = now_ms;
+    }
+
+    /// Whether the note is still shown at `now_ms`.
+    pub fn lit(self: *const PushNote, now_ms: i64) bool {
+        return now_ms - self.at_ms < linger_ms;
+    }
+};
+
 pub const MftState = struct {
+    /// What the last click on a push changed.
+    push_note: PushNote = .{},
     /// What the player did with the controls lately.
     activity: InputActivity = .{},
     active_module: MftActiveModule = .TRANSPORT,
@@ -143,6 +166,19 @@ test "MftState: held encoder bitfield" {
     s.clearHeld(0);
     try t.expect(!s.isHeld(0));
     try t.expect(s.isHeld(15));
+}
+
+test "a push note keeps its text cut to its size, and is lit for the linger time" {
+    const t = std.testing;
+    var note = PushNote{};
+    try t.expect(!note.lit(0));
+    note.set(1, "Low Shelf", 1000);
+    try t.expectEqualStrings("Low Shelf", std.mem.sliceTo(&note.text, 0));
+    try t.expect(note.lit(1000 + linger_ms - 1));
+    try t.expect(!note.lit(1000 + linger_ms));
+    const long: [40]u8 = @splat('x');
+    note.set(2, &long, 5000);
+    try t.expectEqual(@as(usize, 32), std.mem.sliceTo(&note.text, 0).len);
 }
 
 test "a release is a click unless the encoder was turned while it was held" {

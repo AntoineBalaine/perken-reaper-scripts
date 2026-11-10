@@ -16,6 +16,21 @@ pub fn nextBandType(current: u8) u8 {
     return band_types[0];
 }
 
+/// The name that ReaEQ gives to a band type, for the pop-up that follows a click.
+pub fn bandTypeName(band_type: u8) [:0]const u8 {
+    return switch (band_type) {
+        0 => "Low Shelf",
+        1 => "High Shelf",
+        2, 8, 10 => "Band",
+        3 => "Low Pass",
+        4 => "High Pass",
+        5 => "All Pass",
+        6 => "Notch",
+        7 => "Band Pass",
+        else => "Other",
+    };
+}
+
 /// What REAPER knows of the way that a parameter is stepped.
 pub const Stepping = struct {
     /// The distance between two values, in normalized units, or 0 for a parameter that has no steps.
@@ -34,6 +49,13 @@ pub fn nextParamValue(current: f64, stepping: Stepping) f64 {
     // The sum of steps is not exact, so a value that is within a hundredth of a step of the end counts as the end.
     if (next > 1.0 + stepping.step * 0.01) return 0.0;
     return std.math.clamp(next, 0.0, 1.0);
+}
+
+test "bandTypeName: every shape of the cycle has a name" {
+    const t = std.testing;
+    for (band_types) |shape| try t.expect(!std.mem.eql(u8, bandTypeName(shape), "Other"));
+    try t.expectEqualStrings("Low Shelf", bandTypeName(0));
+    try t.expectEqualStrings("Notch", bandTypeName(6));
 }
 
 test "nextBandType: goes through the shapes in order, and a shape that is not in the list goes to the first" {

@@ -279,8 +279,10 @@ fn bandTypeKey(buf: *[16:0]u8, band: u2) [:0]const u8 {
     return std.mem.printSentinel(buf, "BANDTYPE{d}", .{band}, 0) catch unreachable;
 }
 
-/// Does what a click on a push asks: steps a parameter, or the shape of a band of the EQ.
-pub fn runPush(track: reaper.MediaTrack, route: PushRoute) void {
+/// Does what a click on a push asks: steps a parameter, or the shape of a band of the EQ. The text that says what it changed (the new shape,
+/// or the new value as the plugin writes it) goes into `note`, which is left empty when nothing changed.
+pub fn runPush(track: reaper.MediaTrack, route: PushRoute, note: *[32:0]u8) void {
+    note[0] = 0;
     switch (route.action) {
         .param => |param| {
             var stepping = mft_push.Stepping{};
@@ -294,6 +296,11 @@ pub fn runPush(track: reaper.MediaTrack, route: PushRoute) void {
             const current = reaper.TrackFX_GetParamNormalized(track, route.fx_index, param);
             if (std.math.isNan(current) or current < 0) return;
             _ = reaper.TrackFX_SetParamNormalized(track, route.fx_index, param, mft_push.nextParamValue(current, stepping));
+            // The plugin writes its own text for the new value, which is the percentage when it has none.
+            if (!reaper.TrackFX_GetFormattedParamValue(track, route.fx_index, param, note, note.len + 1) or note[0] == 0) {
+                const now = reaper.TrackFX_GetParamNormalized(track, route.fx_index, param);
+                _ = std.mem.printSentinel(note, "{d:.0}%", .{now * 100.0}, 0) catch {};
+            }
         },
         .band => |band| {
             var key_buf: [16:0]u8 = undefined;
@@ -303,7 +310,9 @@ pub fn runPush(track: reaper.MediaTrack, route: PushRoute) void {
             const current = std.fmt.parseInt(u8, std.mem.sliceTo(&value_buf, 0), 10) catch return;
             var next_buf: [16:0]u8 = undefined;
             const next = std.mem.printSentinel(&next_buf, "{d}", .{mft_push.nextBandType(current)}, 0) catch return;
-            _ = reaper.TrackFX_SetNamedConfigParm(track, route.fx_index, key, next);
+            if (reaper.TrackFX_SetNamedConfigParm(track, route.fx_index, key, next)) {
+                _ = std.mem.printSentinel(note, "{s}", .{mft_push.bandTypeName(mft_push.nextBandType(current))}, 0) catch {};
+            }
         },
     }
 }
