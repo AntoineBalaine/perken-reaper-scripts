@@ -76,7 +76,6 @@ pub fn sensitivityAtFraction(fraction: f64) f32 {
 // The width of the screen of a drop-down, the size of its list, and the text typed in its filter. One filter serves
 // all the drop-downs, because only one list is open at a time. Because a pop-up grows to fit what it holds, a child
 // that asks for the rest of the width of one gets none, and the list would stay empty: the list has a width of its own.
-const PICK_W: f64 = 400.0;
 const CHOICES_W: f64 = 440.0;
 const CHOICES_H: f64 = 220.0;
 var filter: [64:0]u8 = @splat(0);
@@ -188,10 +187,10 @@ fn bar(kit: *widgets.Panel, id: [:0]const u8, fraction: f64, fill: ?c_int) ?f64 
 }
 
 // The drop-down of one slot: the plugin chosen is on the screen, and a click opens the list of the installed plugins.
-fn pluginPicker(kit: *widgets.Panel, slot: usize) !void {
+fn pluginPicker(kit: *widgets.Panel, slot: usize, width: f64) !void {
     const current = bufSlice(slot);
     const preview: [:0]const u8 = if (current.len == 0) "(choose a plugin)" else current;
-    if (!widgets.beginPickList(kit, NAME_IDS[slot], preview, PICK_W)) return;
+    if (!widgets.beginPickList(kit, NAME_IDS[slot], preview, width)) return;
     defer widgets.endPickList(kit);
     try pluginChoices(kit, slot);
 }
@@ -347,7 +346,13 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
                 rows_mod.setToggle(p, r.setting, value);
             }
         },
-        .plugin => try pluginPicker(kit, rows_mod.pluginSlot(r.setting) orelse strip_slot),
+        .plugin => {
+            // The drop-down takes the room that is left in the card after the name of the row, so that it does not go past the edge of the card.
+            var room_w: f64 = 0;
+            var room_h: f64 = 0;
+            imgui.api.GetContentRegionAvail(ctx, &room_w, &room_h);
+            try pluginPicker(kit, rows_mod.pluginSlot(r.setting) orelse strip_slot, @max(room_w - 4, 80));
+        },
         .mode => if (rocker(kit, p.single_fx_mode)) |single| {
             globals.mft.settings_cursor = @intCast(index);
             p.single_fx_mode = single;
