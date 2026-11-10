@@ -621,6 +621,20 @@ fn altClearRow(id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
     return clicked;
 }
 
+/// The combo of a control while the MIDI learn is on: it has the same text, a click selects the control (the knob on the turn line, the push on the press
+/// line) instead of opening the list, so that the parameter that is moved next goes to it, and the line of the control that is selected is lit. It
+/// returns whether it was clicked.
+fn learnSelectRow(id: [:0]const u8, preview: [:0]const u8, width: f64, selected: bool) bool {
+    var label_buf: [200:0]u8 = undefined;
+    const label = std.mem.printSentinel(&label_buf, "{s}##learn{s}", .{ preview, id }, 0) catch return false;
+    var lit = selected;
+    var w = width;
+    var h: f64 = 0;
+    const clicked = imgui.api.Selectable(ctx, label, &lit, null, &w, &h);
+    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "Click to choose this control, then move a parameter in the plugin");
+    return clicked;
+}
+
 /// A combo that has no frame and no arrow, as the combos in the windows of the mock are: its text is the parameter that the control has, or a dash.
 /// Choosing a parameter puts the control in focus and gives it the parameter. It returns whether the mapping changed.
 fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, control: usize, x: f64, y: f64, width: f64) !bool {
@@ -648,6 +662,11 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         mft_fxsel.selectControl(state, module, control);
         mft_fxsel.assign(state, null);
         return true;
+    }
+    if (state.map_learn) {
+        const selected = !state.map_focus_auto and state.module == module and state.map_selected == control;
+        if (learnSelectRow(&id, preview, width, selected)) mft_fxsel.selectControl(state, module, control);
+        return false;
     }
     try imgui.SetNextItemWidth(.{ ctx, width });
     if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
@@ -902,6 +921,11 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         mft_fxsel.selectAuto(state, control);
         mft_fxsel.assignAuto(state, control, null);
         return true;
+    }
+    if (state.map_learn) {
+        const selected = state.map_focus_auto and state.map_selected == control;
+        if (learnSelectRow(&id, preview, width, selected)) mft_fxsel.selectAuto(state, control);
+        return false;
     }
     try imgui.SetNextItemWidth(.{ ctx, width });
     if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
@@ -1827,5 +1851,31 @@ test "the OK and Cancel buttons under the actions run the action under the curso
     try drawWindows(&globals);
     try std.testing.expectEqual(mft_fxsel.Outcome.fill_presets, state.pending);
     try std.testing.expectEqual(mft_fxsel.Screen.presets, state.screen);
+    try mock.assertBalanced();
+}
+
+test "while the MIDI learn is on, a click on the press line of a cell selects its push, and on the turn line its knob" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .map;
+    state.map_learn = true;
+    const comp = mft_fxsel.moduleIndex(.COMP);
+    state.map_fx_index[comp] = 3;
+    // The press line of the second encoder of the compressor is the push 2, which is the control 17.
+    var label_buf: [64:0]u8 = undefined;
+    mock.selectItem(std.mem.printSentinel(&label_buf, "-##learn##map{d}_{d}", .{ comp, mappings.knob_count + 1 }, 0) catch unreachable);
+    try drawWindows(&globals);
+    try std.testing.expectEqual(mft_fxsel.MappableModule.COMP, state.module);
+    try std.testing.expectEqual(@as(u8, mappings.knob_count + 1), state.map_selected);
+    mock.resetInteractions();
+    mock.selectItem(std.mem.printSentinel(&label_buf, "-##learn##map{d}_{d}", .{ comp, 4 }, 0) catch unreachable);
+    try drawWindows(&globals);
+    try std.testing.expectEqual(@as(u8, 4), state.map_selected);
     try mock.assertBalanced();
 }
