@@ -29,6 +29,10 @@ pub const Screen = enum {
     actions,
     /// The plugins that can be loaded for the module.
     browse,
+    /// The user presets of the plugin of the module.
+    presets,
+    /// The name of a new preset, which is typed in the window.
+    save,
 };
 
 /// The menus of the browser that the controller leaves out. The FX chains and the track templates insert more than a plugin into a module, the
@@ -151,6 +155,13 @@ pub const FxSelState = struct {
     /// The page that the controller was on when the mode opened, which it goes back to when the mode closes.
     return_page: mft_state.MftActiveModule = .TRANSPORT,
     browser: BrowserList = .{},
+    /// The presets of the plugin of the module, and the entry that the cursor is on. They are read when the screen opens, and again when another module is chosen.
+    presets: BrowserList = .{},
+    preset_cursor: u16 = 0,
+    /// The name of the preset to save, which is typed in the window. A name that a preset has already asks to be confirmed: `save_armed` is the hash of the
+    /// name that it was asked for.
+    save_name: [96:0]u8 = @splat(0),
+    save_armed: u64 = 0,
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -194,6 +205,19 @@ pub const FxSelState = struct {
     /// The text of the search without the spaces around it.
     pub fn searchText(self: *const FxSelState) []const u8 {
         return std.mem.trim(u8, std.mem.sliceTo(&self.search, 0), " \t");
+    }
+
+    /// The name typed for a preset, without the spaces around it.
+    pub fn saveText(self: *const FxSelState) []const u8 {
+        return std.mem.trim(u8, std.mem.sliceTo(&self.save_name, 0), " \t");
+    }
+
+    /// The preset names: whether one has this name, without regard to the case.
+    pub fn presetExists(self: *const FxSelState, name: []const u8) bool {
+        for (0..self.presets.count) |i| {
+            if (std.ascii.eqlIgnoreCase(self.presets.get(i), name)) return true;
+        }
+        return false;
     }
 
     pub fn searching(self: *const FxSelState) bool {
@@ -240,6 +264,12 @@ pub const Outcome = union(enum) {
     fill_browser,
     /// The plugin of that name is to be loaded for the module, and the mode closed.
     load_plugin: [:0]const u8,
+    /// The presets of the plugin of the module have to be read again.
+    fill_presets,
+    /// The preset of that name is to be loaded into the plugin of the module, and the mode closed.
+    load_preset: [:0]const u8,
+    /// The state of the plugin of the module is to be saved as a preset of that name, and the mode closed.
+    save_preset: [:0]const u8,
     /// The action has no screen yet.
     not_done: Action,
 };
@@ -254,6 +284,8 @@ fn move(cursor: anytype, steps: i32, count: usize) void {
 pub fn listCount(state: *const FxSelState, source: ?fx_browser.Source) usize {
     return switch (state.screen) {
         .actions => action_count,
+        .presets => state.presets.count,
+        .save => 0,
         .browse => blk: {
             const data = source orelse break :blk 0;
             if (state.searching()) {
@@ -270,6 +302,8 @@ pub fn moveCursor(state: *FxSelState, steps: i32, source: ?fx_browser.Source) vo
     state.scroll_dirty = true;
     switch (state.screen) {
         .actions => move(&state.action_cursor, steps, action_count),
+        .presets => move(&state.preset_cursor, steps, state.presets.count),
+        .save => {},
         .browse => if (state.searching()) move(&state.search_cursor, steps, listCount(state, source)) else move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
     }
 }
@@ -293,7 +327,19 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
             state.focus_search = true;
             return .fill_browser;
         },
-        .select_preset, .save_preset, .create_mapping => return .{ .not_done = action },
+        .select_preset => {
+            state.screen = .presets;
+            state.preset_cursor = 0;
+            return .fill_presets;
+        },
+        .save_preset => {
+            state.screen = .save;
+            state.save_name[0] = 0;
+            state.save_armed = 0;
+            state.focus_search = true;
+            return .fill_presets;
+        },
+        .create_mapping => return .{ .not_done = action },
     }
 }
 
@@ -326,18 +372,50 @@ fn confirmEntry(state: *FxSelState, source: fx_browser.Source) Outcome {
     }
 }
 
+/// Confirms the name typed for a preset. A name that a preset has already is not replaced at once: the first confirmation says so, and the second,
+/// of the same name, replaces it.
+fn confirmSave(state: *FxSelState) Outcome {
+    const name = state.saveText();
+    if (name.len == 0) {
+        state.setNote("Type a name for the preset first.");
+        return .none;
+    }
+    const hash = std.hash.Wyhash.hash(0, name);
+    if (state.presetExists(name) and state.save_armed != hash) {
+        state.save_armed = hash;
+        state.setNote("A preset has that name: confirm again to replace it.");
+        return .none;
+    }
+    // The name is trimmed in place, since the slice has to outlive the call and the buffer is the state's.
+    const start = @intFromPtr(name.ptr) - @intFromPtr(&state.save_name);
+    state.save_name[start + name.len] = 0;
+    return .{ .save_preset = state.save_name[start .. start + name.len :0] };
+}
+
 /// A press of an encoder.
 pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Outcome {
     state.scroll_ticks = 0;
     if (moduleForEncoder(encoder)) |module| {
         state.module = module;
-        if (state.screen != .browse) return .none;
-        state.resetBrowser();
-        return .fill_browser;
+        switch (state.screen) {
+            .browse => {
+                state.resetBrowser();
+                return .fill_browser;
+            },
+            .presets, .save => {
+                state.preset_cursor = 0;
+                return .fill_presets;
+            },
+            .actions => return .none,
+        }
     }
     if (encoder == cancel_encoder) {
         return switch (state.screen) {
             .actions => .leave,
+            .presets, .save => blk: {
+                state.screen = .actions;
+                break :blk .none;
+            },
             .browse => blk: {
                 state.scroll_dirty = true;
                 // Back clears what was typed first, then leaves the menu that is open, and the browser when it is on the first level.
@@ -356,6 +434,8 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
         return switch (state.screen) {
             .actions => runAction(state, state.action()),
             .browse => if (source) |data| confirmEntry(state, data) else .none,
+            .presets => if (state.presets.count == 0) .none else .{ .load_preset = state.presets.get(state.preset_cursor) },
+            .save => confirmSave(state),
         };
     }
     // The top row has a shortcut for each action on the first screen.
@@ -365,6 +445,11 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
 
 /// A click of the mouse on the entry `index` of the list that is shown: the cursor goes to it, and it is confirmed, as a press of the encoder does.
 pub fn clickEntry(state: *FxSelState, index: usize, source: fx_browser.Source) Outcome {
+    if (state.screen == .presets) {
+        if (index >= state.presets.count) return .none;
+        state.preset_cursor = @intCast(index);
+        return .{ .load_preset = state.presets.get(index) };
+    }
     if (state.screen != .browse) return .none;
     if (state.searching()) state.search_cursor = @intCast(index) else state.browse_cursors[state.browse_depth] = @intCast(index);
     state.focus_search = true;
@@ -401,7 +486,8 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
     if (encoder == list_encoder) {
         return .{ .turn = switch (state.screen) {
             .actions => state.action().label(),
-            .browse => "Scroll",
+            .browse, .presets => "Scroll",
+            .save => null,
         }, .press = "OK" };
     }
     if (encoder == cancel_encoder) return .{ .press = if (state.screen == .actions) "Cancel" else "Back" };
@@ -537,10 +623,15 @@ test "without the data of the plugins, the browser is empty and a press loads no
     try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
 }
 
-test "the shortcuts of the top row run their action, and the actions without a screen say so" {
+test "the shortcuts of the top row run their action, and the action without a screen says so" {
     const t = std.testing;
     var state = FxSelState{};
-    try t.expectEqual(Outcome{ .not_done = .select_preset }, press(&state, 1, null));
+    try t.expectEqual(Outcome.fill_presets, press(&state, 1, null));
+    try t.expectEqual(Screen.presets, state.screen);
+    state = FxSelState{};
+    try t.expectEqual(Outcome.fill_presets, press(&state, 2, null));
+    try t.expectEqual(Screen.save, state.screen);
+    state = FxSelState{};
     try t.expectEqual(Outcome{ .not_done = .create_mapping }, press(&state, 3, null));
     try t.expectEqual(Outcome.none, press(&state, 4, null));
     try t.expectEqual(Outcome.fill_browser, press(&state, 0, null));
@@ -648,4 +739,61 @@ test "a click on an entry of the first level opens the menu or loads the plugin,
     // The first screen has no entries to click.
     var first = FxSelState{};
     try t.expectEqual(Outcome.none, clickEntry(&first, 0, source));
+}
+
+test "Select preset opens the presets, which scroll and load, and a module button reads them again" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.action_cursor = @backingInt(Action.select_preset);
+    try t.expectEqual(Outcome.fill_presets, press(&state, list_encoder, null));
+    try t.expectEqual(Screen.presets, state.screen);
+    // Nothing to load until the presets are read.
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
+    state.presets.add("Warm");
+    state.presets.add("Bright");
+    state.presets.add("Dark");
+    scroll(&state, 2, null);
+    try t.expectEqual(@as(u16, 2), state.preset_cursor);
+    const loaded = press(&state, list_encoder, null);
+    try t.expectEqualStrings("Dark", loaded.load_preset);
+    // A click loads the preset it is on.
+    const clicked = clickEntry(&state, 1, undefined);
+    try t.expectEqualStrings("Bright", clicked.load_preset);
+    try t.expectEqual(@as(u16, 1), state.preset_cursor);
+    try t.expectEqual(Outcome.fill_presets, press(&state, 9, null));
+    try t.expectEqual(MappableModule.GATE, state.module);
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, null));
+    try t.expectEqual(Screen.actions, state.screen);
+}
+
+test "Save preset needs a name, asks before it replaces a preset of the same name, and then saves" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.action_cursor = @backingInt(Action.save_preset);
+    try t.expectEqual(Outcome.fill_presets, press(&state, list_encoder, null));
+    try t.expectEqual(Screen.save, state.screen);
+    state.presets.add("Warm");
+
+    // Without a name, nothing is saved, and the note says why.
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
+    try t.expect(state.noteText().len > 0);
+
+    const typed = "  My sound ";
+    @memcpy(state.save_name[0..typed.len], typed);
+    state.save_name[typed.len] = 0;
+    const saved = press(&state, list_encoder, null);
+    try t.expectEqualStrings("My sound", saved.save_preset);
+
+    // A name that a preset has, whatever its case, is asked about once, and then replaced.
+    const same = "warm";
+    @memcpy(state.save_name[0..same.len], same);
+    state.save_name[same.len] = 0;
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
+    try t.expect(std.mem.indexOf(u8, state.noteText(), "confirm") != null);
+    const replaced = press(&state, list_encoder, null);
+    try t.expectEqualStrings("warm", replaced.save_preset);
+    // Another name asks again.
+    const other = "Warm";
+    @memcpy(state.save_name[0..other.len], other);
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
 }

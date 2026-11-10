@@ -320,6 +320,9 @@ fn fxselRowsFor(line_height: f64, height: f64) usize {
 
 var fxsel_page_rows: usize = fxsel_rows;
 
+/// A browser source that has nothing in it, for the screens that are not the browser but share its click, which does not read it.
+const null_source: fx_browser.Source = undefined;
+
 /// The path of the menus that are open, as a line of names.
 fn fxSelBreadcrumb(buf: [:0]u8, state: *const mft_fxsel.FxSelState, source: fx_browser.Source) [:0]const u8 {
     var length: usize = 0;
@@ -495,6 +498,54 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
     return outcome;
 }
 
+/// The card of the presets of the plugin of the module, which the cursor scrolls and a click or a press loads.
+fn drawFxSelPresets(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int, line_height: f64, card_w: f64, room: f64) !mft_fxsel.Outcome {
+    var outcome: mft_fxsel.Outcome = .none;
+    const height = @max(room, fxselCardHeight(line_height, 3));
+    const rows = fxselRowsFor(line_height, height);
+    fxsel_page_rows = rows;
+    if (!widgets.beginCard(k, "Presets", card_w, height, accent)) return outcome;
+    defer widgets.endCard(k);
+    if (state.presets.count == 0) try imgui.Text(.{ ctx, "This plugin has no presets saved." });
+    const cursor: usize = state.preset_cursor;
+    const range = rowRange(cursor, state.presets.count, rows);
+    for (range.first..range.last) |i| {
+        if (try drawFxSelRow(state.presets.get(i), i, false, cursor == i, accent)) outcome = mft_fxsel.clickEntry(state, i, null_source);
+    }
+    return outcome;
+}
+
+/// The field for the name of a preset, which takes the typing while the window has the focus, and the presets that exist, so that a name can be
+/// chosen that is not taken.
+fn drawFxSelSave(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int, line_height: f64, card_w: f64, room: f64) !void {
+    if (state.focus_search or imgui.api.IsWindowFocused(ctx, null)) {
+        try imgui.SetKeyboardFocusHere(.{ctx});
+        state.focus_search = false;
+    }
+    try imgui.SetNextItemWidth(.{ ctx, 240 });
+    _ = try imgui.InputText(.{ ctx, "##fxsel_save", @as([*]u8, @ptrCast(&state.save_name)), state.save_name.len, null, null });
+    if (state.save_name[0] == 0 and !try imgui.IsItemActive(.{ctx})) {
+        var x1: f64 = undefined;
+        var y1: f64 = undefined;
+        var x2: f64 = undefined;
+        var y2: f64 = undefined;
+        try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
+        try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
+        const dl = try imgui.GetWindowDrawList(.{ctx});
+        try imgui.DrawList_AddText(.{ dl, x1 + 8, y1 + 3, theme.text_dim, "Name of the preset, then Enter" });
+    }
+    const height = @max(room - line_height * 1.5, fxselCardHeight(line_height, 3));
+    const rows = fxselRowsFor(line_height, height);
+    if (!widgets.beginCard(k, "Presets that exist", card_w, height, accent)) return;
+    defer widgets.endCard(k);
+    if (state.presets.count == 0) try imgui.Text(.{ ctx, "None yet." });
+    for (0..@min(state.presets.count, rows)) |i| {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text });
+        try imgui.Text(.{ ctx, state.presets.get(i) });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+}
+
 /// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It
 /// has the look of the panel: cards of the panel kit with the rows of the lists, and the heading in the color of the module.
 fn drawFxSelWindow(globals: *MftGlobals) !void {
@@ -560,6 +611,8 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
         } else {
             try imgui.Text(.{ ctx, "The list of plugins could not be read." });
         },
+        .presets => outcome = try drawFxSelPresets(&fxsel_kit, state, accent, line_height, card_w, room),
+        .save => try drawFxSelSave(&fxsel_kit, state, accent, line_height, card_w, room),
     }
     if (outcome == .none) outcome = try fxSelKeys(state, source);
     if (state.noteText().len > 0) {
@@ -952,6 +1005,31 @@ test "the FX Selection window draws the browser with its cards, a menu that is o
     @memcpy(state.search[0..text.len], text);
     state.search[text.len] = 0;
     state.syncSearch();
+    try drawWindows(&globals);
+    try mock.assertBalanced();
+}
+
+test "the FX Selection window draws the preset screens with the stacks balanced" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .presets;
+    try drawWindows(&globals);
+    state.presets.add("Warm");
+    state.presets.add("Bright");
+    state.preset_cursor = 1;
+    try drawWindows(&globals);
+    state.screen = .save;
+    try drawWindows(&globals);
+    const name = "My sound";
+    @memcpy(state.save_name[0..name.len], name);
+    state.save_name[name.len] = 0;
+    state.setNote("A preset has that name: confirm again to replace it.");
     try drawWindows(&globals);
     try mock.assertBalanced();
 }

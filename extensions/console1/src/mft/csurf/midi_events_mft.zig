@@ -14,6 +14,7 @@ const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
 const mft_auto = @import("../mft_auto.zig");
 const mft_fxsel = @import("../mft_fxsel.zig");
+const mft_presets = @import("../mft_presets.zig");
 const browser_source = @import("../mft_browser_source.zig");
 const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
@@ -110,6 +111,39 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 closeFxSel(globals, mft_fxsel.pageOf(state.module));
             } else {
                 state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
+            }
+        },
+        .fill_presets => {
+            state.presets.clear();
+            const track = globals.current_track orelse return;
+            const fx = mft_fx.fxForModule(track, state.module) orelse {
+                state.setNote("This module has no plugin on the track.");
+                return;
+            };
+            mft_presets.listNames(io, track, fx, &state.presets);
+        },
+        .load_preset => |name| {
+            const track = globals.current_track orelse return;
+            const fx = mft_fx.fxForModule(track, state.module) orelse {
+                state.setNote("This module has no plugin on the track.");
+                return;
+            };
+            if (mft_presets.load(track, fx, name)) closeFxSel(globals, mft_fxsel.pageOf(state.module)) else state.setNote("The preset could not be loaded.");
+        },
+        .save_preset => |name| {
+            const track = globals.current_track orelse {
+                state.setNote("There is no track to save the preset from.");
+                return;
+            };
+            const fx = mft_fx.fxForModule(track, state.module) orelse {
+                state.setNote("This module has no plugin on the track.");
+                return;
+            };
+            if (mft_presets.save(io, track, fx, name)) {
+                closeFxSel(globals, mft_fxsel.pageOf(state.module));
+            } else |err| {
+                var buf: [96]u8 = undefined;
+                state.setNote(std.fmt.bufPrint(&buf, "The preset could not be saved ({s}).", .{@errorName(err)}) catch "The preset could not be saved.");
             }
         },
         .not_done => |action| {

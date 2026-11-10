@@ -177,6 +177,20 @@ pub fn moduleFxToShow(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
     return first;
 }
 
+// The FX that does the work of a module on the track: the channel strip when the track has one, and otherwise the plugin of the module's slot. Null when
+// the track has none.
+pub fn fxForModule(track: reaper.MediaTrack, module: MappableModule) ?c_int {
+    if (findStrip(track)) |strip| return strip;
+    const slots = slotsFor(module);
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const slot = fxSlot(track, i) orelse continue;
+        if (slotsContain(slots, slot)) return i;
+    }
+    return null;
+}
+
 // Whether a plugin of the module's slot is bypassed. A module that has no plugin on the track is not bypassed.
 pub fn moduleBypassed(track: reaper.MediaTrack, module: MappableModule) bool {
     const slots = slotsFor(module);
