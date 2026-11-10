@@ -72,7 +72,7 @@ pub fn diffRings(cache: *[ring_count]?u8, wanted: *const [ring_count]u8, changed
 }
 
 /// The encoder that a parameter belongs to, or null when no encoder of the routing moves it.
-pub fn slotForParam(routing: *const SlotRouting, fx_index: u16, param: u16) ?u3 {
+pub fn slotForParam(routing: *const SlotRouting, fx_index: u16, param: u16) ?u4 {
     for (routing.targets, 0..) |target, slot| {
         const t = target orelse continue;
         if (t.fx_index == @as(c_int, fx_index) and t.param == param) return @intCast(slot);
@@ -135,8 +135,8 @@ test "slotForParam: finds the encoder that moves a parameter, and nothing for an
     var routing = SlotRouting{};
     routing.targets[1] = .{ .fx_index = 4, .param = 9 };
     routing.targets[6] = .{ .fx_index = 2, .param = 0 };
-    try t.expectEqual(@as(?u3, 1), slotForParam(&routing, 4, 9));
-    try t.expectEqual(@as(?u3, 6), slotForParam(&routing, 2, 0));
-    try t.expectEqual(@as(?u3, null), slotForParam(&routing, 4, 8));
-    try t.expectEqual(@as(?u3, null), slotForParam(&routing, 5, 9));
+    try t.expectEqual(@as(?u4, 1), slotForParam(&routing, 4, 9));
+    try t.expectEqual(@as(?u4, 6), slotForParam(&routing, 2, 0));
+    try t.expectEqual(@as(?u4, null), slotForParam(&routing, 4, 8));
+    try t.expectEqual(@as(?u4, null), slotForParam(&routing, 5, 9));
 }

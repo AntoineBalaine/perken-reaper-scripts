@@ -11,7 +11,7 @@ const mft_feedback = @import("mft_feedback.zig");
 
 // Ring position on channel 1: a byte from 0 to 127. The byte is kept in `globals.feedback`, and a ring that already shows it is not sent
 // again.
-pub fn setRing(globals: *MftGlobals, slot: u3, byte: u8) void {
+pub fn setRing(globals: *MftGlobals, slot: u4, byte: u8) void {
     const midi_out = globals.m_midi_out orelse return;
     std.debug.assert(byte <= 127);
     if (globals.feedback.rings[slot] == byte) return;

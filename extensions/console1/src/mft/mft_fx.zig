@@ -10,23 +10,20 @@ pub const SlotTarget = struct {
     param: u16,
 };
 
-// Per-encoder routing for the active module. Each of the eight top-row
-// encoders either points at an (fx, param) pair or is unmapped.
+// Per-encoder routing for the active module. Each of the sixteen encoders
+// either points at an (fx, param) pair or is unmapped.
 pub const SlotRouting = struct {
-    targets: [8]?SlotTarget = @splat(null),
+    targets: [mappings.knob_count]?SlotTarget = @splat(null),
 
     // Fill this routing's empty slots from a mapping belonging to one FX.
     // Slots already claimed by an earlier FX are left untouched, so the first
     // FX to define a slot wins.
     pub fn merge(self: *SlotRouting, fx_index: c_int, mapping: mappings.MftModuleMapping) void {
-        var slot: u3 = 0;
-        while (true) : (slot += 1) {
-            if (self.targets[slot] == null) {
-                if (mapping.slotToParam(slot)) |param| {
-                    self.targets[slot] = .{ .fx_index = fx_index, .param = param };
-                }
+        for (&self.targets, 0..) |*target, slot| {
+            if (target.* != null) continue;
+            if (mapping.slotToParam(@intCast(slot))) |param| {
+                target.* = .{ .fx_index = fx_index, .param = param };
             }
-            if (slot == 7) break;
         }
     }
 };

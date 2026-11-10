@@ -1,7 +1,7 @@
 const std = @import("std");
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 
-pub const MFT_MAPPING_FORMAT_VERSION: u8 = 1;
+pub const MFT_MAPPING_FORMAT_VERSION: u8 = 2;
 
 // A mappable module routes the eight top-row encoders to FX parameters. Only
 // IO, GATE, EQ and COMP carry FX mappings; SETTINGS and TRANSPORT are control
@@ -32,43 +32,34 @@ pub const MappableModule = enum {
     }
 };
 
+/// How many knobs and how many pushes a page of the controller has: the sixteen encoders all turn, and the eight of the top two rows also
+/// push.
+pub const knob_count = 16;
+pub const push_count = 8;
+
+/// The parameters that the encoders of one FX move, by position: `knob_N` in a map file is the position N of the grid (1 to 16, row by
+/// row), and `push_N` the push of the encoder N (1 to 8). Because the maps of the first version only had `knob_1` to `knob_8`, they stay
+/// valid in this version.
 pub const MftModuleMapping = struct {
     version: u8 = MFT_MAPPING_FORMAT_VERSION,
-    knob_1: ?u16 = null,
-    knob_2: ?u16 = null,
-    knob_3: ?u16 = null,
-    knob_4: ?u16 = null,
-    knob_5: ?u16 = null,
-    knob_6: ?u16 = null,
-    knob_7: ?u16 = null,
-    knob_8: ?u16 = null,
+    knobs: [knob_count]?u16 = @splat(null),
+    pushes: [push_count]?u16 = @splat(null),
 
-    pub fn slotToParam(self: *const MftModuleMapping, slot: u3) ?u16 {
-        return switch (slot) {
-            0 => self.knob_1,
-            1 => self.knob_2,
-            2 => self.knob_3,
-            3 => self.knob_4,
-            4 => self.knob_5,
-            5 => self.knob_6,
-            6 => self.knob_7,
-            7 => self.knob_8,
-        };
+    pub fn slotToParam(self: *const MftModuleMapping, slot: u4) ?u16 {
+        return self.knobs[slot];
     }
 
-    // Assign a slot by its knob index. Used by the INI parser, which reads
-    // keys of the form "knob_N".
-    pub fn setSlot(self: *MftModuleMapping, slot: u3, value: u16) void {
-        switch (slot) {
-            0 => self.knob_1 = value,
-            1 => self.knob_2 = value,
-            2 => self.knob_3 = value,
-            3 => self.knob_4 = value,
-            4 => self.knob_5 = value,
-            5 => self.knob_6 = value,
-            6 => self.knob_7 = value,
-            7 => self.knob_8 = value,
-        }
+    pub fn pushToParam(self: *const MftModuleMapping, push: u3) ?u16 {
+        return self.pushes[push];
+    }
+
+    /// Assigns a knob by its position. The INI parser reads keys of the form `knob_N`.
+    pub fn setSlot(self: *MftModuleMapping, slot: u4, value: u16) void {
+        self.knobs[slot] = value;
+    }
+
+    pub fn setPush(self: *MftModuleMapping, push: u3, value: u16) void {
+        self.pushes[push] = value;
     }
 };
 
@@ -79,8 +70,13 @@ test "MftModuleMapping: slot round-trip" {
 
     m.setSlot(0, 9);
     m.setSlot(7, 3);
+    m.setSlot(15, 4);
+    m.setPush(7, 5);
     try t.expectEqual(@as(?u16, 9), m.slotToParam(0));
     try t.expectEqual(@as(?u16, 3), m.slotToParam(7));
+    try t.expectEqual(@as(?u16, 4), m.slotToParam(15));
+    try t.expectEqual(@as(?u16, 5), m.pushToParam(7));
+    try t.expectEqual(@as(?u16, null), m.pushToParam(0));
     try t.expectEqual(@as(?u16, null), m.slotToParam(4));
 }
 

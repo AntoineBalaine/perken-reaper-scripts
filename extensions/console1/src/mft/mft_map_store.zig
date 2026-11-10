@@ -79,8 +79,8 @@ pub const MftMapStore = struct {
     }
 };
 
-// Parse a mapping from key/value records. Keys are "version" and "knob_1"
-// through "knob_8"; "module" and "fx_name" headers are ignored here because
+// Parse a mapping from key/value records. Keys are "version", "knob_1"
+// through "knob_16" and "push_1" through "push_8"; "module" and "fx_name" headers are ignored here because
 // the module is already known from the lookup.
 fn parseMapping(parser: anytype) !MftModuleMapping {
     var mapping = MftModuleMapping{};
@@ -96,9 +96,12 @@ fn parseMapping(parser: anytype) !MftModuleMapping {
                     version_found = true;
                     continue;
                 }
-                if (parseKnobKey(kv.key)) |slot| {
+                if (parsePositionKey(kv.key, "knob_", mappings.knob_count)) |position| {
                     const val = std.fmt.parseInt(u16, kv.value, 10) catch continue;
-                    mapping.setSlot(slot, val);
+                    mapping.setSlot(@intCast(position), val);
+                } else if (parsePositionKey(kv.key, "push_", mappings.push_count)) |position| {
+                    const val = std.fmt.parseInt(u16, kv.value, 10) catch continue;
+                    mapping.setPush(@intCast(position), val);
                 }
             },
             .section, .enumeration => {},
@@ -109,22 +112,55 @@ fn parseMapping(parser: anytype) !MftModuleMapping {
     return mapping;
 }
 
-// Match "knob_N" for N in 1..8 and return the zero-based slot index.
-fn parseKnobKey(key: []const u8) ?u3 {
-    const prefix = "knob_";
+// Matches a key made of `prefix` and a number from 1 to `count`, and returns the zero-based position.
+fn parsePositionKey(key: []const u8, prefix: []const u8, count: usize) ?usize {
     if (!std.mem.startsWith(u8, key, prefix)) return null;
-    const n = std.fmt.parseInt(u8, key[prefix.len..], 10) catch return null;
-    if (n < 1 or n > 8) return null;
-    return @intCast(n - 1);
+    const n = std.fmt.parseInt(usize, key[prefix.len..], 10) catch return null;
+    if (n < 1 or n > count) return null;
+    return n - 1;
 }
 
-test "parseKnobKey" {
+test "parsePositionKey: the ends of the knobs and of the pushes, and what is outside them" {
     const t = std.testing;
-    try t.expectEqual(@as(?u3, 0), parseKnobKey("knob_1"));
-    try t.expectEqual(@as(?u3, 7), parseKnobKey("knob_8"));
-    try t.expectEqual(@as(?u3, null), parseKnobKey("knob_9"));
-    try t.expectEqual(@as(?u3, null), parseKnobKey("knob_0"));
-    try t.expectEqual(@as(?u3, null), parseKnobKey("version"));
+    try t.expectEqual(@as(?usize, 0), parsePositionKey("knob_1", "knob_", mappings.knob_count));
+    try t.expectEqual(@as(?usize, 15), parsePositionKey("knob_16", "knob_", mappings.knob_count));
+    try t.expectEqual(@as(?usize, null), parsePositionKey("knob_17", "knob_", mappings.knob_count));
+    try t.expectEqual(@as(?usize, null), parsePositionKey("knob_0", "knob_", mappings.knob_count));
+    try t.expectEqual(@as(?usize, 7), parsePositionKey("push_8", "push_", mappings.push_count));
+    try t.expectEqual(@as(?usize, null), parsePositionKey("push_9", "push_", mappings.push_count));
+    try t.expectEqual(@as(?usize, null), parsePositionKey("version", "knob_", mappings.knob_count));
+}
+
+test "parseMapping: a version 2 map has knobs up to 16 and pushes, and a version 1 map still loads" {
+    const t = std.testing;
+    const v2 =
+        \\version = 2
+        \\knob_16 = 7
+        \\push_1 = 3
+    ;
+    var fbs2: std.Io.Reader = .fixed(v2);
+    var parser2 = ini.parse(t.allocator, &fbs2, ";#");
+    defer parser2.deinit();
+    const m2 = try parseMapping(&parser2);
+    try t.expectEqual(@as(?u16, 7), m2.slotToParam(15));
+    try t.expectEqual(@as(?u16, 3), m2.pushToParam(0));
+
+    const v1 =
+        \\version = 1
+        \\knob_8 = 2
+    ;
+    var fbs1: std.Io.Reader = .fixed(v1);
+    var parser1 = ini.parse(t.allocator, &fbs1, ";#");
+    defer parser1.deinit();
+    try t.expectEqual(@as(?u16, 2), (try parseMapping(&parser1)).slotToParam(7));
+
+    const v3 =
+        \\version = 3
+    ;
+    var fbs3: std.Io.Reader = .fixed(v3);
+    var parser3 = ini.parse(t.allocator, &fbs3, ";#");
+    defer parser3.deinit();
+    try t.expectError(error.UnsupportedMapVersion, parseMapping(&parser3));
 }
 
 test "parseMapping: reads knobs and version" {
