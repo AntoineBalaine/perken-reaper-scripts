@@ -146,11 +146,44 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 state.setNote(std.fmt.bufPrint(&buf, "The preset could not be saved ({s}).", .{@errorName(err)}) catch "The preset could not be saved.");
             }
         },
-        .not_done => |action| {
-            var buf: [96]u8 = undefined;
-            state.setNote(std.fmt.bufPrint(&buf, "{s} is not done yet.", .{action.label()}) catch "Not done yet.");
+        .open_mapping => {
+            const track = globals.current_track orelse {
+                state.setNote("There is no track to map a plugin of.");
+                state.screen = .actions;
+                return;
+            };
+            const fx = mft_fx.fxForModule(track, state.module) orelse {
+                state.setNote("This module has no plugin on the track.");
+                state.screen = .actions;
+                return;
+            };
+            const name = mft_fx.fxMapName(track, fx, &state.map_fx_name) orelse {
+                state.setNote("The name of the plugin could not be read.");
+                state.screen = .actions;
+                return;
+            };
+            state.map_fx_index = fx;
+            state.map_edit = globals.map_store.get(io, state.module, name) orelse .{};
+        },
+        .save_mapping => {
+            const name = std.mem.sliceTo(&state.map_fx_name, 0);
+            globals.map_store.saveUser(io, state.module, state.map_fx_name[0..name.len :0], &state.map_edit) catch |err| {
+                var buf: [96]u8 = undefined;
+                state.setNote(std.fmt.bufPrint(&buf, "The mapping could not be saved ({s}).", .{@errorName(err)}) catch "The mapping could not be saved.");
+                return;
+            };
+            closeFxSel(globals, mft_fxsel.pageOf(state.module));
         },
     }
+}
+
+/// A parameter of an FX moved in REAPER. While the mapping mode is open, the selected control learns it, as the learn of the Console 1 does: touching a
+/// parameter of the plugin that is being mapped gives it to the control.
+pub fn learnParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16, param: u16) void {
+    const state = &(globals.mft.fxsel orelse return);
+    if (state.screen != .map or track != globals.current_track) return;
+    if (state.map_fx_index != @as(c_int, fx_index)) return;
+    mft_fxsel.assign(state, param);
 }
 
 /// Carries out what the window of the FX SEL mode chose. The window draws in the timer of the panel, which does not load plugins, so it leaves its

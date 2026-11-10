@@ -224,6 +224,7 @@ export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: 
             const packed_ptr: *const c_int = @ptrCast(@alignCast(parm2 orelse return 0));
             const value_ptr: *const f64 = @ptrCast(@alignCast(parm3 orelse return 0));
             const fx_param = mft_feedback.decodeFxParam(packed_ptr.*);
+            midi_events.learnParam(globals, @ptrCast(parm1), fx_param.fx_index, fx_param.param);
             midi_out.syncParam(globals, @ptrCast(parm1), fx_param.fx_index, fx_param.param, value_ptr.*);
             return 1;
         },

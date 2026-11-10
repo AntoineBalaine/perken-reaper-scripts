@@ -33,7 +33,12 @@ pub const Screen = enum {
     presets,
     /// The name of a new preset, which is typed in the window.
     save,
+    /// The mapping mode: the parameters that the sixteen knobs and the eight pushes of the plugin of the module move. It has a window of its own.
+    map,
 };
+
+/// How many controls the mapping mode maps: the sixteen knobs, then the eight pushes.
+pub const control_count = mappings.knob_count + mappings.push_count;
 
 /// The menus of the browser that the controller leaves out. The FX chains and the track templates insert more than a plugin into a module, the
 /// container and the video processor have nothing to map, and the recent plugins are not kept here, so what is left are the plugins that have a
@@ -169,6 +174,12 @@ pub const FxSelState = struct {
     /// name that it was asked for.
     save_name: [96:0]u8 = @splat(0),
     save_armed: u64 = 0,
+    /// The mapping that is being made, which is a copy of the one that the plugin has, the plugin that it is for, and the control that is selected (the
+    /// sixteen knobs first, then the eight pushes).
+    map_edit: mappings.MftModuleMapping = .{},
+    map_fx_name: [160:0]u8 = @splat(0),
+    map_fx_index: c_int = -1,
+    map_selected: u8 = 0,
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -277,8 +288,10 @@ pub const Outcome = union(enum) {
     load_preset: [:0]const u8,
     /// The state of the plugin of the module is to be saved as a preset of that name, and the mode closed.
     save_preset: [:0]const u8,
-    /// The action has no screen yet.
-    not_done: Action,
+    /// The mapping of the plugin of the module is to be read from its map, to be edited.
+    open_mapping,
+    /// The mapping that was made is to be saved as the user's map of the plugin, and the mode closed.
+    save_mapping,
 };
 
 fn move(cursor: anytype, steps: i32, count: usize) void {
@@ -292,7 +305,7 @@ pub fn listCount(state: *const FxSelState, source: ?fx_browser.Source) usize {
     return switch (state.screen) {
         .actions => action_count,
         .presets => state.presets.count,
-        .save => 0,
+        .save, .map => 0,
         .browse => blk: {
             const data = source orelse break :blk 0;
             if (state.searching()) {
@@ -310,14 +323,20 @@ pub fn moveCursor(state: *FxSelState, steps: i32, source: ?fx_browser.Source) vo
     switch (state.screen) {
         .actions => move(&state.action_cursor, steps, action_count),
         .presets => move(&state.preset_cursor, steps, state.presets.count),
-        .save => {},
+        .save, .map => {},
         .browse => if (state.searching()) move(&state.search_cursor, steps, listCount(state, source)) else move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
     }
 }
 
 /// A turn of an encoder. Only the encoder 13 does something: it scrolls the list of the screen, one entry for each `ticks_per_step` ticks.
 pub fn turn(state: *FxSelState, encoder: usize, delta: i8, source: ?fx_browser.Source) Outcome {
-    if (encoder != list_encoder or delta == 0) return .none;
+    if (delta == 0) return .none;
+    // In the mapping mode, touching an encoder selects its knob.
+    if (state.screen == .map) {
+        if (encoder < mappings.knob_count) state.map_selected = @intCast(encoder);
+        return .none;
+    }
+    if (encoder != list_encoder) return .none;
     const total: i32 = @as(i32, state.scroll_ticks) + delta;
     const steps = @divTrunc(total, ticks_per_step);
     state.scroll_ticks = @intCast(total - steps * ticks_per_step);
@@ -346,7 +365,11 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
             state.focus_search = true;
             return .fill_presets;
         },
-        .create_mapping => return .{ .not_done = action },
+        .create_mapping => {
+            state.screen = .map;
+            state.map_selected = 0;
+            return .open_mapping;
+        },
     }
 }
 
@@ -413,13 +436,18 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
                 state.preset_cursor = 0;
                 return .fill_presets;
             },
+            // The module in focus changes, and its mapping is read to be edited; what was changed in the other one is dropped.
+            .map => {
+                state.map_selected = 0;
+                return .open_mapping;
+            },
             .actions => return .none,
         }
     }
     if (encoder == cancel_encoder) {
         return switch (state.screen) {
             .actions => .leave,
-            .presets, .save => blk: {
+            .presets, .save, .map => blk: {
                 state.screen = .actions;
                 break :blk .none;
             },
@@ -443,7 +471,13 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
             .browse => if (source) |data| confirmEntry(state, data) else .none,
             .presets => if (state.presets.count == 0) .none else .{ .load_preset = state.presets.get(state.preset_cursor) },
             .save => confirmSave(state),
+            .map => .save_mapping,
         };
+    }
+    // In the mapping mode, a press on one of the top eight encoders selects its push.
+    if (state.screen == .map and encoder < mappings.push_count) {
+        state.map_selected = @intCast(mappings.knob_count + encoder);
+        return .none;
     }
     // The top row has a shortcut for each action on the first screen.
     if (state.screen == .actions and encoder < action_count) return runAction(state, @fromBackingInt(@intCast(encoder)));
@@ -474,6 +508,48 @@ pub fn pageOf(module: MappableModule) mft_state.MftActiveModule {
     };
 }
 
+/// Gives the selected control a parameter, or takes its parameter away when `param` is null.
+pub fn assign(state: *FxSelState, param: ?u16) void {
+    const selected = state.map_selected;
+    if (selected < mappings.knob_count) {
+        state.map_edit.knobs[selected] = param;
+    } else {
+        state.map_edit.pushes[selected - mappings.knob_count] = if (param) |p| .{ .param = p } else null;
+    }
+}
+
+/// Selects a control of the mapping mode by its index.
+pub fn selectControl(state: *FxSelState, index: usize) void {
+    std.debug.assert(index < control_count);
+    state.map_selected = @intCast(index);
+}
+
+/// The parameter that a control has in the mapping that is being made, whatever the kind of control. A push that steps the shape of an EQ band has none.
+pub fn controlParam(state: *const FxSelState, index: usize) ?u16 {
+    if (index < mappings.knob_count) return state.map_edit.knobs[index];
+    const action = state.map_edit.pushes[index - mappings.knob_count] orelse return null;
+    return switch (action) {
+        .param => |p| p,
+        .band => null,
+    };
+}
+
+const knob_names = blk: {
+    var names: [mappings.knob_count][:0]const u8 = undefined;
+    for (&names, 0..) |*name, i| name.* = std.fmt.comptimePrint("Knob {d}", .{i + 1});
+    break :blk names;
+};
+const push_names = blk: {
+    var names: [mappings.push_count][:0]const u8 = undefined;
+    for (&names, 0..) |*name, i| name.* = std.fmt.comptimePrint("Push {d}", .{i + 1});
+    break :blk names;
+};
+
+/// The name of a control of the mapping mode ("Knob 3", "Push 2").
+pub fn controlName(index: usize) [:0]const u8 {
+    return if (index < mappings.knob_count) knob_names[index] else push_names[index - mappings.knob_count];
+}
+
 /// What the window of an encoder says in the mode: the word of a turn, the word of a press, and whether the encoder is the module that is chosen.
 pub const Label = struct {
     turn: ?[:0]const u8 = null,
@@ -482,6 +558,7 @@ pub const Label = struct {
 };
 
 pub fn label(state: *const FxSelState, encoder: usize) Label {
+    if (state.screen == .map) return mapLabel(state, encoder);
     if (encoder < 8) {
         if (state.screen == .actions and encoder < action_count) {
             const action: Action = @fromBackingInt(@intCast(encoder));
@@ -494,7 +571,7 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
         return .{ .turn = switch (state.screen) {
             .actions => state.action().label(),
             .browse, .presets => "Scroll",
-            .save => null,
+            .save, .map => null,
         }, .press = "OK" };
     }
     if (encoder == cancel_encoder) return .{ .press = if (state.screen == .actions) "Cancel" else "Back" };
@@ -529,6 +606,15 @@ fn scroll(state: *FxSelState, entries: i32, source: ?fx_browser.Source) void {
     const sign: i8 = if (entries < 0) -1 else 1;
     var ticks: i32 = @intCast(@abs(entries) * ticks_per_step);
     while (ticks > 0) : (ticks -= 1) _ = turn(state, list_encoder, sign, source);
+}
+
+fn mapLabel(state: *const FxSelState, encoder: usize) Label {
+    const selected: usize = state.map_selected;
+    if (moduleForEncoder(encoder)) |module| return .{ .turn = knob_names[encoder], .press = @tagName(module), .chosen = module == state.module };
+    if (encoder == list_encoder) return .{ .turn = knob_names[encoder], .press = "Save", .chosen = selected == encoder };
+    if (encoder == cancel_encoder) return .{ .turn = knob_names[encoder], .press = "Cancel", .chosen = selected == encoder };
+    const chosen = selected == encoder or (encoder < mappings.push_count and selected == mappings.knob_count + encoder);
+    return .{ .turn = knob_names[encoder], .press = if (encoder < mappings.push_count) push_names[encoder] else "-", .chosen = chosen };
 }
 
 test "the encoder scrolls one entry for every few ticks, and keeps the ticks that did not make a step" {
@@ -630,7 +716,7 @@ test "without the data of the plugins, the browser is empty and a press loads no
     try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
 }
 
-test "the shortcuts of the top row run their action, and the action without a screen says so" {
+test "the shortcuts of the top row run their action" {
     const t = std.testing;
     var state = FxSelState{};
     try t.expectEqual(Outcome.fill_presets, press(&state, 1, null));
@@ -639,7 +725,9 @@ test "the shortcuts of the top row run their action, and the action without a sc
     try t.expectEqual(Outcome.fill_presets, press(&state, 2, null));
     try t.expectEqual(Screen.save, state.screen);
     state = FxSelState{};
-    try t.expectEqual(Outcome{ .not_done = .create_mapping }, press(&state, 3, null));
+    try t.expectEqual(Outcome.open_mapping, press(&state, 3, null));
+    try t.expectEqual(Screen.map, state.screen);
+    state = FxSelState{};
     try t.expectEqual(Outcome.none, press(&state, 4, null));
     try t.expectEqual(Outcome.fill_browser, press(&state, 0, null));
     // In the browser the top row has no shortcut.
@@ -803,4 +891,55 @@ test "Save preset needs a name, asks before it replaces a preset of the same nam
     const other = "Warm";
     @memcpy(state.save_name[0..other.len], other);
     try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
+}
+
+test "Create mapping opens the mapping mode, touching an encoder selects its control, and a parameter is given to it or taken away" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.action_cursor = @backingInt(Action.create_mapping);
+    try t.expectEqual(Outcome.open_mapping, press(&state, list_encoder, null));
+    try t.expectEqual(Screen.map, state.screen);
+    try t.expectEqual(@as(u8, 0), state.map_selected);
+
+    // Turning the encoder 6 selects the knob 6, and pushing the encoder 3 selects the push 3.
+    _ = turn(&state, 5, 1, null);
+    try t.expectEqual(@as(u8, 5), state.map_selected);
+    assign(&state, 12);
+    try t.expectEqual(@as(?u16, 12), controlParam(&state, 5));
+    try t.expectEqual(Outcome.none, press(&state, 2, null));
+    try t.expectEqual(@as(u8, mappings.knob_count + 2), state.map_selected);
+    assign(&state, 7);
+    try t.expectEqual(@as(?u16, 7), controlParam(&state, mappings.knob_count + 2));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 7 }), state.map_edit.pushes[2]);
+    // A control loses its parameter.
+    assign(&state, null);
+    try t.expectEqual(@as(?mappings.PushAction, null), state.map_edit.pushes[2]);
+    // The bottom row selects knobs by a turn too, and its pushes keep their functions.
+    _ = turn(&state, 15, -1, null);
+    try t.expectEqual(@as(u8, 15), state.map_selected);
+    try t.expectEqual(MappableModule.EQ, state.module);
+    try t.expectEqual(Outcome.open_mapping, press(&state, 11, null));
+    try t.expectEqual(MappableModule.COMP, state.module);
+    try t.expectEqual(@as(u8, 0), state.map_selected);
+    // OK saves, and Cancel goes back to the actions without saving.
+    try t.expectEqual(Outcome.save_mapping, press(&state, list_encoder, null));
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, null));
+    try t.expectEqual(Screen.actions, state.screen);
+}
+
+test "the windows of the mapping mode name the knob and the push of each encoder, and light the one that is selected" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.screen = .map;
+    state.map_selected = mappings.knob_count + 1;
+    try t.expectEqualStrings("Knob 2", label(&state, 1).turn.?);
+    try t.expectEqualStrings("Push 2", label(&state, 1).press);
+    try t.expect(label(&state, 1).chosen);
+    try t.expect(!label(&state, 0).chosen);
+    try t.expectEqualStrings("Knob 9", label(&state, 8).turn.?);
+    try t.expectEqualStrings("INPUT", label(&state, 8).press);
+    try t.expectEqualStrings("Save", label(&state, list_encoder).press);
+    try t.expectEqualStrings("Cancel", label(&state, cancel_encoder).press);
+    try t.expectEqualStrings("Knob 15", label(&state, 14).turn.?);
+    try t.expectEqualStrings("Push 8", controlName(mappings.knob_count + 7));
 }

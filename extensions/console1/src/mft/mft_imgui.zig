@@ -194,6 +194,7 @@ fn onTimer() callconv(.c) void {
 fn drawWindows(globals: *MftGlobals) !void {
     try draw(globals);
     try drawFxSelWindow(globals);
+    try drawMappingWindow(globals);
 }
 
 // Forgets the context and what was made in it: the fonts and the kit's state belong to it.
@@ -546,10 +547,104 @@ fn drawFxSelSave(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int,
     }
 }
 
+/// The name of a parameter of an FX, or its number when REAPER gives no name.
+fn paramLabel(track: reaper.MediaTrack, fx: c_int, param: u16, buf: *[96:0]u8) [:0]const u8 {
+    if (param == mappings.wet_param) return "Dry/Wet";
+    var name: [64:0]u8 = undefined;
+    name[0] = 0;
+    if (track != null and reaper.TrackFX_GetParamName(track, fx, param, &name, 64) and name[0] != 0) {
+        return std.mem.printSentinel(buf, "{d}: {s}", .{ param, std.mem.sliceTo(&name, 0) }, 0) catch "?";
+    }
+    return std.mem.printSentinel(buf, "{d}", .{param}, 0) catch "?";
+}
+
+/// One control of the mapping: a combo that says the control and the parameter that it has, and offers the parameters of the plugin. The control that
+/// is selected is in the color of the module. Choosing a parameter selects the control and gives it the parameter.
+fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: usize, width: f64, accent: c_int) !void {
+    var id: [24:0]u8 = undefined;
+    _ = std.mem.printSentinel(&id, "##map{d}", .{index}, 0) catch return;
+    var param_buf: [96:0]u8 = undefined;
+    var preview_buf: [160:0]u8 = undefined;
+    const param_text: [:0]const u8 = if (mft_fxsel.controlParam(state, index)) |p| paramLabel(track, state.map_fx_index, p, &param_buf) else "-";
+    const preview = std.mem.printSentinel(&preview_buf, "{s}: {s}", .{ mft_fxsel.controlName(index), param_text }, 0) catch "?";
+    const selected = state.map_selected == index;
+    if (selected) try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, accent });
+    defer if (selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+    try imgui.SetNextItemWidth(.{ ctx, width });
+    if (!try imgui.BeginCombo(.{ ctx, &id, preview, null })) return;
+    defer imgui.EndCombo(.{ctx}) catch {};
+    mft_fxsel.selectControl(state, index);
+    if (try imgui.Selectable(.{ ctx, "-" })) mft_fxsel.assign(state, null);
+    // The dry/wet of the FX has no fixed number, so it is a choice of its own, as in the maps.
+    if (try imgui.Selectable(.{ ctx, "Dry/Wet" })) mft_fxsel.assign(state, mappings.wet_param);
+    const count: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, state.map_fx_index), 0));
+    for (0..@min(count, 1024)) |p| {
+        var label_buf: [96:0]u8 = undefined;
+        if (try imgui.Selectable(.{ ctx, paramLabel(track, state.map_fx_index, @intCast(p), &label_buf) })) mft_fxsel.assign(state, @intCast(p));
+    }
+}
+
+/// The window of the mapping mode, which is a window of its own: the sixteen knobs and the eight pushes of the plugin, each with a combo of its
+/// parameters, as the mapping panel of the Console 1 has for its controls. The encoders select the control that they touch, a parameter that is moved in
+/// the plugin is learned by the selected control, and the module buttons change the module in focus.
+fn drawMappingWindow(globals: *MftGlobals) !void {
+    const state = &(globals.mft.fxsel orelse return);
+    if (state.screen != .map) return;
+    fxsel_kit.ctx = ctx;
+    fxsel_kit.fonts = fonts;
+    theme.push(ctx);
+    defer theme.pop(ctx);
+    if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
+    defer if (fonts.text != null) imgui.api.PopFont(ctx);
+    imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, fxsel_padding, fxsel_padding);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar | imgui.WindowFlags_AlwaysAutoResize;
+    const visible = try imgui.Begin(.{ ctx, "MFT Mapping", null, flags });
+    var window_vars: c_int = 1;
+    imgui.api.PopStyleVar(ctx, &window_vars);
+    if (!visible) return;
+    defer imgui.End(.{ctx}) catch {};
+
+    const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
+    const track = globals.current_track;
+    var title_buf: [256:0]u8 = undefined;
+    const title = std.mem.printSentinel(&title_buf, "Mapping - {s} - {s}", .{ @tagName(state.module), std.mem.sliceTo(&state.map_fx_name, 0) }, 0) catch "Mapping";
+    const cell_w: f64 = 200;
+    if (widgets.beginCard(&fxsel_kit, title, null, null, accent)) {
+        defer widgets.endCard(&fxsel_kit);
+        // The knobs are in the grid of the controller, four to a row.
+        for (0..mappings.knob_count) |i| {
+            if (i % 4 != 0) imgui.api.SameLine(ctx, null, null);
+            try drawMapCombo(state, track, i, cell_w, accent);
+        }
+        imgui.api.Spacing(ctx);
+        // The pushes are those of the two top rows, four to a row.
+        for (0..mappings.push_count) |i| {
+            if (i % 4 != 0) imgui.api.SameLine(ctx, null, null);
+            try drawMapCombo(state, track, mappings.knob_count + i, cell_w, accent);
+        }
+    }
+    var outcome: mft_fxsel.Outcome = .none;
+    if (widgets.pushButton(&fxsel_kit, "Save", 0)) outcome = .save_mapping;
+    imgui.api.SameLine(ctx, null, null);
+    if (widgets.pushButton(&fxsel_kit, "Cancel", 0)) {
+        state.screen = .actions;
+    }
+    if (state.noteText().len > 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, state.noteText() });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+    // The surface carries the choice out on its next run.
+    if (outcome != .none) state.pending = outcome;
+}
+
 /// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It
 /// has the look of the panel: cards of the panel kit with the rows of the lists, and the heading in the color of the module.
 fn drawFxSelWindow(globals: *MftGlobals) !void {
     const state = &(globals.mft.fxsel orelse return);
+    // The mapping mode has a window of its own.
+    if (state.screen == .map) return;
     fxsel_kit.ctx = ctx;
     fxsel_kit.fonts = fonts;
     theme.push(ctx);
@@ -613,6 +708,7 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
         },
         .presets => outcome = try drawFxSelPresets(&fxsel_kit, state, accent, line_height, card_w, room),
         .save => try drawFxSelSave(&fxsel_kit, state, accent, line_height, card_w, room),
+        .map => {},
     }
     if (outcome == .none) outcome = try fxSelKeys(state, source);
     if (state.noteText().len > 0) {
@@ -1030,6 +1126,30 @@ test "the FX Selection window draws the preset screens with the stacks balanced"
     @memcpy(state.save_name[0..name.len], name);
     state.save_name[name.len] = 0;
     state.setNote("A preset has that name: confirm again to replace it.");
+    try drawWindows(&globals);
+    try mock.assertBalanced();
+}
+
+test "the mapping mode has a window of its own, and the FX Selection window is not drawn while it is open" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .map;
+    state.module = .COMP;
+    const name = "VST: ReaComp (Cockos)";
+    @memcpy(state.map_fx_name[0..name.len], name);
+    state.map_edit.knobs[0] = 3;
+    state.map_edit.knobs[15] = mappings.wet_param;
+    state.map_edit.pushes[1] = .{ .param = 7 };
+    state.map_selected = mappings.knob_count + 1;
+    state.setNote("The mapping could not be saved.");
+    try drawWindows(&globals);
+    state.map_selected = 0;
     try drawWindows(&globals);
     try mock.assertBalanced();
 }

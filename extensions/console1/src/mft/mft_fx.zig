@@ -177,6 +177,16 @@ pub fn moduleFxToShow(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
     return first;
 }
 
+// The name of an FX as its map is found by, which is its base name without the suffix, written into `buf`. Null when REAPER gives no name.
+pub fn fxMapName(track: reaper.MediaTrack, fx: c_int, buf: *[160:0]u8) ?[:0]const u8 {
+    var full: [512:0]u8 = undefined;
+    const base = fxBaseName(track, fx, &full) orelse return null;
+    const length = @min(base.len, buf.len - 1);
+    @memcpy(buf[0..length], base[0..length]);
+    buf[length] = 0;
+    return buf[0..length :0];
+}
+
 // The FX that does the work of a module on the track: the channel strip when the track has one, and otherwise the plugin of the module's slot. Null when
 // the track has none.
 pub fn fxForModule(track: reaper.MediaTrack, module: MappableModule) ?c_int {
