@@ -643,7 +643,8 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
 /// One encoder while the FX SEL mode is open: it has no value, and its window says what a turn and a press do in the mode. The encoder that is
 /// chosen (the module, or the entry that the list is on) is sunk, and its window is lit.
 fn drawFxSelCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell: Cell, label: mft_fxsel.Label) void {
-    const color = view.fxsel_color;
+    // The buttons that choose a module keep the color of their module.
+    const color = if (mft_fxsel.moduleForEncoder(idx) != null) view.color(moduleForCell(idx).?) else view.fxsel_color;
     const held = isHeld(view, idx) or (idx < 8 and (view.press_lit >> @intCast(idx)) & 1 == 1);
     drawEncoder(dl, cell.cx, cell.cy, .{ .color = color, .pressed = held or label.chosen });
     const has_function = label.turn != null or !std.mem.eql(u8, label.press, "-");

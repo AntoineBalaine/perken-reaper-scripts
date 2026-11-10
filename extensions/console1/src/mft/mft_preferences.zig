@@ -53,9 +53,15 @@ pub const MftPreferences = struct {
         return hues;
     }
 
-    /// The hue of every LED while the FX SEL mode is open.
-    pub fn fxselHues() [16]u8 {
-        return @splat(@import("mft_fxsel.zig").hue);
+    /// The hue of each LED while the FX SEL mode is open: the buttons that choose a module (the input, the gate, the EQ, the compressor and the
+    /// output) keep the color of their module, so that they can be told apart, and the others have the color of the mode.
+    pub fn fxselHues(self: *const MftPreferences) [16]u8 {
+        const fxsel = @import("mft_fxsel.zig");
+        var hues: [16]u8 = @splat(fxsel.hue);
+        for (8..16) |encoder| {
+            if (fxsel.moduleForEncoder(encoder) != null) hues[encoder] = self.colorForModule(@fromBackingInt(@intCast(encoder - 8)));
+        }
+        return hues;
     }
 
     pub fn setColorForModule(self: *MftPreferences, module: MftActiveModule, hue: u8) void {
@@ -245,4 +251,24 @@ test "MftPreferences: the channel strip mode and its plugin are read" {
     try t.expectEqualStrings("JS: Lumina Channel Strip", prefs.default_strip);
     // Without the lines, the mode is off and no strip is named.
     try t.expect(!(MftPreferences{}).single_fx_mode);
+}
+
+test "fxselHues: the module buttons keep their colors, and the other encoders have the color of the mode" {
+    const t = std.testing;
+    var prefs = MftPreferences{};
+    prefs.color_gate = 33;
+    prefs.color_output = 44;
+    const hues = prefs.fxselHues();
+    const mode_hue = @import("mft_fxsel.zig").hue;
+    try t.expectEqual(mode_hue, hues[0]);
+    try t.expectEqual(mode_hue, hues[7]);
+    try t.expectEqual(prefs.color_input, hues[8]);
+    try t.expectEqual(@as(u8, 33), hues[9]);
+    try t.expectEqual(prefs.color_eq, hues[10]);
+    try t.expectEqual(prefs.color_comp, hues[11]);
+    // The settings, transport and AUTO encoders have no module to choose.
+    try t.expectEqual(mode_hue, hues[12]);
+    try t.expectEqual(mode_hue, hues[13]);
+    try t.expectEqual(mode_hue, hues[14]);
+    try t.expectEqual(@as(u8, 44), hues[15]);
 }

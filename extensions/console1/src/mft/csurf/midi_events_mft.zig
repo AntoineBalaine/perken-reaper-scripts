@@ -7,7 +7,6 @@ const reaper = @import("reaper").reaper;
 const mft = @import("../mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
 const mft_state = @import("../mft_state.zig");
-const mft_state_prefs = @import("../mft_preferences.zig").MftPreferences;
 const MftActiveModule = mft_state.MftActiveModule;
 const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
@@ -53,7 +52,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
 // Sends the colors and the rings that the controller shows now: those of the FX SEL mode while it is open, and those of the page otherwise.
 fn showCurrentFrame(globals: *MftGlobals) void {
     if (globals.m_midi_out) |mo| {
-        const hues = if (globals.mft.fxsel != null) mft_state_prefs.fxselHues() else globals.preferences.pageHues(globals.mft.active_module);
+        const hues = if (globals.mft.fxsel != null) globals.preferences.fxselHues() else globals.preferences.pageHues(globals.mft.active_module);
         midi_out.sendPageColors(mo, hues);
     }
     midi_out.syncRings(globals, true);
@@ -215,7 +214,10 @@ fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
 fn sendHue(globals: *MftGlobals, hue: u8) void {
     // The hue was already stored in the preferences, so the LEDs are sent from them.
     _ = hue;
-    if (globals.m_midi_out) |mo| midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
+    if (globals.m_midi_out) |mo| {
+        const hues = if (globals.mft.fxsel != null) globals.preferences.fxselHues() else globals.preferences.pageHues(globals.mft.active_module);
+        midi_out.sendPageColors(mo, hues);
+    }
 }
 
 pub fn installSettingsHook() void {
