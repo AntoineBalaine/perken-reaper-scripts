@@ -293,10 +293,9 @@ fn draw(globals: *MftGlobals) !void {
 /// Where the window of the FX Selection opens the first time, to the right of the device, and how big it is.
 const fxsel_window_x: f64 = window_x + 640;
 const fxsel_window_w: f64 = 480;
-/// The padding of the window, and the width that every card has: the whole width of the window, so that the cards are as wide as each other whatever
-/// entry is on the cursor.
+/// The padding of the window. The cards are as wide as the window lets them be, all alike, and take the height that is left, so that the window can be
+/// resized and the cards follow; the window opens at the size that holds the two cards of the first level.
 const fxsel_padding: f64 = 6;
-const fxsel_card_w: f64 = fxsel_window_w - 2 * fxsel_padding;
 
 /// The height of a card that shows `rows` rows of text: its title, its rows, and its edges. Because the card has a height of its own, its size does not
 /// change with the entries that it holds.
@@ -310,8 +309,16 @@ fn fxselWindowHeight(line_height: f64, menu_count: usize) f64 {
     return line_height * 2 + 12 + fxselCardHeight(line_height, mapped_rows) + fxselCardHeight(line_height, menu_count) + 2 * 8 + 2 * fxsel_padding + 24;
 }
 
-/// How many rows of a list show at a time. The cursor stays in the middle when the list is longer.
+/// How many rows of a list show at a time when the window has its default size. The cursor stays in the middle when the list is longer.
 const fxsel_rows: usize = 12;
+
+/// How many rows a card of the height `height` shows, and how many the last drawn list showed, which the page keys move the cursor by.
+fn fxselRowsFor(line_height: f64, height: f64) usize {
+    const rows = (height - line_height * 1.7 - 18) / line_height;
+    return @max(1, @as(usize, @intFromFloat(@max(rows, 1))));
+}
+
+var fxsel_page_rows: usize = fxsel_rows;
 
 /// The path of the menus that are open, as a line of names.
 fn fxSelBreadcrumb(buf: [:0]u8, state: *const mft_fxsel.FxSelState, source: fx_browser.Source) [:0]const u8 {
@@ -364,7 +371,7 @@ fn drawFxSelSearch(state: *mft_fxsel.FxSelState) !void {
 /// What the keys of the computer do in the window, as the controller does: the arrows move the cursor by one entry and the page keys by a page,
 /// Enter chooses the entry, and Escape steps back.
 fn fxSelKeys(state: *mft_fxsel.FxSelState, source: ?fx_browser.Source) !mft_fxsel.Outcome {
-    const page: i32 = @intCast(fxsel_rows - 1);
+    const page: i32 = @intCast(@max(fxsel_page_rows, 2) - 1);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) mft_fxsel.moveCursor(state, 1, source);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) mft_fxsel.moveCursor(state, -1, source);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageDown })) mft_fxsel.moveCursor(state, page, source);
@@ -395,10 +402,10 @@ fn drawFxSelRow(label: [:0]const u8, index: usize, is_menu: bool, is_cursor: boo
 }
 
 /// The card of the first screen, which has the actions that can be done to the module.
-fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int, title: [:0]const u8, line_height: f64) !mft_fxsel.Outcome {
+fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int, title: [:0]const u8, line_height: f64, card_w: f64) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
     // The label of the window is the title of the card, in the color of the module.
-    if (!widgets.beginCard(k, title, fxsel_card_w, fxselCardHeight(line_height, mft_fxsel.action_count), accent)) return outcome;
+    if (!widgets.beginCard(k, title, card_w, fxselCardHeight(line_height, mft_fxsel.action_count), accent)) return outcome;
     defer widgets.endCard(k);
     inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
         const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
@@ -411,17 +418,21 @@ fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_i
 }
 
 /// The contents of the browser: the cards of the level that is open, or the results of the search.
-fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_browser.Source, accent: c_int, line_height: f64) !mft_fxsel.Outcome {
+fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_browser.Source, accent: c_int, line_height: f64, card_w: f64, room: f64) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
+    // A card that holds one list takes all the height that is left, and shows the rows that fit in it.
+    const list_height = @max(room, fxselCardHeight(line_height, 3));
+    const list_rows = fxselRowsFor(line_height, list_height);
+    fxsel_page_rows = list_rows;
     if (state.searching()) {
         // The results take the place of the cards: the plugins of every type that match what was typed, the best first.
         var hits: [fx_browser.search_capacity]@import("fuzzy").Ranked = undefined;
         const count = fx_browser.search(source, state.searchText(), &hits);
         state.search_cursor = @min(state.search_cursor, @as(u16, @intCast(count -| 1)));
-        if (!widgets.beginCard(k, "Results", fxsel_card_w, fxselCardHeight(line_height, fxsel_rows), accent)) return outcome;
+        if (!widgets.beginCard(k, "Results", card_w, list_height, accent)) return outcome;
         defer widgets.endCard(k);
         if (count == 0) try imgui.Text(.{ ctx, "No plugin matches." });
-        const range = rowRange(state.search_cursor, count, fxsel_rows);
+        const range = rowRange(state.search_cursor, count, list_rows);
         for (range.first..range.last) |i| {
             const name = fx_browser.pluginAt(source, hits[i].index) orelse continue;
             if (try drawFxSelRow(name, i, false, i == state.search_cursor, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
@@ -435,8 +446,12 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             const menu_count = fx_browser.rootMenuCount(source);
             const cursor: usize = state.cursor();
             // Both cards are as wide as the window, and have the height of their rows, so that the window holds them without being resized.
-            const mapped_rows = @max(fxsel_rows -| menu_count, 3);
-            if (widgets.beginCard(k, "Mapped plugins", fxsel_card_w, fxselCardHeight(line_height, mapped_rows), accent)) {
+            // The menus have the height of their rows, and the plugins that have a map take what is left.
+            const menus_height = fxselCardHeight(line_height, menu_count);
+            const mapped_height = @max(room - menus_height - 8, fxselCardHeight(line_height, 3));
+            const mapped_rows = fxselRowsFor(line_height, mapped_height);
+            fxsel_page_rows = mapped_rows;
+            if (widgets.beginCard(k, "Mapped plugins", card_w, mapped_height, accent)) {
                 defer widgets.endCard(k);
                 if (state.browser.count == 0) try imgui.Text(.{ ctx, "No plugin has a map for this module." });
                 const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, mapped_rows);
@@ -444,7 +459,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
                     if (try drawFxSelRow(state.browser.get(i), i, false, cursor == i, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
                 }
             }
-            if (widgets.beginCard(k, "Browse", fxsel_card_w, fxselCardHeight(line_height, menu_count), accent)) {
+            if (widgets.beginCard(k, "Browse", card_w, menus_height, accent)) {
                 defer widgets.endCard(k);
                 var listed: usize = 0;
                 for (std.enums.values(fx_browser.RootMenu)) |menu| {
@@ -464,13 +479,13 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             var title_buf: [128:0]u8 = undefined;
             const last = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
             const title = std.mem.printSentinel(&title_buf, "{s}", .{last}, 0) catch "Plugins";
-            if (!widgets.beginCard(k, title, fxsel_card_w, fxselCardHeight(line_height, fxsel_rows), accent)) return outcome;
+            if (!widgets.beginCard(k, title, card_w, list_height, accent)) return outcome;
             defer widgets.endCard(k);
             const count = fx_browser.entryCount(source, level);
             if (count == 0) try imgui.Text(.{ ctx, "Nothing in this list." });
             const cursor: usize = state.cursor();
             const menus_end = fx_browser.leafStart(level);
-            const range = rowRange(cursor, count, fxsel_rows);
+            const range = rowRange(cursor, count, list_rows);
             for (range.first..range.last) |index| {
                 const label = fx_browser.entryName(source, level, index) orelse continue;
                 if (try drawFxSelRow(label, index, index < menus_end, cursor == index, accent)) outcome = mft_fxsel.clickEntry(state, index, source);
@@ -530,11 +545,18 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
         }
     }
 
+    // The cards are as wide as the window and share the height that is left under the search, less the line of the note.
+    var available_w: f64 = undefined;
+    var available_h: f64 = undefined;
+    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
+    const card_w = @max(available_w, 200);
+    const room = available_h - (if (state.noteText().len > 0) line_height else 0);
+
     var outcome: mft_fxsel.Outcome = .none;
     switch (state.screen) {
-        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height),
+        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height, card_w),
         .browse => if (source) |data| {
-            outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent, line_height);
+            outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent, line_height, card_w, room);
         } else {
             try imgui.Text(.{ ctx, "The list of plugins could not be read." });
         },
