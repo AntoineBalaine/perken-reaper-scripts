@@ -13,6 +13,10 @@ pub const MftPreferences = struct {
     default_eq: [:0]const u8 = "VST: ReaEQ (Cockos)",
     default_comp: [:0]const u8 = "VST: ReaComp (Cockos)",
     default_output: [:0]const u8 = "JS: Saturation",
+    /// The channel strip mode: a track that has none of the plugins of the modules gets the default channel strip instead of them, when the strip
+    /// is named. Because a strip needs a map that says which parameter each control moves, the name has to be of a plugin that has one.
+    single_fx_mode: bool = false,
+    default_strip: [:0]const u8 = "",
     // Multiplier on the base per-click step, 0.1 to 4.0.
     sensitivity: f32 = 1.0,
     // Hue positions on the MFT color wheel (channel 2).
@@ -96,6 +100,7 @@ pub const MftPreferences = struct {
 
         try w.writeAll("; MFT preferences\n");
         try w.print("sensitivity = {d:.2}\n", .{self.sensitivity});
+        try w.print("single_fx_mode = {s}\n", .{if (self.single_fx_mode) "true" else "false"});
         try w.print("color_input = {d}\n", .{self.color_input});
         try w.print("color_gate = {d}\n", .{self.color_gate});
         try w.print("color_eq = {d}\n", .{self.color_eq});
@@ -109,11 +114,12 @@ pub const MftPreferences = struct {
         try w.print("[eq]\n{s}\n\n", .{self.default_eq});
         try w.print("[comp]\n{s}\n\n", .{self.default_comp});
         try w.print("[output]\n{s}\n\n", .{self.default_output});
+        try w.print("[strip]\n{s}\n\n", .{self.default_strip});
         try w.flush();
     }
 };
 
-const Section = enum { none, input, gate, eq, comp, output };
+const Section = enum { none, input, gate, eq, comp, output, strip };
 
 fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !void {
     var section: Section = .none;
@@ -125,6 +131,8 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
             .property => |kv| {
                 if (std.mem.eql(u8, kv.key, "sensitivity")) {
                     self.sensitivity = std.fmt.parseFloat(f32, kv.value) catch self.sensitivity;
+                } else if (std.mem.eql(u8, kv.key, "single_fx_mode")) {
+                    self.single_fx_mode = std.mem.eql(u8, kv.value, "true");
                 } else if (std.mem.eql(u8, kv.key, "color_io")) {
                     // Because the input and the output were one page in the older files, their color is the color of both.
                     self.color_input = std.fmt.parseInt(u8, kv.value, 10) catch self.color_input;
@@ -152,6 +160,7 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
                 if (value.len == 0) continue;
                 const owned = allocator.dupeSentinel(u8, value, 0) catch continue;
                 switch (section) {
+                    .strip => self.default_strip = owned,
                     .input => self.default_input = owned,
                     .gate => self.default_gate = owned,
                     .eq => self.default_eq = owned,
@@ -210,4 +219,24 @@ test "pageHues: the top rows have the color of the active page and the bottom ro
     try t.expectEqual(prefs.color_input, hues[8]);
     try t.expectEqual(@as(u8, 11), hues[10]);
     try t.expectEqual(@as(u8, 22), hues[15]);
+}
+
+test "MftPreferences: the channel strip mode and its plugin are read" {
+    const t = std.testing;
+    const example =
+        \\single_fx_mode = true
+        \\
+        \\[strip]
+        \\JS: Lumina Channel Strip
+    ;
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+    var prefs = MftPreferences{};
+    try parse(&prefs, &parser, t.allocator);
+    defer t.allocator.free(prefs.default_strip);
+    try t.expect(prefs.single_fx_mode);
+    try t.expectEqualStrings("JS: Lumina Channel Strip", prefs.default_strip);
+    // Without the lines, the mode is off and no strip is named.
+    try t.expect(!(MftPreferences{}).single_fx_mode);
 }

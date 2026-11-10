@@ -15,6 +15,7 @@ pub const MftMapStore = struct {
     EQ: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     COMP: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     OUTPUT: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
+    STRIP: std.StringArrayHashMapUnmanaged(?mappings.StripMapping) = .{},
     controller_dir: [:0]const u8,
     allocator: std.mem.Allocator,
 
@@ -51,33 +52,63 @@ pub const MftMapStore = struct {
     }
 
     fn loadFromDisk(self: *MftMapStore, io: std.Io, module: MappableModule, fx_name: [:0]const u8) !MftModuleMapping {
-        var name_buf: [512:0]u8 = undefined;
-        const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
-
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = fs_helpers.joinStrings(&path_buf, &.{
-            self.controller_dir, std.fs.path.sep_str, "maps",           std.fs.path.sep_str,
-            "factory",           std.fs.path.sep_str, module.dirName(), std.fs.path.sep_str,
-            sanitized,           std.fs.path.sep_str, "default.ini",
-        });
-
-        const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
-        defer file.close(io);
-
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
         var file_buffer: [4096]u8 = undefined;
-        var file_reader = file.reader(io, &file_buffer);
-        var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
+        var opened = try self.openMap(io, module.dirName(), fx_name, &file_buffer);
+        defer opened.file.close(io);
+        var parser = ini.parse(temp_arena.allocator(), &opened.reader.interface, ";#");
         defer parser.deinit();
-
         return try parseMapping(&parser);
+    }
+
+    /// Returns the map of a channel strip plugin, loading it from `maps/factory/STRIP/<fx name>/default.ini` the first time. As for the other maps,
+    /// a null entry in the cache records a load that failed, so that the disk is not read again on every turn.
+    pub fn getStrip(self: *MftMapStore, io: std.Io, fx_name: [:0]const u8) ?mappings.StripMapping {
+        if (self.STRIP.get(fx_name)) |cached| return cached;
+        const loaded = self.loadStripFromDisk(io, fx_name) catch |err| {
+            log.debug("mft strip mapping load failed for {s}: {s}", .{ fx_name, @errorName(err) });
+            const owned = self.allocator.dupeSentinel(u8, fx_name, 0) catch return null;
+            self.STRIP.put(self.allocator, owned, null) catch {};
+            return null;
+        };
+        const owned = self.allocator.dupeSentinel(u8, fx_name, 0) catch return loaded;
+        self.STRIP.put(self.allocator, owned, loaded) catch {};
+        return loaded;
+    }
+
+    fn loadStripFromDisk(self: *MftMapStore, io: std.Io, fx_name: [:0]const u8) !mappings.StripMapping {
+        var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer temp_arena.deinit();
+        var file_buffer: [4096]u8 = undefined;
+        var opened = try self.openMap(io, "STRIP", fx_name, &file_buffer);
+        defer opened.file.close(io);
+        var parser = ini.parse(temp_arena.allocator(), &opened.reader.interface, ";#");
+        defer parser.deinit();
+        return try parseStripMapping(&parser);
+    }
+
+    const OpenedMap = struct { file: std.Io.File, reader: std.Io.File.Reader };
+
+    /// Opens `maps/factory/<dir>/<sanitized fx name>/default.ini`. The reader reads into `buffer`, which the caller keeps alive.
+    fn openMap(self: *MftMapStore, io: std.Io, dir: []const u8, fx_name: [:0]const u8, buffer: []u8) !OpenedMap {
+        var name_buf: [512:0]u8 = undefined;
+        const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = fs_helpers.joinStrings(&path_buf, &.{
+            self.controller_dir, std.fs.path.sep_str, "maps",        std.fs.path.sep_str,
+            "factory",           std.fs.path.sep_str, dir,           std.fs.path.sep_str,
+            sanitized,           std.fs.path.sep_str, "default.ini",
+        });
+        const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+        return .{ .file = file, .reader = file.reader(io, buffer) };
     }
 
     pub fn deinit(self: *MftMapStore) void {
         inline for (.{ &self.INPUT, &self.GATE, &self.EQ, &self.COMP, &self.OUTPUT }) |cache| {
             cache.deinit(self.allocator);
         }
+        self.STRIP.deinit(self.allocator);
     }
 };
 
@@ -120,6 +151,41 @@ fn parsePositionKey(key: []const u8, prefix: []const u8, count: usize) ?usize {
     const n = std.fmt.parseInt(usize, key[prefix.len..], 10) catch return null;
     if (n < 1 or n > count) return null;
     return n - 1;
+}
+
+/// Parses the map of a channel strip: the same keys as a module map, in a section for each page (`[EQ]`). A key before the first section, and a
+/// section that is not a page, are ignored.
+fn parseStripMapping(parser: anytype) !mappings.StripMapping {
+    var strip = mappings.StripMapping{};
+    var page: ?*MftModuleMapping = null;
+    var version_found = false;
+    while (try parser.next()) |record| {
+        switch (record) {
+            .section => |name| {
+                page = null;
+                inline for (@typeInfo(MappableModule).@"enum".field_names, 0..) |field_name, i| {
+                    if (std.mem.eql(u8, name, field_name)) page = &strip.pages[i];
+                }
+            },
+            .property => |kv| {
+                if (std.mem.eql(u8, kv.key, "version")) {
+                    const v = std.fmt.parseInt(u8, kv.value, 10) catch continue;
+                    if (v > mappings.MFT_MAPPING_FORMAT_VERSION) return error.UnsupportedMapVersion;
+                    version_found = true;
+                    continue;
+                }
+                const target = page orelse continue;
+                if (parsePositionKey(kv.key, "knob_", mappings.knob_count)) |position| {
+                    target.setSlot(@intCast(position), parseKnobValue(kv.value) orelse continue);
+                } else if (parsePositionKey(kv.key, "push_", mappings.push_count)) |position| {
+                    target.setPush(@intCast(position), parsePushValue(kv.value) orelse continue);
+                }
+            },
+            .enumeration => {},
+        }
+    }
+    if (!version_found) return error.MissingVersion;
+    return strip;
 }
 
 /// The value of a knob: a parameter number, or `wet`.
@@ -226,7 +292,7 @@ test "parseMapping: missing version errors" {
 
 test "parseMapping: shipped EQ factory map matches expected slots" {
     const t = std.testing;
-    const content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini");
+    const content = @embedFile("resources/maps/factory/EQ/VST_ ReaEQ (Cockos)/default.ini");
     var fbs: std.Io.Reader = .fixed(content);
     var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
@@ -241,7 +307,7 @@ test "parseMapping: shipped EQ factory map matches expected slots" {
 
 test "parseMapping: the shipped EQ map has the bandwidths on the third row, the shapes on the pushes, and the dry/wet on the last knob" {
     const t = std.testing;
-    const content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini");
+    const content = @embedFile("resources/maps/factory/EQ/VST_ ReaEQ (Cockos)/default.ini");
     var fbs: std.Io.Reader = .fixed(content);
     var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
@@ -253,4 +319,32 @@ test "parseMapping: the shipped EQ map has the bandwidths on the third row, the 
     try t.expectEqual(@as(?mappings.PushAction, .{ .band = 0 }), m.pushAt(0));
     try t.expectEqual(@as(?mappings.PushAction, .{ .band = 3 }), m.pushAt(3));
     try t.expectEqual(@as(?mappings.PushAction, null), m.pushAt(4));
+}
+
+test "parseStripMapping: each section is a page, and keys outside a page are ignored" {
+    const t = std.testing;
+    const example =
+        \\version = 2
+        \\module = STRIP
+        \\knob_1 = 99
+        \\
+        \\[INPUT]
+        \\knob_1 = 0
+        \\
+        \\[EQ]
+        \\knob_16 = wet
+        \\push_4 = 10
+        \\
+        \\[NOPE]
+        \\knob_2 = 5
+    ;
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+    const strip = try parseStripMapping(&parser);
+    try t.expectEqual(@as(?u16, 0), strip.pageFor(.INPUT).slotToParam(0));
+    try t.expectEqual(@as(?u16, mappings.wet_param), strip.pageFor(.EQ).slotToParam(15));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 10 }), strip.pageFor(.EQ).pushAt(3));
+    try t.expect(strip.pageFor(.GATE).isEmpty());
+    try t.expect(strip.pageFor(.COMP).isEmpty());
 }

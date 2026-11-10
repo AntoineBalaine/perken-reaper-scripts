@@ -52,8 +52,10 @@ pub const ModuleSlot = enum {
     eq,
     comp,
     output,
+    /// A channel strip, which is one plugin that does the work of all the modules.
+    strip,
 
-    // Canonical track order: input, gate, eq, comp, output.
+    // Canonical track order: input, gate, eq, comp, output, and the strip after them.
     pub fn rank(self: ModuleSlot) u8 {
         return @backingInt(self);
     }
@@ -65,6 +67,7 @@ pub const ModuleSlot = enum {
             .eq => 'E',
             .comp => 'C',
             .output => 'O',
+            .strip => 'X',
         };
     }
 };
@@ -77,6 +80,7 @@ fn defaultPluginFor(globals: *MftGlobals, slot: ModuleSlot) [:0]const u8 {
         .eq => globals.preferences.default_eq,
         .comp => globals.preferences.default_comp,
         .output => globals.preferences.default_output,
+        .strip => globals.preferences.default_strip,
     };
 }
 
@@ -109,6 +113,7 @@ fn parseSlot(renamed: []const u8) ?ModuleSlot {
             'E' => .eq,
             'C' => .comp,
             'O' => .output,
+            'X' => .strip,
             else => null,
         };
         if (slot) |s| return s;
@@ -253,12 +258,52 @@ fn setSlotSuffix(track: reaper.MediaTrack, fx: c_int, name: [:0]const u8, slot: 
     _ = reaper.TrackFX_SetNamedConfigParm(track, fx, "renamed_name", renamed);
 }
 
+// The index of the channel strip on the track, or null when the track has none.
+pub fn findStrip(track: reaper.MediaTrack) ?c_int {
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        if (fxSlot(track, i)) |slot| {
+            if (slot == .strip) return i;
+        }
+    }
+    return null;
+}
+
+// Whether any FX of the track carries a suffix of the Console One.
+fn hasSuffixedFx(track: reaper.MediaTrack) bool {
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        if (fxSlot(track, i) != null) return true;
+    }
+    return false;
+}
+
+// Adds the default channel strip to the track and marks it as one. Returns false when no strip is named or the plugin could not be added, in which
+// case the track gets the plugins of the modules.
+fn insertDefaultStrip(globals: *MftGlobals, track: reaper.MediaTrack) bool {
+    const name = defaultPluginFor(globals, .strip);
+    if (name.len == 0) return false;
+    const index = reaper.TrackFX_AddByName(track, name, false, -1);
+    if (index < 0) {
+        std.log.scoped(.mft_fx).warn("The default channel strip '{s}' could not be added, so the track gets its modules", .{name});
+        return false;
+    }
+    setSlotSuffix(track, index, name, .strip);
+    return true;
+}
+
 // Ensure each slot the module drives has a suffixed FX on the track. A missing
 // slot is filled by adopting an existing un-suffixed instance of its default
 // plugin if present, otherwise inserting a fresh one at the canonical position.
 // Because the position comes from the slot rank rather than the selection order,
 // selecting modules out of order still yields a correctly ordered chain.
 pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) void {
+    // A channel strip does the work of every module, so a track that has one needs no other plugin.
+    if (findStrip(track) != null) return;
+    // In the channel strip mode, a track that has none of the plugins of the modules gets the default strip instead of them.
+    if (globals.preferences.single_fx_mode and !hasSuffixedFx(track) and insertDefaultStrip(globals, track)) return;
     for (slotsFor(module)) |slot| {
         if (trackHasSlot(track, slot)) continue;
         const name = defaultPluginFor(globals, slot);
@@ -282,6 +327,15 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
 pub fn resolveModule(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) SlotRouting {
     const io = mft_globals.hostIo();
     var routing = SlotRouting{};
+    // A channel strip has one map for all the pages, and takes every module.
+    if (findStrip(track)) |strip_fx| {
+        var strip_name_buf: [512:0]u8 = undefined;
+        const base = fxBaseName(track, strip_fx, &strip_name_buf) orelse return routing;
+        const strip = globals.map_store.getStrip(io, base) orelse return routing;
+        const wet = reaper.TrackFX_GetParamFromIdent(track, strip_fx, ":wet");
+        routing.merge(strip_fx, strip.pageFor(module).withWet(if (wet >= 0) @intCast(wet) else null));
+        return routing;
+    }
     const slots = slotsFor(module);
     const count = reaper.TrackFX_GetCount(track);
     var i: c_int = 0;
@@ -363,6 +417,9 @@ test "parseSlot: reads the C1 suffix char" {
     try t.expectEqual(@as(?ModuleSlot, .output), parseSlot("JS: Saturation (C1-O)"));
     try t.expectEqual(@as(?ModuleSlot, null), parseSlot("VST: ReaEQ (Cockos)"));
     try t.expectEqual(@as(?ModuleSlot, null), parseSlot("Plugin (C1-"));
+    // A channel strip has the suffix X, and is not one of the module slots.
+    try t.expectEqual(@as(?ModuleSlot, .strip), parseSlot("JS: Lumina Channel Strip (C1-X)"));
+    try t.expectEqual(@as(u8, 'X'), ModuleSlot.strip.suffixChar());
 }
 
 test "ModuleSlot: canonical rank order" {

@@ -34,6 +34,18 @@ pub const MappableModule = enum {
     }
 };
 
+/// The number of pages that carry FX mappings, which is the number of modules.
+pub const module_count = @typeInfo(MappableModule).@"enum".field_names.len;
+
+/// The map of a channel strip: one plugin that has the controls of every module, so it has a mapping for each of the pages that carry FX.
+pub const StripMapping = struct {
+    pages: [module_count]MftModuleMapping = @splat(.{}),
+
+    pub fn pageFor(self: *const StripMapping, module: MappableModule) *const MftModuleMapping {
+        return &self.pages[@backingInt(module)];
+    }
+};
+
 /// How many knobs and how many pushes a page of the controller has: the sixteen encoders all turn, and the eight of the top two rows also
 /// push.
 pub const knob_count = 16;

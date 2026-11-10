@@ -11,23 +11,8 @@ const MappableModule = @import("mft_mappings.zig").MappableModule;
 // embedded in the binary and written to disk on first run so that the defaults
 // can always be restored. Each entry pairs a module directory and the FX name
 // (which becomes the on-disk directory after sanitizing) with its content.
-const FactoryMap = struct {
-    module_dir: []const u8,
-    fx_name: []const u8,
-    content: []const u8,
-};
 
-const factory_maps = [_]FactoryMap{
-    .{ .module_dir = "EQ", .fx_name = "VST: ReaEQ (Cockos)", .content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini") },
-    .{ .module_dir = "COMP", .fx_name = "VST: ReaComp (Cockos)", .content = @embedFile("resources/maps/factory/COMP/reacomp/default.ini") },
-    .{ .module_dir = "GATE", .fx_name = "VST: ReaGate (Cockos)", .content = @embedFile("resources/maps/factory/GATE/reagate/default.ini") },
-    // The input plugins are on the page of the input and the output plugins on the page of the output, each on its own knobs.
-    .{ .module_dir = "INPUT", .fx_name = "JS: RBJ Highpass/Lowpass Filters", .content = @embedFile("resources/maps/factory/INPUT/rbj_filters/default.ini") },
-    .{ .module_dir = "INPUT", .fx_name = "JS: Volume/Pan Smoother v5", .content = @embedFile("resources/maps/factory/INPUT/vol_pan/default.ini") },
-    .{ .module_dir = "INPUT", .fx_name = "JS: Volume Adjustment", .content = @embedFile("resources/maps/factory/INPUT/vol_adj/default.ini") },
-    .{ .module_dir = "OUTPUT", .fx_name = "JS: ReaAnalog", .content = @embedFile("resources/maps/factory/OUTPUT/reaanalog/default.ini") },
-    .{ .module_dir = "OUTPUT", .fx_name = "JS: Saturation", .content = @embedFile("resources/maps/factory/OUTPUT/saturation/default.ini") },
-};
+const factory_maps = @import("factory_maps.zig").all;
 
 /// Writes a factory map. A factory map is the default that ships with the extension, so when the file on disk is not the shipped one it is
 /// an older default, or a copy that someone edited. Because the shipped layout has to take effect, the file is replaced, and because the

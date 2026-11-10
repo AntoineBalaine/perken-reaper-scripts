@@ -135,7 +135,7 @@ pub fn convert(allocator: std.mem.Allocator, text: []const u8) ConvertError!Conv
                     .push => |position| page.setPush(position, .{ .param = parameter }),
                 }
                 out.placed += 1;
-            } else if (std.mem.indexOfScalar(u8, key, '_') != null) {
+            } else if (std.mem.indexOfScalar(u8, key, '_') != null and !std.mem.startsWith(u8, key, "fx_")) {
                 try out.unplaced.append(allocator, key);
             }
         }
