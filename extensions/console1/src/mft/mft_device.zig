@@ -68,26 +68,11 @@ const bubble_gap: f64 = -8;
 const corner: f64 = 24;
 const title = "MIDI FIGHTER TWISTER";
 
-/// Where the value of a knob is shown.
-pub const ValueMode = enum {
-    /// Under the name of the parameter, in the window under the knob.
-    label,
-    /// Above the knob, which needs a line of room over the ring.
-    above,
-    /// In a pop-up over the knob, while the knob is held or has just been turned.
-    popup,
-};
-
-/// The distance from one row to the next. Because a value printed over a knob needs a line of room above the ring,
-/// the rows are closer when it is, and the room above the ring is larger.
-pub fn rowHeight(mode: ValueMode) f64 {
-    return if (mode == .above) 128 else 136;
-}
+/// The distance from one row to the next.
+pub const row_height: f64 = 136;
 
 /// The distance from the top of a row to the center of its encoder, less the radius of the ring.
-pub fn rowTop(mode: ValueMode) f64 {
-    return if (mode == .above) 30 else 14;
-}
+pub const row_top: f64 = 14;
 
 /// The room for the formatted value of a parameter, with its terminator.
 pub const formatted_len = 31;
@@ -145,7 +130,6 @@ pub const View = struct {
     /// Whether the controller is connected, which the lamp of the header shows.
     online: bool = false,
     collapsed: bool = false,
-    value_mode: ValueMode = .popup,
 
     pub fn color(self: *const View, module: MftActiveModule) c_int {
         return self.colors[@backingInt(module)];
@@ -350,8 +334,8 @@ pub fn drawSideKey(kit: *widgets.Panel, dl: Dl, x: f64, y: f64, key: SideKey, on
 
 /// Draws the six side keys. The mute, solo and phase keys are lit while the track has them on.
 fn drawSideKeys(kit: *widgets.Panel, dl: Dl, view: *const View, x0: f64, x1: f64, gy: f64) void {
-    const row_h = rowHeight(view.value_mode);
-    const top = rowTop(view.value_mode);
+    const row_h = row_height;
+    const top = row_top;
     for (0..3) |row| {
         const cy = gy + row_h * @as(f64, @floatFromInt(row)) + ring_r + top;
         const y = cy - side_h / 2;
@@ -485,10 +469,10 @@ const Bubbles = struct {
 /// The geometry of one cell of the grid.
 const Cell = struct { cx: f64, cy: f64, label_y: f64 };
 
-pub fn cellAt(idx: usize, gx: f64, gy: f64, mode: ValueMode) Cell {
+pub fn cellAt(idx: usize, gx: f64, gy: f64) Cell {
     const col: f64 = @floatFromInt(idx % 4);
     const row: f64 = @floatFromInt(idx / 4);
-    const cy = gy + rowHeight(mode) * row + ring_r + rowTop(mode);
+    const cy = gy + row_height * row + ring_r + row_top;
     return .{ .cx = gx + pitch * (col + 0.5), .cy = cy, .label_y = cy + ring_r + 6 };
 }
 
@@ -515,7 +499,7 @@ pub fn hoveredKnobs(kit: *widgets.Panel, origin: widgets.Point, view: *const Vie
     const reach = ring_r + 6;
     var bits: u16 = 0;
     for (0..knob_count) |idx| {
-        const cell = cellAt(idx, gx, gy, view.value_mode);
+        const cell = cellAt(idx, gx, gy);
         if (imgui.api.IsMouseHoveringRect(ctx, cell.cx - reach, cell.cy - reach, cell.cx + reach, cell.cy + reach, null)) {
             bits |= @as(u16, 1) << @intCast(idx);
         }
@@ -540,25 +524,13 @@ fn knobText(info: *const KnobInfo, idx: usize, name_buf: *[16:0]u8, value_buf: *
     return .{ .name = name, .value_text = if (info.has_formatted[idx]) info.formatted(idx) else percent_text, .value = value };
 }
 
-/// Shows the value of a knob outside its window, when the value mode asks for it: over the ring, or in a pop-up that lasts while `show` is
-/// true. The mode that has the value in the window shows nothing here.
-fn showValue(kit: *widgets.Panel, dl: Dl, view: *const View, cell: Cell, text: [:0]const u8, color: c_int, show: bool, bubbles: *Bubbles) void {
-    switch (view.value_mode) {
-        .above => {
-            // The value is printed over the ring, in the color of the page.
-            const pushed = widgets.pushLabelFont(kit);
-            printedText(kit, dl, cell.cx, cell.cy - led_ring_r - 22 - text_up, text, color);
-            widgets.popFont(kit, pushed);
-        },
-        .popup => {
-            if (!show) return;
-            var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = color };
-            std.debug.assert(text.len <= formatted_len);
-            @memcpy(bubble.text[0 .. text.len + 1], text[0 .. text.len + 1]);
-            bubbles.add(bubble);
-        },
-        .label => {},
-    }
+/// Shows the value of a knob in a pop-up over it, which lasts while `show` is true.
+fn showValue(cell: Cell, text: [:0]const u8, color: c_int, show: bool, bubbles: *Bubbles) void {
+    if (!show) return;
+    var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = color };
+    std.debug.assert(text.len <= formatted_len);
+    @memcpy(bubble.text[0 .. text.len + 1], text[0 .. text.len + 1]);
+    bubbles.add(bubble);
 }
 
 /// One of the top eight encoders, which show the transport functions in transport mode, the mapped parameters in the
@@ -611,13 +583,13 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             // The value is shown over the ring or in a bubble while the knob is held or has just been turned, and in the label otherwise.
             // Holding a knob that has a push does not show its value, because the click that follows shows what the push changed.
             const show = (view.show_value >> @intCast(idx)) & 1 == 1 or (held and !push_mapped);
-            showValue(kit, dl, view, cell, text.value_text, mode_color, show and !noteIsFor(view, idx), bubbles);
+            showValue(cell, text.value_text, mode_color, show and !noteIsFor(view, idx), bubbles);
             if (push_mapped) {
                 // The window says what the turn does on the top line and what a click does under it. The value of the knob is in its ring and
                 // its pop-up, since the window has no line left for it.
                 drawDualLabel(kit, dl, cell.cx, cell.label_y, text.name, info.pushName(idx), mode_color, 1, false, held, theme.text_dim);
             } else {
-                drawLedLabel(kit, dl, cell.cx, cell.label_y, text.name, if (view.value_mode == .label) text.value_text else null, mode_color, 1);
+                drawLedLabel(kit, dl, cell.cx, cell.label_y, text.name, null, mode_color, 1);
             }
         },
     }
@@ -647,7 +619,7 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     if (mapped) {
         const text = knobText(info, idx, &name_buf, &value_buf);
         turn = text.name;
-        showValue(kit, dl, view, cell, text.value_text, view.color(view.active), (view.show_value >> @intCast(idx)) & 1 == 1, bubbles);
+        showValue(cell, text.value_text, view.color(view.active), (view.show_value >> @intCast(idx)) & 1 == 1, bubbles);
     }
     // The word under a page button says what a click does, so it is written as a press: with the sign of a press, and lit while the button
     // is held. The page in use is in the color of the page.
@@ -658,7 +630,7 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
 fn drawCells(kit: *widgets.Panel, dl: Dl, view: *const View, gx: f64, gy: f64) void {
     var bubbles = Bubbles{};
     for (0..16) |idx| {
-        const cell = cellAt(idx, gx, gy, view.value_mode);
+        const cell = cellAt(idx, gx, gy);
         if (idx < 8) {
             drawKnobCell(kit, dl, view, idx, cell, &bubbles);
         } else {
@@ -744,7 +716,7 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
 pub fn draw(kit: *widgets.Panel, view: *const View) Response {
     const ctx = kit.ctx;
     const origin = widgets.cursorScreenPos(kit);
-    const row_h = rowHeight(view.value_mode);
+    const row_h = row_height;
     const grid_w = 4 * pitch;
     const body_w = pad * 2 + (side_w + side_gap) * 2 + grid_w;
     const body_h = if (view.collapsed) pad * 2 + header_row_h else pad + header_h + 4 * row_h + footer_h + pad;
@@ -772,10 +744,10 @@ pub fn draw(kit: *widgets.Panel, view: *const View) Response {
     return response;
 }
 
-fn testView(module: MftActiveModule, value_mode: ValueMode) View {
+fn testView(module: MftActiveModule) View {
     var colors: [page_count]c_int = undefined;
     for (&colors, 0..) |*each, i| each.* = rgba(0x4FD68AFF) + @as(c_int, @intCast(i)) * 0x100;
-    var view = View{ .active = module, .colors = colors, .value_mode = value_mode };
+    var view = View{ .active = module, .colors = colors };
     // The first encoder has a parameter mapped, with a name, the second one without a name, and the others nothing.
     view.knobs.mapped[0] = true;
     view.knobs.vals[0] = 0.5;
@@ -794,7 +766,7 @@ fn testView(module: MftActiveModule, value_mode: ValueMode) View {
     return view;
 }
 
-test "the device leaves the stacks balanced in every module, in every way of showing a value, open and folded" {
+test "the device leaves the stacks balanced in every module, open and folded" {
     const MockImGui = @import("mock_imgui").MockImGui;
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
@@ -803,18 +775,16 @@ test "the device leaves the stacks balanced in every module, in every way of sho
 
     var kit = widgets.Panel{};
     for ([_]MftActiveModule{ .INPUT, .TRANSPORT, .SETTINGS, .AUTO, .OUTPUT }) |module| {
-        for ([_]ValueMode{ .label, .above, .popup }) |value_mode| {
-            var view = testView(module, value_mode);
-            _ = draw(&kit, &view);
-            view.collapsed = true;
-            const response = draw(&kit, &view);
-            try std.testing.expect(response.bottom >= response.left);
-        }
+        var view = testView(module);
+        _ = draw(&kit, &view);
+        view.collapsed = true;
+        const response = draw(&kit, &view);
+        try std.testing.expect(response.bottom >= response.left);
     }
     try mock.assertBalanced();
 }
 
-test "a folded device is shorter than an open one, and an open one with its values above is shorter than with them in the label" {
+test "a folded device is shorter than an open one" {
     const MockImGui = @import("mock_imgui").MockImGui;
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
@@ -822,15 +792,11 @@ test "a folded device is shorter than an open one, and an open one with its valu
     defer mock.restore();
 
     var kit = widgets.Panel{};
-    var view = testView(.INPUT, .popup);
+    var view = testView(.INPUT);
     const open = draw(&kit, &view);
     view.collapsed = true;
     const folded = draw(&kit, &view);
     try std.testing.expect(folded.bottom < open.bottom);
-    view.collapsed = false;
-    view.value_mode = .above;
-    const above = draw(&kit, &view);
-    try std.testing.expect(above.bottom < open.bottom);
 }
 
 test "every bottom cell selects a page, and the cells of the top rows select none" {

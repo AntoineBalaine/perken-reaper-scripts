@@ -251,9 +251,8 @@ fn draw(globals: *MftGlobals) !void {
     const note = &globals.mft.push_note;
     if (note.lit(now_ms)) view.push_note = .{ .encoder = note.encoder, .text = note.text };
     view.show_value = activity.update(active, globals.current_track, &view.knobs, engaged, now_ms);
-    // Only the knobs that show a value ask the plugin for its text. The other modes than the pop-up show it always.
-    const wanted: u16 = if (view.value_mode == .popup) view.show_value else 0xFFFF;
-    formatted_values.fill(active, globals.current_track, &view.knobs, wanted);
+    // Only the knobs whose pop-up shows ask the plugin for the text of their value.
+    formatted_values.fill(active, globals.current_track, &view.knobs, view.show_value);
     const response = device.draw(&kit, &view);
     if (response.close) globals.mft.panel_visible = false;
     if (response.fold) folded = !folded;
@@ -511,7 +510,7 @@ test "the mouse over a knob is found, and a folded device has no knob to hover" 
     var panel = widgets.Panel{};
     var view = device.View{ .active = .INPUT, .colors = @splat(0x11) };
     // The mock's cursor is at the origin, so that the second knob of the first row is at this place.
-    const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h, view.value_mode);
+    const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h);
     mock.mouse_x = cell.cx;
     mock.mouse_y = cell.cy;
     try std.testing.expectEqual(@as(u16, 0b10), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
