@@ -13,6 +13,7 @@ const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
 const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
+const mft_feedback = @import("../mft_feedback.zig");
 const log = std.log.scoped(.mft_midi);
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
@@ -82,9 +83,8 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
         reaper.TrackFX_Show(track, target.fx_index, 1);
     }
 
-    if (globals.m_midi_out) |mo| {
-        midi_out.sendRingUpdate(mo, slot, @floatCast(new_val));
-    }
+    // Because REAPER also reports the move of the parameter, the ring may be told twice: it is sent once, since the byte is kept.
+    midi_out.setRing(globals, slot, mft_feedback.ringByte(new_val));
 }
 
 fn wrapHue(cur: u8, delta: i8) u8 {
@@ -186,6 +186,8 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     if (globals.m_midi_out) |mo| {
         midi_out.sendModuleColor(mo, globals.preferences.colorForModule(module));
     }
+    // The rings stood for the parameters of the module that was left: they now show the ones of this module.
+    midi_out.syncRings(globals, true);
 }
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {

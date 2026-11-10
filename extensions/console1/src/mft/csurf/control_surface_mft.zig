@@ -12,9 +12,12 @@ const config = @import("midi_device_config");
 const devices = config.MidiDeviceConfig(.csurf_mft);
 const midi_out = @import("../midi_out_mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
+const mft_feedback = @import("../mft_feedback.zig");
 const log = std.log.scoped(.csurf_mft);
 
-// REAPER csurf Extended() call selector for the last-touched track change.
+// REAPER csurf Extended() call selectors: a parameter of an FX moved, the FX chain of a track changed, and the last-touched track changed.
+const CSURF_EXT_SETFXPARAM: c_int = 0x00010008;
+const CSURF_EXT_SETFXCHANGE: c_int = 0x00010013;
 const CSURF_EXT_SETLASTTOUCHEDTRACK: c_int = 0x0001000C;
 
 pub var ignore_notifications = false;
@@ -60,6 +63,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     if (globals.m_midi_out) |mo| {
         midi_out.clearAll(mo);
         midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
+        midi_out.syncRings(globals, true);
     } else {
         log.err("couldn’t create midi out", .{});
     }
@@ -145,6 +149,7 @@ export fn zRun() callconv(.c) void {
             led_test_running = false;
             midi_out.clearAll(mo);
             midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
+            midi_out.syncRings(globals, true);
         }
     }
 }
@@ -202,15 +207,32 @@ export fn zIsKeyDown(key: c_int) callconv(.c) bool {
     _ = key;
     return false;
 }
+/// REAPER's notifications that the extension follows. It returns 1 for the ones that it handled, and 0 for the others.
 export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.c) c_int {
-    _ = parm2;
-    _ = parm3;
-    if (call == CSURF_EXT_SETLASTTOUCHEDTRACK) {
-        // parm1 is the newly last-touched MediaTrack (null clears it). The
-        // encoders drive this track's FX until the next change.
-        MftGlobals.get().current_track = @ptrCast(parm1);
+    const globals = MftGlobals.get();
+    switch (call) {
+        CSURF_EXT_SETLASTTOUCHEDTRACK => {
+            // parm1 is the newly last-touched MediaTrack (null clears it). The encoders drive this track's FX until the next
+            // change, and their rings show its parameters.
+            globals.current_track = @ptrCast(parm1);
+            midi_out.syncRings(globals, true);
+            return 1;
+        },
+        CSURF_EXT_SETFXPARAM => {
+            // parm1 is the MediaTrack, parm2 points to the FX and parameter packed in an integer, and parm3 to the new value.
+            const packed_ptr: *const c_int = @ptrCast(@alignCast(parm2 orelse return 0));
+            const value_ptr: *const f64 = @ptrCast(@alignCast(parm3 orelse return 0));
+            const fx_param = mft_feedback.decodeFxParam(packed_ptr.*);
+            midi_out.syncParam(globals, @ptrCast(parm1), fx_param.fx_index, fx_param.param, value_ptr.*);
+            return 1;
+        },
+        CSURF_EXT_SETFXCHANGE => {
+            // An FX was added, removed or moved, so the encoders may stand for other parameters now.
+            midi_out.syncRings(globals, true);
+            return 1;
+        },
+        else => return 0,
     }
-    return 0;
 }
 
 fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
