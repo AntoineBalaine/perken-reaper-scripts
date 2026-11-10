@@ -2,6 +2,7 @@ const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers");
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
+const mft_order = @import("mft_order.zig");
 const log = std.log.scoped(.mft_prefs);
 
 // User-editable settings, persisted to Data/Perken/MFT/preferences.ini. Modeled
@@ -28,6 +29,9 @@ pub const MftPreferences = struct {
     /// Whether a module button inserts the default plugin of the module on a track that has none, and whether that plugin is inserted bypassed.
     auto_insert: bool = true,
     auto_insert_bypassed: bool = false,
+    /// The order of the shape, the EQ and the compressor on a track, and whether a module button puts a track in it.
+    module_order: mft_order.Order = .s_eq_c,
+    auto_reorder: bool = true,
     // Hue positions on the MFT color wheel (channel 2).
     color_input: u8 = 0x0F,
     // Pinker than the comp's red, which 0x5A (90) and 0x5E (94) were too close to.
@@ -131,6 +135,8 @@ pub const MftPreferences = struct {
         try w.print("auto_insert = {s}\n", .{boolText(self.auto_insert)});
         try w.print("auto_insert_bypassed = {s}\n", .{boolText(self.auto_insert_bypassed)});
         try w.print("color_fxsel = {d}\n", .{self.color_fxsel});
+        try w.print("module_order = {s}\n", .{self.module_order.label()});
+        try w.print("auto_reorder = {s}\n", .{boolText(self.auto_reorder)});
         try w.print("color_input = {d}\n", .{self.color_input});
         try w.print("color_gate = {d}\n", .{self.color_gate});
         try w.print("color_eq = {d}\n", .{self.color_eq});
@@ -177,6 +183,10 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
                     self.auto_insert = std.mem.eql(u8, kv.value, "true");
                 } else if (std.mem.eql(u8, kv.key, "auto_insert_bypassed")) {
                     self.auto_insert_bypassed = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "module_order")) {
+                    self.module_order = mft_order.Order.parse(kv.value) orelse self.module_order;
+                } else if (std.mem.eql(u8, kv.key, "auto_reorder")) {
+                    self.auto_reorder = std.mem.eql(u8, kv.value, "true");
                 } else if (std.mem.eql(u8, kv.key, "color_fxsel")) {
                     self.color_fxsel = std.fmt.parseInt(u8, kv.value, 10) catch self.color_fxsel;
                 } else if (std.mem.eql(u8, kv.key, "color_io")) {
@@ -316,6 +326,8 @@ test "MftPreferences: the options of the settings panel are read, and kept in th
         \\auto_insert = false
         \\auto_insert_bypassed = true
         \\color_fxsel = 77
+        \\module_order = EQ-S-C
+        \\auto_reorder = false
     ;
     var fbs: std.Io.Reader = .fixed(example);
     var parser = ini.parse(t.allocator, &fbs, ";#");
@@ -326,6 +338,8 @@ test "MftPreferences: the options of the settings panel are read, and kept in th
     try t.expect(prefs.startup_message and prefs.show_plugin_ui and !prefs.auto_insert and prefs.auto_insert_bypassed);
     try t.expectEqual(@as(u8, 77), prefs.color_fxsel);
     try t.expectEqual(@as(u8, 77), prefs.fxselHues()[0]);
+    try t.expectEqual(mft_order.Order.eq_s_c, prefs.module_order);
+    try t.expect(!prefs.auto_reorder);
     // Without the lines, the controller inserts plugins, not bypassed, and the fine step is a tenth.
     const defaults = MftPreferences{};
     try t.expect(defaults.auto_insert and !defaults.auto_insert_bypassed);

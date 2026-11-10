@@ -289,6 +289,11 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
         .TRANSPORT => {
             // The bottom row has its own functions: the loop, the volume and the pan.
             if (slot >= 8) {
+                // The third knob of the bottom row is the order of the modules of the track, which goes to the next or the previous order.
+                if (slot == 8 + mft_transport.order_knob) {
+                    turnOrder(globals, delta);
+                    return;
+                }
                 mft_transport.onBottomRotate(slot - 8, delta, globals.current_track);
                 return;
             }
@@ -410,6 +415,26 @@ fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
     if (pressed) mft_transport.onPress(idx);
 }
 
+// How many ticks of the Order knob change the order once, since each change moves FX of the track.
+const order_ticks_per_step = 4;
+
+// A turn of the Order knob: the order changes once for each few ticks.
+fn turnOrder(globals: *MftGlobals, delta: i8) void {
+    const total: i32 = @as(i32, globals.mft.order_ticks) + delta;
+    const steps = @divTrunc(total, order_ticks_per_step);
+    globals.mft.order_ticks = @intCast(total - steps * order_ticks_per_step);
+    if (steps != 0) stepOrder(globals, steps);
+}
+
+// Puts the modules of the current track in the next order (or the previous one, for a turn to the left), starting from the order that they are in, or the
+// order that the settings prefer when they are in none.
+pub fn stepOrder(globals: *MftGlobals, delta: i32) void {
+    if (delta == 0) return;
+    const track = globals.current_track orelse return;
+    const current = mft_fx.trackOrder(track) orelse globals.preferences.module_order;
+    mft_fx.applyOrder(track, current.step(if (delta > 0) 1 else -1));
+}
+
 // A push of the AUTO page: it runs its action, or steps its parameter as a push of a module does.
 fn autoPress(globals: *MftGlobals, push: u3) void {
     const target = globals.map_store.getAuto(mft_globals.hostIo()).pushes[push] orelse return;
@@ -472,6 +497,12 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     if (globals.preferences.auto_insert) {
         if (MappableModule.fromActive(module)) |mappable| {
             if (globals.current_track) |track| mft_fx.ensureModuleFx(globals, track, mappable);
+        }
+    }
+    // The settings can ask that a module button also puts the modules of the track in the order that they prefer.
+    if (globals.preferences.auto_reorder and MappableModule.fromActive(module) != null) {
+        if (globals.current_track) |track| {
+            if (mft_fx.trackOrder(track) != globals.preferences.module_order) mft_fx.applyOrder(track, globals.preferences.module_order);
         }
     }
 

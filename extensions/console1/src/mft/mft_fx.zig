@@ -6,6 +6,8 @@ const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_push = @import("mft_push.zig");
 const mft_auto = @import("mft_auto.zig");
+const mft_order = @import("mft_order.zig");
+const mft_actions = @import("mft_actions.zig");
 
 pub const SlotTarget = struct {
     fx_index: c_int,
@@ -59,6 +61,29 @@ pub const ModuleSlot = enum {
     // Canonical track order: input, gate, eq, comp, output, and the strip after them.
     pub fn rank(self: ModuleSlot) u8 {
         return @backingInt(self);
+    }
+
+    // The place of the slot on a track whose modules are in `order`: the input first, the shape, the EQ and the compressor in the order, then the output,
+    // and the strip after them.
+    pub fn rankIn(self: ModuleSlot, order: mft_order.Order) u8 {
+        return switch (self) {
+            .input => 0,
+            .gate => 1 + @as(u8, @intCast(order.rank(.gate))),
+            .eq => 1 + @as(u8, @intCast(order.rank(.eq))),
+            .comp => 1 + @as(u8, @intCast(order.rank(.comp))),
+            .output => 4,
+            .strip => 5,
+        };
+    }
+
+    // The module whose order can change, or null for the input, the output and the strip.
+    pub fn dyn(self: ModuleSlot) ?mft_order.Dyn {
+        return switch (self) {
+            .gate => .gate,
+            .eq => .eq,
+            .comp => .comp,
+            else => null,
+        };
     }
 
     pub fn suffixChar(self: ModuleSlot) u8 {
@@ -234,6 +259,10 @@ pub fn actionName(target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
             .fx_param => "Action",
         };
     }
+    // An action of the controller has its name here, even when REAPER does not know it (it is not registered yet, or in the unit tests).
+    if (target == .named_action) {
+        if (mft_actions.nameOfCommand(target.named_action.name())) |name| return name;
+    }
     const id = autoCommand(target) orelse return switch (target) {
         .named_action => |named| std.mem.printSentinel(buf, "{s} (missing)", .{named.name()}, 0) catch "Action",
         else => "Action",
@@ -340,17 +369,58 @@ fn trackHasSlot(track: reaper.MediaTrack, slot: ModuleSlot) bool {
     return false;
 }
 
-// The chain index to insert a slot at so that suffixed FX stay in canonical
-// order: before the first suffixed FX of higher rank, or the end of the chain.
-fn insertPosFor(track: reaper.MediaTrack, slot: ModuleSlot) c_int {
+// The chain index to insert a slot at so that the suffixed FX stay in the order of the modules that the settings prefer: before the first suffixed FX that
+// comes after it in that order, or the end of the chain.
+fn insertPosFor(globals: *MftGlobals, track: reaper.MediaTrack, slot: ModuleSlot) c_int {
+    const order = globals.preferences.module_order;
     const count = reaper.TrackFX_GetCount(track);
     var i: c_int = 0;
     while (i < count) : (i += 1) {
         if (fxSlot(track, i)) |s| {
-            if (s.rank() > slot.rank()) return i;
+            if (s.rankIn(order) > slot.rankIn(order)) return i;
         }
     }
     return -1;
+}
+
+// The modules of each FX of the track, null for the FX that are not the shape, the EQ or the compressor. It returns how many FX there are.
+fn chainKinds(track: reaper.MediaTrack, kinds: *[mft_order.max_fx]?mft_order.Dyn) usize {
+    const count: usize = @intCast(@max(@min(reaper.TrackFX_GetCount(track), mft_order.max_fx), 0));
+    for (0..count) |i| {
+        kinds[i] = if (fxSlot(track, @intCast(i))) |slot| slot.dyn() else null;
+    }
+    return count;
+}
+
+// The order that the modules of the track are in, or null when it has fewer than two of them or they are in no order of the list.
+pub fn trackOrder(track: reaper.MediaTrack) ?mft_order.Order {
+    var kinds: [mft_order.max_fx]?mft_order.Dyn = undefined;
+    return mft_order.orderOf(kinds[0..chainKinds(track, &kinds)]);
+}
+
+// The 16 bytes of the GUID of an FX, which tell it apart while the FX of the chain move.
+fn fxGuid(track: reaper.MediaTrack, fx: c_int) [16]u8 {
+    const bytes: *const [16]u8 = @ptrCast(reaper.TrackFX_GetFXGUID(track, fx));
+    return bytes.*;
+}
+
+// Puts the shape, the EQ and the compressor of the track in an order. They change places among the places they have, and the other FX stay where they are
+// (see mft_order.targetChain). Each FX is found by its GUID, since the indices change as the FX move; the places are filled from the first, so the FX that
+// goes to a place is always at it or after it, and moves up to it.
+pub fn applyOrder(track: reaper.MediaTrack, order: mft_order.Order) void {
+    var kinds: [mft_order.max_fx]?mft_order.Dyn = undefined;
+    const count = chainKinds(track, &kinds);
+    var target: [mft_order.max_fx]usize = undefined;
+    mft_order.targetChain(kinds[0..count], order, &target);
+    var guids: [mft_order.max_fx][16]u8 = undefined;
+    for (0..count) |i| guids[i] = fxGuid(track, @intCast(i));
+    for (0..count) |place| {
+        const wanted = guids[target[place]];
+        var at: usize = place;
+        while (at < count and !std.mem.eql(u8, &fxGuid(track, @intCast(at)), &wanted)) : (at += 1) {}
+        std.debug.assert(at < count);
+        if (at != place) reaper.TrackFX_CopyToTrack(track, @intCast(at), track, @intCast(place), true);
+    }
 }
 
 // An existing un-suffixed FX whose base name matches the slot's default plugin,
@@ -427,7 +497,7 @@ pub fn loadPlugin(globals: *MftGlobals, track: reaper.MediaTrack, module: Mappab
             }
         }
     }
-    if (position >= 0) _ = reaper.TrackFX_Delete(track, position) else position = insertPosFor(track, slot);
+    if (position >= 0) _ = reaper.TrackFX_Delete(track, position) else position = insertPosFor(globals, track, slot);
     const instantiate: c_int = if (position >= 0) -1000 - position else -1;
     const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
     if (index < 0) return false;
@@ -477,7 +547,7 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
             continue;
         }
 
-        const insert_pos = insertPosFor(track, slot);
+        const insert_pos = insertPosFor(globals, track, slot);
         const instantiate: c_int = if (insert_pos >= 0) -1000 - insert_pos else -1;
         const new_idx = reaper.TrackFX_AddByName(track, name, false, instantiate);
         if (new_idx < 0) continue;
@@ -639,4 +709,14 @@ test "the chain key hides a visible chain, focused or not, and shows a hidden on
     try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(0));
     try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(3));
     try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(-2));
+}
+
+test "ModuleSlot.rankIn: the modules follow the order, between the input and the output" {
+    const t = std.testing;
+    try t.expect(ModuleSlot.eq.rankIn(.eq_s_c) < ModuleSlot.gate.rankIn(.eq_s_c));
+    try t.expect(ModuleSlot.gate.rankIn(.s_c_eq) < ModuleSlot.comp.rankIn(.s_c_eq));
+    try t.expect(ModuleSlot.comp.rankIn(.s_c_eq) < ModuleSlot.eq.rankIn(.s_c_eq));
+    try t.expect(ModuleSlot.input.rankIn(.eq_s_c) < ModuleSlot.eq.rankIn(.eq_s_c));
+    try t.expect(ModuleSlot.comp.rankIn(.s_eq_c) < ModuleSlot.output.rankIn(.s_eq_c));
+    try t.expectEqual(@as(?mft_order.Dyn, null), ModuleSlot.input.dyn());
 }

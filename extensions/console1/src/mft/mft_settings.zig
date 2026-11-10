@@ -10,6 +10,7 @@ const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 const colors = @import("mft_colors.zig");
 const rows_mod = @import("mft_settings_rows.zig");
+const order_mod = @import("mft_order.zig");
 const rgba = @import("ui_palette").rgba;
 const log = std.log.scoped(.mft_settings);
 const MockImGui = @import("mock_imgui").MockImGui;
@@ -291,27 +292,27 @@ fn drawKey(kit: *widgets.Panel, key: Key, enabled: bool, tip: [:0]const u8) bool
     return clicked and enabled;
 }
 
-/// The two choices of the default mode, side by side, the one that is chosen being lit. It returns the choice that was clicked, or null.
-fn rocker(kit: *widgets.Panel, single: bool) ?bool {
+/// Choices side by side, the one that is chosen being lit: the two of the default mode, the three of the order of the modules. It returns the choice that
+/// was clicked, or null.
+fn segmented(kit: *widgets.Panel, id: [:0]const u8, choices: []const [:0]const u8, chosen: usize, width: f64) ?usize {
     const ctx = kit.ctx;
     const dl = imgui.api.GetWindowDrawList(ctx);
-    const choices = [2][:0]const u8{ "Multi FX", "Single FX" };
-    var picked: ?bool = null;
+    var picked: ?usize = null;
     const pushed = widgets.pushLabelFont(kit);
     defer widgets.popFont(kit, pushed);
     const height = imgui.api.GetTextLineHeight(ctx) + 8;
-    const width: f64 = 96;
     const at = widgets.cursorScreenPos(kit);
     for (choices, 0..) |choice, i| {
         const x = at.x + @as(f64, @floatFromInt(i)) * width;
         imgui.api.SetCursorScreenPos(ctx, x, at.y);
-        const chosen = (i == 1) == single;
-        if (imgui.api.InvisibleButton(ctx, if (i == 0) "##stmulti" else "##stsingle", width, height, null)) picked = i == 1;
+        var button_id: [40:0]u8 = undefined;
+        if (imgui.api.InvisibleButton(ctx, std.mem.printSentinel(&button_id, "##{s}{d}", .{ id, i }, 0) catch "##seg", width, height, null)) picked = i;
         const hovered = imgui.api.IsItemHovered(ctx, null);
-        widgets.rectFilled(dl, x, at.y, x + width, at.y + height, if (chosen) widgets.faded(widgets.accent(kit), 0x55) else theme.slot_bg, 4);
+        const lit = i == chosen;
+        widgets.rectFilled(dl, x, at.y, x + width, at.y + height, if (lit) widgets.faded(widgets.accent(kit), 0x55) else theme.slot_bg, 4);
         widgets.rect(dl, x, at.y, x + width, at.y + height, if (hovered) widgets.accent(kit) else theme.slot_edge, 4, 1);
         const size = widgets.textSize(kit, choice);
-        imgui.api.DrawList_AddText(dl, x + (width - size.w) / 2, at.y + (height - size.h) / 2, if (chosen) theme.text else theme.text_dim, choice);
+        imgui.api.DrawList_AddText(dl, x + (width - size.w) / 2, at.y + (height - size.h) / 2, if (lit) theme.text else theme.text_dim, choice);
     }
     return picked;
 }
@@ -422,9 +423,20 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
             imgui.api.GetContentRegionAvail(ctx, &room_w, &room_h);
             try pluginPicker(kit, rows_mod.pluginSlot(r.setting) orelse strip_slot, @max(room_w - 4, 80));
         },
-        .mode => if (rocker(kit, p.single_fx_mode)) |single| {
+        .mode => if (segmented(kit, "stmode", &.{ "Multi FX", "Single FX" }, if (p.single_fx_mode) 1 else 0, 96)) |choice| {
             globals.mft.settings_cursor = @intCast(index);
-            p.single_fx_mode = single;
+            p.single_fx_mode = choice == 1;
+        },
+        .order => {
+            const labels = comptime blk: {
+                var out: [3][:0]const u8 = undefined;
+                for (@typeInfo(order_mod.Order).@"enum".field_names, 0..) |field_name, i| out[i] = @field(order_mod.Order, field_name).label();
+                break :blk out;
+            };
+            if (segmented(kit, "storder", &labels, @backingInt(p.module_order), 80)) |choice| {
+                globals.mft.settings_cursor = @intCast(index);
+                p.module_order = @fromBackingInt(@intCast(choice));
+            }
         },
         .not_done => {
             imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.text_dim);

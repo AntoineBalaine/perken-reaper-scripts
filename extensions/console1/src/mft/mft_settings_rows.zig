@@ -2,8 +2,7 @@
 //! tracks, and the default FX. The first encoder of the SETTINGS page scrolls them, and the second one adjusts the highlighted one: a turn changes a color,
 //! a number or the choice of a list, and moves a switch, and a click flips a switch or goes to the next choice.
 //!
-//! Some rows of the design have nothing behind them in the controller yet (the feedback window, the log file, the language, the manual routing and the
-//! order of the modules): they are drawn and marked as not done, and the encoders leave them as they are. Because the logic does not call REAPER, it is
+//! Some rows of the design have nothing behind them in the controller yet (the feedback window, the log file, the language and the manual routing): they are drawn and marked as not done, and the encoders leave them as they are. Because the logic does not call REAPER, it is
 //! here, where the unit tests can reach it.
 const std = @import("std");
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
@@ -28,7 +27,7 @@ pub const Group = enum {
 };
 
 /// What a row holds, which says how it is drawn and how the encoder changes it.
-pub const Kind = enum { hue, number, toggle, plugin, mode, not_done };
+pub const Kind = enum { hue, number, toggle, order, plugin, mode, not_done };
 
 /// The settings, in the order of the rows.
 pub const Setting = enum {
@@ -89,8 +88,8 @@ pub const rows = [_]Row{
     .{ .setting = .manual_routing, .group = .tracks, .kind = .not_done, .label = "Manual routing" },
     .{ .setting = .auto_insert, .group = .tracks, .kind = .toggle, .label = "Auto insert modules" },
     .{ .setting = .auto_insert_bypassed, .group = .tracks, .kind = .toggle, .label = "Auto insert bypassed" },
-    .{ .setting = .auto_reorder, .group = .tracks, .kind = .not_done, .label = "Auto reorder modules" },
-    .{ .setting = .preferred_order, .group = .tracks, .kind = .not_done, .label = "Preferred order" },
+    .{ .setting = .auto_reorder, .group = .tracks, .kind = .toggle, .label = "Auto reorder modules" },
+    .{ .setting = .preferred_order, .group = .tracks, .kind = .order, .label = "Preferred order" },
     .{ .setting = .default_input, .group = .default_fx, .kind = .plugin, .label = "Input" },
     .{ .setting = .default_gate, .group = .default_fx, .kind = .plugin, .label = "Shape" },
     .{ .setting = .default_eq, .group = .default_fx, .kind = .plugin, .label = "EQ" },
@@ -157,6 +156,7 @@ pub fn toggleValue(prefs: *const MftPreferences, setting: Setting) bool {
         .plugin_ui => prefs.show_plugin_ui,
         .auto_insert => prefs.auto_insert,
         .auto_insert_bypassed => prefs.auto_insert_bypassed,
+        .auto_reorder => prefs.auto_reorder,
         else => unreachable,
     };
 }
@@ -167,6 +167,7 @@ pub fn setToggle(prefs: *MftPreferences, setting: Setting, value: bool) void {
         .plugin_ui => prefs.show_plugin_ui = value,
         .auto_insert => prefs.auto_insert = value,
         .auto_insert_bypassed => prefs.auto_insert_bypassed = value,
+        .auto_reorder => prefs.auto_reorder = value,
         else => unreachable,
     }
 }
@@ -209,6 +210,7 @@ pub fn adjust(prefs: *MftPreferences, row: Row, delta: i8) void {
             else => unreachable,
         },
         .toggle => setToggle(prefs, row.setting, delta > 0),
+        .order => prefs.module_order = prefs.module_order.step(if (delta > 0) 1 else -1),
         .mode => prefs.single_fx_mode = delta > 0,
         .plugin, .not_done => {},
     }
@@ -218,6 +220,7 @@ pub fn adjust(prefs: *MftPreferences, row: Row, delta: i8) void {
 pub fn flip(prefs: *MftPreferences, row: Row) void {
     switch (row.kind) {
         .toggle => setToggle(prefs, row.setting, !toggleValue(prefs, row.setting)),
+        .order => prefs.module_order = prefs.module_order.step(1),
         .mode => prefs.single_fx_mode = !prefs.single_fx_mode,
         .hue, .number, .plugin, .not_done => {},
     }
@@ -233,6 +236,7 @@ pub fn fraction(prefs: *const MftPreferences, row: Row) f64 {
             else => unreachable,
         },
         .toggle => if (toggleValue(prefs, row.setting)) 1.0 else 0.0,
+        .order => @as(f64, @floatFromInt(@backingInt(prefs.module_order))) / 2.0,
         .mode => if (prefs.single_fx_mode) 1.0 else 0.0,
         .plugin, .not_done => 0.0,
     };
@@ -299,4 +303,16 @@ test "a typed number is read with a point or a comma, held to the range of its r
     try t.expectApproxEqAbs(@as(f32, 1.25), prefs.sensitivity, 1e-5);
     setNumber(&prefs, .fine, 0.001);
     try t.expectEqual(fine_min, prefs.fine);
+}
+
+test "the order of the modules goes round with a turn and a click, and the auto reorder is a switch" {
+    const t = std.testing;
+    var prefs = MftPreferences{};
+    try t.expectEqual(@import("mft_order.zig").Order.s_eq_c, prefs.module_order);
+    adjust(&prefs, rows[20], 1);
+    try t.expectEqualStrings("EQ-S-C", prefs.module_order.label());
+    flip(&prefs, rows[20]);
+    try t.expectEqualStrings("S-C-EQ", prefs.module_order.label());
+    adjust(&prefs, rows[19], -1);
+    try t.expect(!prefs.auto_reorder);
 }

@@ -121,6 +121,8 @@ pub const MftState = struct {
     /// timer of the window, so the run of the surface does the going back.
     settings_return: MftActiveModule = .TRANSPORT,
     settings_leave: bool = false,
+    /// The ticks of the Order knob of the transport page that have not changed the order yet, which keep the sign of the turn.
+    order_ticks: i16 = 0,
     // Whether the on-screen panel is shown (toggled by side button L2).
     panel_visible: bool = true,
     // Whether an encoder was turned while held in transport mode, so a press was

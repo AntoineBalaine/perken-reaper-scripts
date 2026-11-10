@@ -22,6 +22,7 @@ const colors = @import("mft_colors.zig");
 const mft_port = @import("mft_port.zig");
 const mft_auto = @import("mft_auto.zig");
 const settings_rows = @import("mft_settings_rows.zig");
+const mft_actions = @import("mft_actions.zig");
 const rgba = @import("ui_palette").rgba;
 const pi = std.math.pi;
 const log = std.log.scoped(.mft_imgui);
@@ -985,6 +986,17 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         var item: [96:0]u8 = undefined;
         if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##act{d}", .{ action.label, i }, 0) catch continue })) {
             mft_fxsel.assignAuto(state, control, .{ .action = action.id });
+            changed = true;
+        }
+    }
+    // The actions of the controller itself, which REAPER lists with the others: they are kept by their name, as the actions of an extension are.
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+    try imgui.Text(.{ ctx, "MFT actions" });
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    for (mft_actions.entries, 0..) |action, i| {
+        var item: [96:0]u8 = undefined;
+        if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##mft{d}", .{ action.name, i }, 0) catch continue })) {
+            mft_fxsel.assignAuto(state, control, .{ .named_action = mft_auto.NamedAction.init(action.command) });
             changed = true;
         }
     }

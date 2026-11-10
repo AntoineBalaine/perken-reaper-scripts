@@ -98,12 +98,15 @@ pub fn onPress(idx: u3) void {
     }
 }
 
-/// The words of the turns of the bottom row, whose pushes select the pages. The third is the order of the modules, which is not done yet,
-/// and the last two are free.
+/// The knob of the bottom row that puts the modules of the track in another order, which the MIDI handler turns.
+pub const order_knob = 2;
+
+/// The words of the turns of the bottom row, whose pushes select the pages. The last two are free.
 pub fn bottomLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
         0 => "Loop In",
         1 => "Loop Out",
+        order_knob => "Order",
         3 => "Loop",
         4 => "Trk Vol",
         5 => "Trk Pan",
@@ -197,7 +200,7 @@ test "the bottom row has the loop, the volume and the pan, and a dash where noth
     try t.expectEqualStrings("Loop In", bottomLabel(0));
     try t.expectEqualStrings("Loop", bottomLabel(3));
     try t.expectEqualStrings("Trk Pan", bottomLabel(5));
-    try t.expectEqualStrings("-", bottomLabel(2));
+    try t.expectEqualStrings("Order", bottomLabel(2));
     try t.expectEqualStrings("-", bottomLabel(7));
 }
 
