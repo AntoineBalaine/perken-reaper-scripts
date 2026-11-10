@@ -296,6 +296,16 @@ pub const left_keys = [3]SideKey{
     .{ .name = "FXSEL", .icon = .fxsel, .color = theme.green },
 };
 
+/// The key on the left that depends on the page: it hides the panel on the transport page, bypasses the plugin of the page on the pages
+/// that have one, and does nothing on the others.
+pub fn middleLeftKey(page: MftActiveModule) SideKey {
+    return switch (page) {
+        .TRANSPORT => left_keys[1],
+        .INPUT, .GATE, .EQ, .COMP, .OUTPUT => .{ .name = "BYPASS", .icon = .bypass, .color = theme.amber, .toggle = true },
+        .SETTINGS, .AUTO => .{ .name = "-", .icon = .bypass, .color = theme.text_dim },
+    };
+}
+
 pub const right_keys = [3]SideKey{
     .{ .name = "MUTE", .icon = .mute, .color = theme.red, .toggle = true },
     .{ .name = "SOLO", .icon = .solo, .color = theme.amber, .toggle = true },
@@ -339,7 +349,7 @@ fn drawSideKeys(kit: *widgets.Panel, dl: Dl, view: *const View, x0: f64, x1: f64
     for (0..3) |row| {
         const cy = gy + row_h * @as(f64, @floatFromInt(row)) + ring_r + top;
         const y = cy - side_h / 2;
-        drawSideKey(kit, dl, x0, y, left_keys[row], view.left_lit[row]);
+        drawSideKey(kit, dl, x0, y, if (row == 1) middleLeftKey(view.active) else left_keys[row], view.left_lit[row]);
         drawSideKey(kit, dl, x1, y, right_keys[row], view.side_lit[row]);
     }
 }

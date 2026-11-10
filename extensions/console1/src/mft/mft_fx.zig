@@ -172,6 +172,30 @@ pub fn moduleFxToShow(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
     return first;
 }
 
+// Whether a plugin of the module's slot is bypassed. A module that has no plugin on the track is not bypassed.
+pub fn moduleBypassed(track: reaper.MediaTrack, module: MappableModule) bool {
+    const slots = slotsFor(module);
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const slot = fxSlot(track, i) orelse continue;
+        if (slotsContain(slots, slot) and !reaper.TrackFX_GetEnabled(track, i)) return true;
+    }
+    return false;
+}
+
+// Bypasses the plugins of the module's slot, or brings them back when they are bypassed.
+pub fn toggleBypass(track: reaper.MediaTrack, module: MappableModule) void {
+    const enable = moduleBypassed(track, module);
+    const slots = slotsFor(module);
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const slot = fxSlot(track, i) orelse continue;
+        if (slotsContain(slots, slot)) reaper.TrackFX_SetEnabled(track, i, enable);
+    }
+}
+
 pub fn toggleMute(track: reaper.MediaTrack) void {
     _ = reaper.CSurf_OnMuteChange(track, -1);
 }

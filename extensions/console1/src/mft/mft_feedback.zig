@@ -37,6 +37,19 @@ pub fn volumeRingByte(volume: f64) u8 {
     return ringByte(position);
 }
 
+/// The encoder of the compressor page whose ring shows the gain reduction, which is the first of the second row (the ninth of the grid).
+pub const gain_reduction_ring = 8;
+
+/// The most gain reduction that the ring shows, in decibels. A ring that is full means that the compressor takes at least this much off.
+pub const gain_reduction_full_db = 24.0;
+
+/// The ring of a gain reduction in decibels. Because a plugin may report the reduction as a negative number of decibels or as a positive one, the
+/// size of the number is what counts.
+pub fn gainReductionRingByte(db: f64) u8 {
+    if (std.math.isNan(db)) return 0;
+    return ringByte(@abs(db) / gain_reduction_full_db);
+}
+
 /// The ring of a pan from -1 (left) to 1 (right): the middle is the middle of the ring.
 pub fn panRingByte(pan: f64) u8 {
     if (std.math.isNan(pan)) return 0;
@@ -122,6 +135,15 @@ test "volumeRingByte and panRingByte: the ends and the middle of the fader and o
     try t.expectEqual(@as(u8, 0), panRingByte(-1.0));
     try t.expectEqual(@as(u8, 63), panRingByte(0.0));
     try t.expectEqual(@as(u8, 127), panRingByte(1.0));
+}
+
+test "gainReductionRingByte: no reduction is empty, and the full range fills the ring, whichever the sign" {
+    const t = std.testing;
+    try t.expectEqual(@as(u8, 0), gainReductionRingByte(0.0));
+    try t.expectEqual(@as(u8, 63), gainReductionRingByte(12.0));
+    try t.expectEqual(@as(u8, 63), gainReductionRingByte(-12.0));
+    try t.expectEqual(@as(u8, 127), gainReductionRingByte(40.0));
+    try t.expectEqual(@as(u8, 0), gainReductionRingByte(std.math.nan(f64)));
 }
 
 test "decodeFxParam: the FX index is the high half and the parameter the low half" {

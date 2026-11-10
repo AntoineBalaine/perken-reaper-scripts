@@ -241,6 +241,10 @@ fn draw(globals: *MftGlobals) !void {
         if (globals.mft.activity.pressLit(i, now_ms)) view.press_lit |= bit;
     }
     for (0..3) |i| view.left_lit[i] = globals.mft.activity.sideLit(i, now_ms);
+    // The key that bypasses is lit while the plugin of the page is bypassed, and not while it is pressed.
+    if (MappableModule.fromActive(active)) |module| {
+        view.left_lit[1] = if (globals.current_track) |track| mft_fx.moduleBypassed(track, module) else false;
+    }
     // The pop-ups of the values follow the mouse and the held encoders, and linger for a moment after them.
     // A held knob that has a push is not engaged: the click that follows shows what the push changed, and a turn still shows the value.
     var push_bits: u16 = 0;

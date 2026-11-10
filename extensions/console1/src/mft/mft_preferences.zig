@@ -39,6 +39,15 @@ pub const MftPreferences = struct {
         };
     }
 
+    /// The hue of each of the sixteen color LEDs: the eight of the top rows take the color of the page in use, and each encoder of the bottom
+    /// row, which selects a page, takes the color of its own page, so that the pages can be told apart.
+    pub fn pageHues(self: *const MftPreferences, active: MftActiveModule) [16]u8 {
+        var hues: [16]u8 = undefined;
+        for (0..8) |i| hues[i] = self.colorForModule(active);
+        for (0..8) |i| hues[8 + i] = self.colorForModule(@fromBackingInt(@intCast(i)));
+        return hues;
+    }
+
     pub fn setColorForModule(self: *MftPreferences, module: MftActiveModule, hue: u8) void {
         switch (module) {
             .INPUT => self.color_input = hue,
@@ -188,4 +197,17 @@ test "MftPreferences: parse round-trip fields" {
     try t.expectEqualStrings("VST: My EQ", prefs.default_eq);
     // Unspecified fields keep their defaults.
     try t.expectEqual(@as(u8, 0x62), prefs.color_gate);
+}
+
+test "pageHues: the top rows have the color of the active page and the bottom row the color of each page" {
+    const t = std.testing;
+    var prefs = MftPreferences{};
+    prefs.color_eq = 11;
+    prefs.color_output = 22;
+    const hues = prefs.pageHues(.EQ);
+    try t.expectEqual(@as(u8, 11), hues[0]);
+    try t.expectEqual(@as(u8, 11), hues[7]);
+    try t.expectEqual(prefs.color_input, hues[8]);
+    try t.expectEqual(@as(u8, 11), hues[10]);
+    try t.expectEqual(@as(u8, 22), hues[15]);
 }

@@ -62,7 +62,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     }
     if (globals.m_midi_out) |mo| {
         midi_out.clearAll(mo);
-        midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
+        midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
         midi_out.syncRings(globals, true);
     } else {
         log.err("couldn’t create midi out", .{});
@@ -137,6 +137,8 @@ export fn zRun() callconv(.c) void {
         }
     }
 
+    midi_out.syncMeters(globals);
+
     // The LED test is toggled from the panel; the sweep runs here so the panel
     // stays free of the MIDI-out cImport. On stopping, restore the surface.
     if (globals.m_midi_out) |mo| {
@@ -148,7 +150,7 @@ export fn zRun() callconv(.c) void {
         } else if (led_test_running) {
             led_test_running = false;
             midi_out.clearAll(mo);
-            midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
+            midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
             midi_out.syncRings(globals, true);
         }
     }

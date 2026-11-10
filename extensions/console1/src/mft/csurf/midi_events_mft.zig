@@ -131,7 +131,9 @@ fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
 
 // Sends a hue to the LEDs of the controller, when it is connected. The settings install it as the way to send colors.
 fn sendHue(globals: *MftGlobals, hue: u8) void {
-    if (globals.m_midi_out) |mo| midi_out.sendAllColors(mo, hue);
+    // The hue was already stored in the preferences, so the LEDs are sent from them.
+    _ = hue;
+    if (globals.m_midi_out) |mo| midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
 }
 
 pub fn installSettingsHook() void {
@@ -204,7 +206,7 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     }
 
     if (globals.m_midi_out) |mo| {
-        midi_out.sendModuleColor(mo, globals.preferences.colorForModule(module));
+        midi_out.sendPageColors(mo, globals.preferences.pageHues(module));
     }
     // The rings stood for the parameters of the module that was left: they now show the ones of this module.
     midi_out.syncRings(globals, true);
@@ -220,7 +222,12 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3. L2 (panel toggle)
     // needs no track; the others act on the current track when there is one.
     if (cc == mft.SIDE_BUTTON_CCS[1]) {
-        globals.mft.panel_visible = !globals.mft.panel_visible; // L2: hide/show panel
+        // L2 hides the panel on the transport page, and bypasses the plugin of the page on the pages that have one.
+        if (globals.mft.active_module == .TRANSPORT) {
+            globals.mft.panel_visible = !globals.mft.panel_visible;
+        } else if (MappableModule.fromActive(globals.mft.active_module)) |module| {
+            if (globals.current_track) |track| mft_fx.toggleBypass(track, module);
+        }
         return;
     }
     const track = globals.current_track orelse return;

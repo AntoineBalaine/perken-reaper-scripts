@@ -21,6 +21,7 @@ pub const Icon = enum {
     marker,
     chain,
     hide,
+    bypass,
     fxsel,
     mute,
     solo,
@@ -140,6 +141,12 @@ fn hide(dl: Dl, cx: f64, cy: f64, r: f64, color: c_int, _: c_int) void {
     widgets.line(dl, cx - r, cy + r * 0.85, cx + r, cy - r * 0.85, color, 1.6);
 }
 
+/// The bypass: the sign of a power button, an open ring with a bar through its gap.
+fn bypass(dl: Dl, cx: f64, cy: f64, r: f64, color: c_int, _: c_int) void {
+    widgets.arc(dl, cx, cy + r * 0.1, r * 0.8, pi * 1.7, pi * 1.7 + pi * 1.6, color, 1.8);
+    widgets.line(dl, cx, cy - r * 0.95, cx, cy - r * 0.1, color, 1.8);
+}
+
 /// The plugin selector: a chip with pins on its two sides.
 fn fxsel(dl: Dl, cx: f64, cy: f64, r: f64, color: c_int, _: c_int) void {
     widgets.rect(dl, cx - r * 0.55, cy - r * 0.65, cx + r * 0.55, cy + r * 0.65, color, 2, 1.6);
@@ -187,6 +194,7 @@ fn drawFlat(dl: Dl, icon: Icon, cx: f64, cy: f64, r: f64, color: c_int, accent: 
         .marker => marker(dl, cx, cy, r, color, accent),
         .chain => chain(dl, cx, cy, r, color, accent),
         .hide => hide(dl, cx, cy, r, color, accent),
+        .bypass => bypass(dl, cx, cy, r, color, accent),
         .fxsel => fxsel(dl, cx, cy, r, color, accent),
         .mute => mute(dl, cx, cy, r, color, accent),
         .solo => solo(dl, cx, cy, r, color, accent),

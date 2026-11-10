@@ -49,6 +49,28 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
     }
 }
 
+// The meters of the active page, which REAPER does not report as notifications, so the run loop of the surface asks for them. On the compressor
+// page, the ring of the ninth encoder shows the gain reduction of the compressor, unless the map gives that encoder a parameter.
+pub fn syncMeters(globals: *MftGlobals) void {
+    if (globals.m_midi_out == null or globals.mft.active_module != .COMP) return;
+    const track = globals.current_track orelse return;
+    const routing = &globals.feedback.routing;
+    if (routing.targets[mft_feedback.gain_reduction_ring] != null) return;
+    // Any encoder that the map routes names the plugin of the page.
+    var fx_index: ?c_int = null;
+    for (routing.targets) |maybe_target| {
+        if (maybe_target) |target| {
+            fx_index = target.fx_index;
+            break;
+        }
+    }
+    const fx = fx_index orelse return;
+    var buf: [32:0]u8 = undefined;
+    if (!reaper.TrackFX_GetNamedConfigParm(track, fx, "GainReduction_dB", &buf, buf.len)) return;
+    const db = std.fmt.parseFloat(f64, std.mem.sliceTo(&buf, 0)) catch return;
+    setRing(globals, mft_feedback.gain_reduction_ring, mft_feedback.gainReductionRingByte(db));
+}
+
 // The volume or the pan of a track moved in REAPER. On the transport page, the ring of that knob follows when the track is the current one.
 pub fn syncTrackMix(globals: *MftGlobals, track: reaper.MediaTrack, volume: ?f64, pan: ?f64) void {
     if (track != globals.current_track or globals.mft.active_module != .TRANSPORT) return;
@@ -63,10 +85,10 @@ pub fn syncParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16, 
     setRing(globals, slot, mft_feedback.ringByte(value));
 }
 
-// Color on channel 3: a hue position on the 0-127 wheel, sent to all 16 knobs
-// so the whole surface reflects the active module.
-pub fn sendModuleColor(midi_out: reaper.midi_Output, hue: u8) void {
-    for (0..16) |i| {
+// Color on channel 2: a hue position on the 0-127 wheel for each of the 16 knobs. The top rows show the color of the active page, and each
+// encoder of the bottom row the color of its own page.
+pub fn sendPageColors(midi_out: reaper.midi_Output, hues: [16]u8) void {
+    for (hues, 0..) |hue, i| {
         c.MidiOut_Send(midi_out, 0xb0 | mft.COLOR_CHANNEL, @intCast(i), hue, -1);
     }
 }
