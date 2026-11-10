@@ -306,6 +306,16 @@ pub fn toggleBypass(track: reaper.MediaTrack, module: MappableModule) void {
     }
 }
 
+// The value of `TrackFX_Show` that shows the floating window of an FX, and the one that hides it.
+const SHOW_FLOATING: c_int = 3;
+const HIDE_FLOATING: c_int = 2;
+
+// Opens the window of an FX, or closes it when it is open.
+pub fn toggleFxWindow(track: reaper.MediaTrack, fx_index: c_int) void {
+    const open = reaper.TrackFX_GetFloatingWindow(track, fx_index) != null;
+    reaper.TrackFX_Show(track, fx_index, if (open) HIDE_FLOATING else SHOW_FLOATING);
+}
+
 pub fn toggleMute(track: reaper.MediaTrack) void {
     _ = reaper.CSurf_OnMuteChange(track, -1);
 }

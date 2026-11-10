@@ -808,6 +808,12 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         mft_fxsel.browseFromMapping(state, module);
         state.pending = .fill_browser;
     }
+    // A module that has a plugin has a second button after it, which opens the window of the plugin, or closes it.
+    if (state.map_fx_index[mi] >= 0 and track != null) {
+        imgui.api.SameLine(ctx, null, null);
+        var ui_id: [24:0]u8 = undefined;
+        if (imgui.api.SmallButton(ctx, std.mem.printSentinel(&ui_id, "Open UI##ui{d}", .{mi}, 0) catch "Open UI")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+    }
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
     imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
