@@ -399,7 +399,11 @@ pub fn drawLedLabel(kit: *widgets.Panel, dl: Dl, cx: f64, y: f64, first: ?[:0]co
         // The name is always on the top line, with a thin line under it. When the knob has no second line, the bottom
         // half is left empty: it is the place of the press, and of the mapping.
         var upper: [96]u8 = undefined;
-        printedText(kit, dl, cx, y + 3 - text_up, upperZ(&upper, name), if (strength > 0) theme.text else theme.text_dim);
+        const full = upperZ(&upper, name);
+        var fit_buf: [96:0]u8 = undefined;
+        const shown = fitText(kit, full, label_w - 10, &fit_buf);
+        tipWhenCut(kit, shown, full, cx - label_w / 2, y, cx + label_w / 2, y + label_h / 2);
+        printedText(kit, dl, cx, y + 3 - text_up, shown, if (strength > 0) theme.text else theme.text_dim);
         widgets.line(dl, cx - label_w / 2 + 6, y + label_h / 2, cx + label_w / 2 - 6, y + label_h / 2, rgba(0xFFFFFF22), 1);
     }
     if (second) |value| printedText(kit, dl, cx, y + 18 - text_up, value, if (strength > 0) color else theme.text_dim);
@@ -431,7 +435,34 @@ const Glyph = *const fn (Dl, f64, f64, c_int) void;
 
 /// One line of the two-zone window: a glyph, then the word, centered together on `cx`. A line that is `lit` is washed
 /// with the color of the mode, and its word is bright.
-fn drawZoneLine(kit: *widgets.Panel, dl: Dl, cx: f64, top: f64, bottom: f64, glyph: Glyph, text: [:0]const u8, color: c_int, lit: bool, text_color: c_int) void {
+/// A text cut to a width, with "..." at its end, written into `buf`; the text as it is when it fits. Because a name is cut letter by letter, a letter of several
+/// bytes is never cut in two.
+pub fn fitText(kit: *widgets.Panel, text: [:0]const u8, max_w: f64, buf: *[96:0]u8) [:0]const u8 {
+    if (widgets.textSize(kit, text).w <= max_w) return text;
+    var n: usize = @min(text.len, buf.len - 4);
+    while (n > 0) : (n -= 1) {
+        // A byte that continues a letter is not a place to cut.
+        if (n < text.len and text[n] & 0xC0 == 0x80) continue;
+        @memcpy(buf[0..n], text[0..n]);
+        @memcpy(buf[n .. n + 3], "...");
+        buf[n + 3] = 0;
+        if (widgets.textSize(kit, buf[0 .. n + 3 :0]).w <= max_w) return buf[0 .. n + 3 :0];
+    }
+    return "...";
+}
+
+/// Shows the whole of a text that was cut, in a tooltip, while the mouse is over the place where it is written.
+fn tipWhenCut(kit: *widgets.Panel, shown: [:0]const u8, full: [:0]const u8, x1: f64, y1: f64, x2: f64, y2: f64) void {
+    if (shown.ptr == full.ptr) return;
+    const ctx = kit.ctx;
+    if (imgui.api.IsWindowHovered(ctx, null) and imgui.api.IsMouseHoveringRect(ctx, x1, y1, x2, y2, null)) widgets.tooltip(kit, full);
+}
+
+fn drawZoneLine(kit: *widgets.Panel, dl: Dl, cx: f64, top: f64, bottom: f64, glyph: Glyph, full_text: [:0]const u8, color: c_int, lit: bool, text_color: c_int) void {
+    // A word that is longer than the window is cut with "...", and the whole of it shows in a tooltip.
+    var fit_buf: [96:0]u8 = undefined;
+    const text = fitText(kit, full_text, label_w - 8 - glyph_w - glyph_gap, &fit_buf);
+    tipWhenCut(kit, text, full_text, cx - label_w / 2, top, cx + label_w / 2, bottom);
     const text_w = widgets.textSize(kit, text).w;
     if (lit) widgets.rectFilled(dl, cx - label_w / 2 + 3, top, cx + label_w / 2 - 3, bottom, widgets.faded(color, 0x55), 3);
     const left = cx - (glyph_w + glyph_gap + text_w) / 2;
@@ -866,4 +897,19 @@ test "every bottom cell selects a page, and the cells of the top rows select non
     try std.testing.expectEqual(@as(?MftActiveModule, .AUTO), moduleForCell(14));
     try std.testing.expectEqual(@as(?MftActiveModule, .OUTPUT), moduleForCell(15));
     try std.testing.expectEqual(@as(?MftActiveModule, null), moduleForCell(0));
+}
+
+test "a long name is cut to its width with an ellipsis, and a name that fits is kept as it is" {
+    const MockImGui = @import("mock_imgui").MockImGui;
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    var kit = widgets.Panel{};
+    var buf: [96:0]u8 = undefined;
+    const short: [:0]const u8 = "Gain";
+    try std.testing.expect(fitText(&kit, short, 1000, &buf).ptr == short.ptr);
+    // The mock gives every text the same width, so a width smaller than it leaves only the ellipsis.
+    const long: [:0]const u8 = "Automation: Set track automation mode to trim/read";
+    try std.testing.expectEqualStrings("...", fitText(&kit, long, 10, &buf));
 }

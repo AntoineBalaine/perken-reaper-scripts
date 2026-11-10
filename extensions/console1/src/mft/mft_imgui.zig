@@ -635,7 +635,9 @@ fn altHeld() bool {
 
 /// The combo of a control while Alt is held: it has the same text, and a click takes the mapping of the control away instead of opening the list. It returns
 /// whether it was clicked.
-fn altClearRow(id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
+fn altClearRow(id: [:0]const u8, full: [:0]const u8, width: f64) bool {
+    var fit_buf: [96:0]u8 = undefined;
+    const preview = device.fitText(&fxsel_kit, full, width - 6, &fit_buf);
     var label_buf: [200:0]u8 = undefined;
     const label = std.mem.printSentinel(&label_buf, "{s}##alt{s}", .{ preview, id }, 0) catch return false;
     var w = width;
@@ -648,7 +650,9 @@ fn altClearRow(id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
 /// The combo of a control while the MIDI learn is on: it has the same text, a click selects the control (the knob on the turn line, the push on the press
 /// line) instead of opening the list, so that the parameter that is moved next goes to it, and the line of the control that is selected is lit. It
 /// returns whether it was clicked.
-fn learnSelectRow(id: [:0]const u8, preview: [:0]const u8, width: f64, selected: bool) bool {
+fn learnSelectRow(id: [:0]const u8, full: [:0]const u8, width: f64, selected: bool) bool {
+    var fit_buf: [96:0]u8 = undefined;
+    const preview = device.fitText(&fxsel_kit, full, width - 6, &fit_buf);
     var label_buf: [200:0]u8 = undefined;
     const label = std.mem.printSentinel(&label_buf, "{s}##learn{s}", .{ preview, id }, 0) catch return false;
     var lit = selected;
@@ -693,7 +697,11 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         return false;
     }
     try imgui.SetNextItemWidth(.{ ctx, width });
-    if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
+    var fit_buf: [96:0]u8 = undefined;
+    const shown = device.fitText(&fxsel_kit, preview, width - 6, &fit_buf);
+    const open = try imgui.BeginCombo(.{ ctx, &id, shown, imgui.ComboFlags_NoArrowButton });
+    if (shown.ptr != preview.ptr and imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, preview);
+    if (!open) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
     mft_fxsel.selectControl(state, module, control);
     var changed = false;
@@ -952,7 +960,11 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         return false;
     }
     try imgui.SetNextItemWidth(.{ ctx, width });
-    if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
+    var fit_buf: [96:0]u8 = undefined;
+    const shown = device.fitText(&fxsel_kit, preview, width - 6, &fit_buf);
+    const open = try imgui.BeginCombo(.{ ctx, &id, shown, imgui.ComboFlags_NoArrowButton });
+    if (shown.ptr != preview.ptr and imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, preview);
+    if (!open) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
     mft_fxsel.selectAuto(state, control);
     var changed = false;
