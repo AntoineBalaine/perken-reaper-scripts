@@ -740,31 +740,38 @@ fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: m
     if (imgui.api.InvisibleButton(ctx, &cell_id, map_cell_w, 2 + map_enc, null)) mft_fxsel.selectControl(state, module, index);
 }
 
-/// Where the line of the title of a card is, from the cursor right under it (`under`), and where the text after the title starts. The card engraves its title
-/// in the title font, a pixel taller than the text, and leaves the space of two items under it.
-fn mapTitleLine(title: [:0]const u8, under: widgets.Point) struct { x: f64, y: f64, h: f64 } {
+/// Where a text after the title of a card goes: right of the title, with its baseline on the baseline of the title. The card engraves its title at its
+/// top left, inside its padding, in the title font; a text in another font is moved down by the difference of the ascents, which are about four fifths of
+/// the sizes of the fonts. It is called inside the card, whose window it reads.
+fn mapTitleLine(title: [:0]const u8) struct { x: f64, y: f64 } {
+    var card_x: f64 = 0;
+    var card_y: f64 = 0;
+    imgui.api.GetWindowPos(ctx, &card_x, &card_y);
+    var padding_x: f64 = 0;
+    var padding_y: f64 = 0;
+    imgui.api.GetStyleVar(ctx, imgui.StyleVar_WindowPadding, &padding_x, &padding_y);
     var upper_buf: [48:0]u8 = undefined;
     const upper = std.ascii.upperString(upper_buf[0..@min(title.len, upper_buf.len - 1)], title);
     upper_buf[upper.len] = 0;
     const pushed = widgets.pushTitleFont(&fxsel_kit);
-    const size = widgets.textSize(&fxsel_kit, upper_buf[0..upper.len :0]);
+    const title_w = widgets.textSize(&fxsel_kit, upper_buf[0..upper.len :0]).w;
+    const title_size = imgui.api.GetFontSize(ctx);
     widgets.popFont(&fxsel_kit, pushed);
-    var spacing_x: f64 = 0;
-    var spacing_y: f64 = 0;
-    imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y }) catch {};
-    return .{ .x = under.x + size.w + 12, .y = under.y - (size.h + 1) - 2 * spacing_y, .h = size.h };
+    const text_size = imgui.api.GetFontSize(ctx);
+    return .{ .x = card_x + padding_x + title_w + 12, .y = card_y + padding_y + 0.8 * (title_size - text_size) };
 }
 
 /// A button on the line of the title of a card, after the title. It returns whether it was clicked.
-fn mapTitleButton(title: [:0]const u8, under: widgets.Point, label: [:0]const u8) !bool {
-    const line = mapTitleLine(title, under);
-    imgui.api.SetCursorScreenPos(ctx, line.x, line.y - 2);
+fn mapTitleButton(title: [:0]const u8, label: [:0]const u8) !bool {
+    const line = mapTitleLine(title);
+    // A small button has no padding above its text, so its text starts where the button does.
+    imgui.api.SetCursorScreenPos(ctx, line.x, line.y);
     return imgui.api.SmallButton(ctx, label);
 }
 
 /// A note on the line of the title of a card, after the title, in the dim of the panel.
-fn mapTitleNote(title: [:0]const u8, under: widgets.Point, note: [:0]const u8) void {
-    const line = mapTitleLine(title, under);
+fn mapTitleNote(title: [:0]const u8, note: [:0]const u8) void {
+    const line = mapTitleLine(title);
     imgui.api.SetCursorScreenPos(ctx, line.x, line.y);
     imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.text_dim);
     imgui.api.Text(ctx, note);
@@ -796,7 +803,7 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         std.mem.printSentinel(&button_buf, "{s}{s}  v##plugin{d}", .{ shown, if (shown.len < plugin.len) "..." else "", mi }, 0) catch "?"
     else
         std.mem.printSentinel(&button_buf, "no plugin: Load FX  v##plugin{d}", .{mi}, 0) catch "?";
-    if (try mapTitleButton(mapTitle(module), origin, button)) {
+    if (try mapTitleButton(mapTitle(module), button)) {
         // The browser opens over the panel, which stays open and is where the controller goes back to.
         mft_fxsel.browseFromMapping(state, module);
         state.pending = .fill_browser;
@@ -952,7 +959,7 @@ fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, colo
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
     // The AUTO page has no plugin: the line of its title says what its combos list.
-    mapTitleNote("Auto", origin, "REAPER actions and FX parameters, user page");
+    mapTitleNote("Auto", "REAPER actions and FX parameters, user page");
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
     imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
@@ -1079,7 +1086,7 @@ fn pollActionList(state: *mft_fxsel.FxSelState) bool {
     return true;
 }
 
-/// The window of the mapping mode, which is a window of its own. Its keys at the left are the learn (a parameter moved in a plugin goes to the selected
+/// The window of the mapping mode, which is a window of its own. Its keys at the left are the MIDI learn (a parameter moved in a plugin goes to the selected
 /// control), the single FX mode, and the one that leaves the mapping. The encoders select the control that they touch, and the module buttons put another
 /// module in focus.
 fn drawMappingWindow(globals: *MftGlobals) !void {
@@ -1111,7 +1118,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     imgui.api.BeginGroup(ctx);
     imgui.api.Spacing(ctx);
     imgui.api.Spacing(ctx);
-    if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) "Learn is on: touch an encoder to choose the control, then move a parameter in the plugin" else "Learn: touch an encoder, then move a parameter in the plugin window")) state.map_learn = !state.map_learn;
+    if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) "MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin" else "MIDI learn: touch an encoder, then move a parameter in the plugin window")) state.map_learn = !state.map_learn;
     _ = drawMapKey("##single", .single, false, false, "Single FX mode: one plugin for all the modules (not done yet)");
     if (drawMapKey("##close", .close, false, true, "Close the mapping")) state.screen = .actions;
     imgui.api.EndGroup(ctx);
@@ -1140,7 +1147,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     // What the learn is waiting for, or what the last press said.
     if (state.map_learn) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
-        try imgui.Text(.{ ctx, "Learn is on: touch an encoder to choose the control, then move a parameter in the plugin window." });
+        try imgui.Text(.{ ctx, "MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin window." });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
     if (state.noteText().len > 0) {
