@@ -481,12 +481,14 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     }
     const track = globals.current_track orelse return;
     switch (cc) {
-        mft.SIDE_BUTTON_CCS[0] => { // L1: toggle the active module's FX chain
-            if (MappableModule.fromActive(globals.mft.active_module)) |module| {
-                if (mft_fx.moduleFxToShow(globals, track, module, globals.mft.last_fx_index)) |fx| {
-                    mft_fx.toggleFxChain(track, fx);
-                }
-            }
+        mft.SIDE_BUTTON_CCS[0] => { // L1: toggle the FX chain of the track
+            // The chain opens on the plugin of the active module when it has one. Otherwise it opens on the first FX, which is the chain itself when the
+            // track has none: REAPER shows an empty chain, from which plugins can be added.
+            const module_fx: ?c_int = if (MappableModule.fromActive(globals.mft.active_module)) |module|
+                mft_fx.moduleFxToShow(globals, track, module, globals.mft.last_fx_index)
+            else
+                null;
+            mft_fx.toggleFxChain(track, module_fx orelse 0);
         },
         mft.SIDE_BUTTON_CCS[3] => mft_fx.toggleMute(track), // R1
         mft.SIDE_BUTTON_CCS[4] => mft_fx.toggleSolo(track), // R2
