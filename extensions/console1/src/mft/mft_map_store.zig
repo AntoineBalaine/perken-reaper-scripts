@@ -6,6 +6,7 @@ const MappableModule = mappings.MappableModule;
 const MftModuleMapping = mappings.MftModuleMapping;
 const BrowserList = @import("mft_fxsel.zig").BrowserList;
 const mft_port = @import("mft_port.zig");
+const mft_auto = @import("mft_auto.zig");
 const log = std.log.scoped(.mft_maps);
 
 // Lazily loads and caches per-module FX mappings from
@@ -18,6 +19,8 @@ pub const MftMapStore = struct {
     COMP: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     OUTPUT: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     STRIP: std.StringArrayHashMapUnmanaged(?mappings.StripMapping) = .{},
+    /// The map of the AUTO page, once it was read.
+    auto: ?mft_auto.AutoMap = null,
     controller_dir: [:0]const u8,
     allocator: std.mem.Allocator,
 
@@ -85,6 +88,36 @@ pub const MftMapStore = struct {
         const file_path = fs_helpers.joinStrings(&file_buf, &.{ dir_path, std.fs.path.sep_str, "default.ini" });
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = file_path, .data = aw.written() });
         _ = self.cacheFor(module).swapRemove(fx_name);
+    }
+
+    /// The map of the AUTO page: the user's (`maps/user/AUTO/default.ini`) when there is one, and the factory one otherwise, read the first time.
+    pub fn getAuto(self: *MftMapStore, io: std.Io) mft_auto.AutoMap {
+        if (self.auto) |map| return map;
+        const map = self.readAuto(io, "user") orelse self.readAuto(io, "factory") orelse mft_auto.AutoMap{};
+        self.auto = map;
+        return map;
+    }
+
+    fn readAuto(self: *MftMapStore, io: std.Io, root: []const u8) ?mft_auto.AutoMap {
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, root, std.fs.path.sep_str, "AUTO", std.fs.path.sep_str, "default.ini" });
+        var text_buf: [8192]u8 = undefined;
+        const text = std.Io.Dir.cwd().readFile(io, path, &text_buf) catch return null;
+        return mft_auto.parse(text);
+    }
+
+    /// Saves the map of the AUTO page as the user's, which is read before the factory one.
+    pub fn saveAuto(self: *MftMapStore, io: std.Io, map: *const mft_auto.AutoMap) !void {
+        var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const dir_path = fs_helpers.joinStrings(&dir_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, "user", std.fs.path.sep_str, "AUTO" });
+        try std.Io.Dir.cwd().createDirPath(io, dir_path);
+        var aw: std.Io.Writer.Allocating = .init(self.allocator);
+        defer aw.deinit();
+        try mft_auto.write(map, &aw.writer);
+        var file_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const file_path = fs_helpers.joinStrings(&file_buf, &.{ dir_path, std.fs.path.sep_str, "default.ini" });
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = file_path, .data = aw.written() });
+        self.auto = map.*;
     }
 
     /// Returns the map of a channel strip plugin, loading it from `maps/factory/STRIP/<fx name>/default.ini` the first time. As for the other maps,
@@ -469,4 +502,34 @@ test "saveUser writes the map of the user, the loader reads it before the factor
     store.listFx(io, .EQ, &list);
     try t.expectEqual(@as(usize, 1), list.count);
     try t.expectEqualStrings("VST: ReaEQ (Cockos)", list.get(0));
+}
+
+test "the map of the AUTO page is the factory one until the user saves one, which is read first" {
+    const t = std.testing;
+    const io = t.io;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realPathFileAlloc(io, ".", t.allocator);
+    defer t.allocator.free(root);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var store = MftMapStore.init(arena.allocator(), root);
+
+    // Without any file, the map is empty.
+    try t.expectEqual(@as(?mft_auto.Target, null), store.getAuto(io).pushes[0]);
+    store.auto = null;
+    const factory_dir = try std.fmt.allocPrint(t.allocator, "{s}/maps/factory/AUTO", .{root});
+    defer t.allocator.free(factory_dir);
+    try std.Io.Dir.cwd().createDirPath(io, factory_dir);
+    const factory_file = try std.fmt.allocPrint(t.allocator, "{s}/default.ini", .{factory_dir});
+    defer t.allocator.free(factory_file);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = factory_file, .data = "version = 2\nmodule = AUTO\npush_1 = action:40400\n" });
+    try t.expectEqual(@as(c_int, 40400), store.getAuto(io).pushes[0].?.action);
+
+    var mine = mft_auto.AutoMap{};
+    mine.setControl(0, .{ .fx_param = mft_auto.FxParam.init("JS: Saturation", 0) });
+    try store.saveAuto(io, &mine);
+    store.auto = null;
+    const read = store.getAuto(io);
+    try t.expect(read.eql(&mine));
 }

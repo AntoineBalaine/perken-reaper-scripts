@@ -160,6 +160,10 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             state.map_fx_index = @splat(-1);
             state.map_error = @splat(@splat(0));
             for (&state.map_fx_name) |*name| name[0] = 0;
+            // The AUTO page has no plugin: its map is there whatever the track has.
+            state.map_auto = globals.map_store.getAuto(io);
+            state.map_auto_loaded = state.map_auto;
+            state.map_auto_error[0] = 0;
             const track = globals.current_track orelse return;
             inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
                 const module = @field(MappableModule, field_name);
@@ -185,6 +189,14 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
 /// which marks the plate of the module with it.
 pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) void {
     const io = mft_globals.hostIo();
+    if (mft_fxsel.isAutoChanged(state)) {
+        if (globals.map_store.saveAuto(io, &state.map_auto)) {
+            state.map_auto_loaded = state.map_auto;
+            state.map_auto_error[0] = 0;
+        } else |err| {
+            _ = std.mem.printSentinel(&state.map_auto_error, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+        }
+    }
     inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
         const module = @field(MappableModule, field_name);
         const i = mft_fxsel.moduleIndex(module);
@@ -205,6 +217,14 @@ pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) 
 pub fn learnParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16, param: u16) void {
     const state = &(globals.mft.fxsel orelse return);
     if (state.screen != .map or !state.map_learn or track != globals.current_track) return;
+    // The AUTO plate learns a parameter of any FX of the track, which it keeps by the name of the plugin.
+    if (state.map_focus_auto) {
+        var name_buf: [160:0]u8 = undefined;
+        const name = mft_fx.fxMapName(track, fx_index, &name_buf) orelse return;
+        mft_fxsel.assignAuto(state, state.map_selected, .{ .fx_param = mft_auto.FxParam.init(name, param) });
+        storeChangedMappings(globals, state);
+        return;
+    }
     if (state.map_fx_index[mft_fxsel.moduleIndex(state.module)] != @as(c_int, fx_index)) return;
     mft_fxsel.assign(state, param);
     storeChangedMappings(globals, state);
@@ -247,8 +267,17 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
             return;
         },
         .SETTINGS => return settingsRotate(globals, slot, delta),
-        // The AUTO page has no knob that does anything yet.
-        .AUTO => return,
+        // A knob of the AUTO page runs its action, or moves its parameter as the knobs of a module do.
+        .AUTO => {
+            const target = globals.map_store.getAuto(io).knobs[slot] orelse return;
+            switch (target) {
+                .action => |id| {
+                    reaper.Main_OnCommand(id, 0);
+                    return;
+                },
+                .fx_param => {},
+            }
+        },
         else => {},
     }
 
@@ -256,9 +285,11 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     const fine: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * fine * globals.preferences.sensitivity;
 
-    const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
     const track = globals.current_track orelse return;
-    const routing = mft_fx.resolveModule(globals, track, module);
+    const routing = if (globals.mft.active_module == .AUTO) mft_fx.resolveAuto(globals, track) else blk: {
+        const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
+        break :blk mft_fx.resolveModule(globals, track, module);
+    };
     const target = routing.targets[slot] orelse return;
 
     globals.mft.last_fx_index = target.fx_index;
@@ -341,6 +372,20 @@ fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
     if (pressed) mft_transport.onPress(idx);
 }
 
+// A push of the AUTO page: it runs its action, or steps its parameter as a push of a module does.
+fn autoPress(globals: *MftGlobals, push: u3) void {
+    const target = globals.map_store.getAuto(mft_globals.hostIo()).pushes[push] orelse return;
+    switch (target) {
+        .action => |id| reaper.Main_OnCommand(id, 0),
+        .fx_param => {
+            const track = globals.current_track orelse return;
+            const route = mft_fx.resolveAuto(globals, track).pushes[push] orelse return;
+            var note: [32:0]u8 = undefined;
+            mft_fx.runPush(track, route, &note);
+        },
+    }
+}
+
 // A click on the push of an encoder: it does what the map of the page gives that push.
 fn pushClick(globals: *MftGlobals, push: u3) void {
     const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
@@ -368,7 +413,7 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
             .SETTINGS => {},
             .AUTO => {
                 globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
-                if (pressed) if (globals.current_track) |track| mft_auto.onPress(track, cc);
+                if (pressed) autoPress(globals, @intCast(cc));
             },
             // On a page, a turn with the push down is a fine adjustment, and a push that is released without a turn is a click.
             else => if (pressed) globals.mft.setHeld(cc) else if (globals.mft.releaseIsClick(cc)) pushClick(globals, @intCast(cc)),

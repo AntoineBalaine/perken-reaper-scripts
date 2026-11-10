@@ -30,9 +30,13 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
     var wanted: [mft_feedback.ring_count]u8 = @splat(0);
     // The FX SEL mode has no parameters on its encoders, so its rings are empty.
     if (globals.mft.fxsel == null) {
-        if (MappableModule.fromActive(globals.mft.active_module)) |module| {
-            if (globals.current_track) |track| {
+        if (globals.current_track) |track| {
+            if (MappableModule.fromActive(globals.mft.active_module)) |module| {
                 fb.routing = mft_fx.resolveModule(globals, track, module);
+                wanted = mft_feedback.wantedFrame(track, &fb.routing);
+            } else if (globals.mft.active_module == .AUTO) {
+                // The knobs of the AUTO page that have a parameter of an FX show it, as those of a module do.
+                fb.routing = mft_fx.resolveAuto(globals, track);
                 wanted = mft_feedback.wantedFrame(track, &fb.routing);
             }
         }

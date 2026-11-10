@@ -5,6 +5,7 @@ const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_push = @import("mft_push.zig");
+const mft_auto = @import("mft_auto.zig");
 
 pub const SlotTarget = struct {
     fx_index: c_int,
@@ -185,6 +186,38 @@ pub fn fxMapName(track: reaper.MediaTrack, fx: c_int, buf: *[160:0]u8) ?[:0]cons
     @memcpy(buf[0..length], base[0..length]);
     buf[length] = 0;
     return buf[0..length :0];
+}
+
+// The first FX of the track that has that name (its base name, without the suffix of the Console One), or null.
+pub fn findFxByName(track: reaper.MediaTrack, name: []const u8) ?c_int {
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        var buf: [512:0]u8 = undefined;
+        const base = fxBaseName(track, i, &buf) orelse continue;
+        if (std.mem.eql(u8, base, name)) return i;
+    }
+    return null;
+}
+
+// The routing of the AUTO page on a track: the knobs and the pushes that have a parameter of an FX of the track, which is found by its name. The ones that
+// have an action are not in it, since they move no parameter.
+pub fn resolveAuto(globals: *MftGlobals, track: reaper.MediaTrack) SlotRouting {
+    const map = globals.map_store.getAuto(mft_globals.hostIo());
+    var routing = SlotRouting{};
+    for (map.knobs, 0..) |maybe, i| {
+        const target = maybe orelse continue;
+        if (target != .fx_param) continue;
+        const fx = findFxByName(track, target.fx_param.name()) orelse continue;
+        routing.targets[i] = .{ .fx_index = fx, .param = target.fx_param.param };
+    }
+    for (map.pushes, 0..) |maybe, i| {
+        const target = maybe orelse continue;
+        if (target != .fx_param) continue;
+        const fx = findFxByName(track, target.fx_param.name()) orelse continue;
+        routing.pushes[i] = .{ .fx_index = fx, .action = .{ .param = target.fx_param.param } };
+    }
+    return routing;
 }
 
 // The FX that does the work of a module on the track: the channel strip when the track has one, and otherwise the plugin of the module's slot. Null when

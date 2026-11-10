@@ -20,6 +20,7 @@ const browser_source = @import("mft_browser_source.zig");
 const fx_browser = @import("fx_browser");
 const colors = @import("mft_colors.zig");
 const mft_port = @import("mft_port.zig");
+const mft_auto = @import("mft_auto.zig");
 const rgba = @import("ui_palette").rgba;
 const log = std.log.scoped(.mft_imgui);
 
@@ -126,7 +127,7 @@ pub const FormattedValues = struct {
         const track_ptr = track orelse return;
         for (0..knob_count) |slot| {
             const bit = @as(u16, 1) << @intCast(slot);
-            if (!info.mapped[slot] or wanted & bit == 0) continue;
+            if (!info.mapped[slot] or info.is_action[slot] or wanted & bit == 0) continue;
             if (self.asked_for[slot] != info.vals[slot]) {
                 self.asked_for[slot] = info.vals[slot];
                 self.asks += 1;
@@ -776,6 +777,148 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     }
 }
 
+/// What a control of the AUTO page does, in words: the name of its action, or the plugin and the name of its parameter.
+fn autoTargetLabel(track: reaper.MediaTrack, target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
+    switch (target) {
+        .action => |id| return mft_auto.actionLabel(id) orelse (std.mem.printSentinel(buf, "Action {d}", .{id}, 0) catch "Action"),
+        .fx_param => |fx| {
+            var param_name: [64:0]u8 = undefined;
+            param_name[0] = 0;
+            if (track != null) {
+                if (mft_fx.findFxByName(track, fx.name())) |index| _ = reaper.TrackFX_GetParamName(track, index, fx.param, &param_name, 64);
+            }
+            if (param_name[0] == 0) return std.mem.printSentinel(buf, "{s} / {d}", .{ fx.name(), fx.param }, 0) catch "?";
+            return std.mem.printSentinel(buf, "{s} / {s}", .{ fx.name(), std.mem.sliceTo(&param_name, 0) }, 0) catch "?";
+        },
+    }
+}
+
+/// A combo of the AUTO plate, which offers the REAPER actions and the parameters of the FX of the track, in two groups, as the mock does. It returns whether
+/// the map changed.
+fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control: usize, x: f64, y: f64, width: f64) !bool {
+    var id: [32:0]u8 = undefined;
+    _ = std.mem.printSentinel(&id, "##auto{d}", .{control}, 0) catch return false;
+    var label_buf: [160:0]u8 = undefined;
+    const target = state.map_auto.control(control);
+    const preview: [:0]const u8 = if (target) |t| autoTargetLabel(track, t, &label_buf) else "-";
+    imgui.api.SetCursorScreenPos(ctx, x, y);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBg, 0);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgHovered, theme.amber_soft);
+    imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgActive, theme.amber_soft);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (target != null) theme.label else theme.text_dim);
+    theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 2, 0);
+    defer {
+        var vars: c_int = 1;
+        imgui.api.PopStyleVar(ctx, &vars);
+        var colors_pushed: c_int = 4;
+        imgui.api.PopStyleColor(ctx, &colors_pushed);
+    }
+    try imgui.SetNextItemWidth(.{ ctx, width });
+    if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
+    defer imgui.EndCombo(.{ctx}) catch {};
+    mft_fxsel.selectAuto(state, control);
+    var changed = false;
+    if (try imgui.Selectable(.{ ctx, "-" })) {
+        mft_fxsel.assignAuto(state, control, null);
+        changed = true;
+    }
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+    try imgui.Text(.{ ctx, "REAPER actions" });
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    for (mft_auto.actions, 0..) |action, i| {
+        var item: [96:0]u8 = undefined;
+        if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##act{d}", .{ action.label, i }, 0) catch continue })) {
+            mft_fxsel.assignAuto(state, control, .{ .action = action.id });
+            changed = true;
+        }
+    }
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+    try imgui.Text(.{ ctx, "FX parameters on the track" });
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    if (track == null) return changed;
+    const fx_count = reaper.TrackFX_GetCount(track);
+    var fx: c_int = 0;
+    while (fx < fx_count) : (fx += 1) {
+        var name_buf: [160:0]u8 = undefined;
+        const name = mft_fx.fxMapName(track, fx, &name_buf) orelse continue;
+        const params: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, fx), 0));
+        for (0..@min(params, 512)) |p| {
+            var param_name: [64:0]u8 = undefined;
+            param_name[0] = 0;
+            _ = reaper.TrackFX_GetParamName(track, fx, @intCast(p), &param_name, 64);
+            var item: [240:0]u8 = undefined;
+            const text = std.mem.printSentinel(&item, "{s} / {s}##fx{d}_{d}", .{ name, std.mem.sliceTo(&param_name, 0), fx, p }, 0) catch continue;
+            if (try imgui.Selectable(.{ ctx, text })) {
+                mft_fxsel.assignAuto(state, control, .{ .fx_param = mft_auto.FxParam.init(name, @intCast(p)) });
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
+
+/// A cell of the AUTO plate, with the layout of the cells of the modules: its role is the user's, and its combos offer actions and parameters.
+fn drawAutoCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: usize, x0: f64, y0: f64, layout: MapCellLayout, color: c_int, changed: *bool) !void {
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const top = index < mappings.push_count;
+    const knob = state.map_auto.control(index);
+    const push = if (top) state.map_auto.control(mappings.knob_count + index) else null;
+    const mapped = knob != null or push != null;
+    const selected = state.map_focus_auto and (state.map_selected % mappings.knob_count == index) and (state.map_selected < mappings.knob_count or top);
+    if (selected) {
+        widgets.rectFilled(dl, x0, y0, x0 + map_cell_w, y0 + layout.height - 4, theme.amber_soft, 7);
+        widgets.rect(dl, x0, y0, x0 + map_cell_w, y0 + layout.height - 4, widgets.faded(theme.amber, 0x80), 7, 1);
+    }
+    var number_buf: [8:0]u8 = undefined;
+    mapText(dl, x0 + 4, y0 + 2, theme.text_dim, std.mem.printSentinel(&number_buf, "{d}", .{index + 1}, 0) catch "");
+    // A knob that moves a parameter has its ring half lit, and a control that runs an action a full ring, as the mock marks them.
+    const value: ?f64 = if (knob) |t| (if (t == .fx_param) 0.5 else 1.0) else if (push != null) 1.0 else null;
+    device.drawEncoder(dl, x0 + map_cell_w / 2, y0 + layout.enc_cy, .{ .value = value, .color = color, .scale = map_enc / 80.0 });
+    const role: [:0]const u8 = "USER";
+    mapText(dl, x0 + (map_cell_w - mapTextWidth(role)) / 2, y0 + layout.role_y, theme.text_dim, role);
+    const win_y = y0 + layout.win_y;
+    device.drawLedWindowRect(dl, x0 + 1, win_y, x0 + map_cell_w - 1, map_win_h, color, if (mapped) 0.8 else 0);
+    const zone_h = (map_win_h - 4) / 2;
+    device.turnGlyph(dl, x0 + 9, win_y + 2 + zone_h / 2, if (knob != null) color else theme.text_dim);
+    device.pressGlyph(dl, x0 + 9, win_y + 2 + zone_h * 1.5, if (push != null) color else theme.text_dim);
+    const combo_x = x0 + 17;
+    const combo_w = map_cell_w - 22;
+    if (try drawAutoCombo(state, track, index, combo_x, win_y + 2, combo_w)) changed.* = true;
+    if (top) {
+        if (try drawAutoCombo(state, track, mappings.knob_count + index, combo_x, win_y + 2 + zone_h, combo_w)) changed.* = true;
+    } else {
+        mapText(dl, combo_x, win_y + 4 + zone_h, theme.text_dim, @tagName(@as(MftActiveModule, @fromBackingInt(@intCast(index - 8)))));
+    }
+    imgui.api.SetCursorScreenPos(ctx, x0, y0);
+    var cell_id: [32:0]u8 = undefined;
+    _ = std.mem.printSentinel(&cell_id, "##autocell{d}", .{index}, 0) catch return;
+    if (imgui.api.InvisibleButton(ctx, &cell_id, map_cell_w, 2 + map_enc, null)) mft_fxsel.selectAuto(state, index);
+}
+
+/// The plate of the AUTO page, which has no plugin: the line above it says what its combos list.
+fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, color: c_int, changed: *bool) !void {
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+    try imgui.Text(.{ ctx, "REAPER actions and FX parameters, user page" });
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    if (state.map_auto_error[0] != 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_auto_error, 0) });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+    if (!widgets.beginCard(&fxsel_kit, "Auto", map_plate_w, null, if (state.map_focus_auto) color else null)) return;
+    defer widgets.endCard(&fxsel_kit);
+    const origin = widgets.cursorScreenPos(&fxsel_kit);
+    const layout = mapCellLayout();
+    imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
+    for (0..mappings.knob_count) |i| {
+        const col: f64 = @floatFromInt(i % 4);
+        const row: f64 = @floatFromInt(i / 4);
+        try drawAutoCell(state, track, i, origin.x + col * (map_cell_w + map_cell_gap), origin.y + row * layout.height, layout, color, changed);
+    }
+}
+
 /// A round key of the bar at the left of the panel. It returns whether it was clicked.
 fn drawMapKey(id: [:0]const u8, kind: enum { learn, single, close }, on: bool, enabled: bool, tip: [:0]const u8) bool {
     const dl = imgui.api.GetWindowDrawList(ctx);
@@ -821,6 +964,9 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
             if (mft_fxsel.controlParam(state, module, control) != null) total += 1;
         }
     }
+    for (0..mft_fxsel.control_count) |control| {
+        if (state.map_auto.control(control) != null) total += 1;
+    }
     const columns: f64 = @floatFromInt(@max((total + 9) / 10, 1));
     imgui.api.Dummy(ctx, columns * column_w, @as(f64, @floatFromInt(@max(@min(total, 10), 1))) * row_h);
     var count: usize = 0;
@@ -847,6 +993,25 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
             try imgui.Text(.{ ctx, line });
             count += 1;
         }
+    }
+    for (0..mft_fxsel.control_count) |control| {
+        const target = state.map_auto.control(control) orelse continue;
+        var target_buf: [160:0]u8 = undefined;
+        var line_buf: [240:0]u8 = undefined;
+        const name = mft_fxsel.controlName(control);
+        const line = std.mem.printSentinel(&line_buf, "AUTO {s} > {s}", .{ name, autoTargetLabel(track, target, &target_buf) }, 0) catch "?";
+        const x = origin.x + @as(f64, @floatFromInt(count / 10)) * column_w;
+        const y = origin.y + @as(f64, @floatFromInt(count % 10)) * row_h;
+        imgui.api.SetCursorScreenPos(ctx, x, y);
+        var key_id: [32:0]u8 = undefined;
+        _ = std.mem.printSentinel(&key_id, "x##rmauto{d}", .{control}, 0) catch continue;
+        if (imgui.api.SmallButton(ctx, &key_id)) {
+            mft_fxsel.assignAuto(state, control, null);
+            changed.* = true;
+        }
+        imgui.api.SameLine(ctx, null, null);
+        try imgui.Text(.{ ctx, line });
+        count += 1;
     }
     if (count == 0) {
         imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
@@ -906,6 +1071,11 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
         if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
         try drawMapPlate(state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
         placed += 1;
+    }
+    {
+        var plate_gap: f64 = 14;
+        if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
+        try drawMapAutoPlate(state, track, colors.hueToRgb(globals.preferences.colorForModule(.AUTO)), &changed);
     }
     try drawMapAssignments(state, track, accent, &changed);
     // What the learn is waiting for, or what the last press said.
@@ -1055,9 +1225,11 @@ fn pushName(track: reaper.MediaTrack, route: mft_fx.PushRoute, buf: *[32:0]u8) v
 // Reads the parameter values and names of the sixteen encoders for the active page.
 fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
     var info = KnobInfo{};
-    const module = MappableModule.fromActive(active) orelse return info;
     const track = globals.current_track orelse return info;
-    const routing = mft_fx.resolveModule(globals, track, module);
+    const routing = if (active == .AUTO) mft_fx.resolveAuto(globals, track) else blk: {
+        const module = MappableModule.fromActive(active) orelse return info;
+        break :blk mft_fx.resolveModule(globals, track, module);
+    };
     for (routing.targets, 0..) |maybe_target, slot| {
         const target = maybe_target orelse continue;
         info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
@@ -1072,6 +1244,24 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
         const route = maybe_route orelse continue;
         info.push_mapped[push] = true;
         pushName(track, route, &info.push_name_bufs[push]);
+    }
+    // The controls of the AUTO page that run an action have the name of the action.
+    if (active == .AUTO) {
+        const map = globals.map_store.getAuto(mft_globals.hostIo());
+        for (map.knobs, 0..) |maybe, slot| {
+            const target = maybe orelse continue;
+            if (target != .action) continue;
+            info.mapped[slot] = true;
+            info.is_action[slot] = true;
+            info.has_name[slot] = true;
+            _ = std.mem.printSentinel(&info.name_bufs[slot], "{s}", .{mft_auto.actionLabel(target.action) orelse "Action"}, 0) catch {};
+        }
+        for (map.pushes, 0..) |maybe, push| {
+            const target = maybe orelse continue;
+            if (target != .action) continue;
+            info.push_mapped[push] = true;
+            _ = std.mem.printSentinel(&info.push_name_bufs[push], "{s}", .{mft_auto.actionLabel(target.action) orelse "Action"}, 0) catch {};
+        }
     }
     return info;
 }
@@ -1468,5 +1658,26 @@ test "the browser opened from the mapping panel is drawn over the panel, which s
     try drawWindows(&globals);
     // The panel still draws its plates, and the browser draws its window too.
     try std.testing.expect(mock.widgetCount(.selectable) >= panel_widgets);
+    try mock.assertBalanced();
+}
+
+test "the mapping panel draws the AUTO plate with its actions and parameters, in focus or not, with the stacks balanced" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .map;
+    state.map_auto.setControl(0, .{ .action = 40364 });
+    state.map_auto.setControl(mappings.knob_count + 1, .{ .fx_param = mft_auto.FxParam.init("JS: Saturation", 2) });
+    state.map_auto.setControl(12, .{ .action = 99999 });
+    try drawWindows(&globals);
+    mft_fxsel.selectAuto(state, 1);
+    const error_text = "The map file could not be written: AccessDenied.";
+    @memcpy(state.map_auto_error[0..error_text.len], error_text);
+    try drawWindows(&globals);
     try mock.assertBalanced();
 }

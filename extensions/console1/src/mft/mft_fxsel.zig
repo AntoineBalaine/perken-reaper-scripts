@@ -10,6 +10,7 @@ const mft_state = @import("mft_state.zig");
 const mappings = @import("mft_mappings.zig");
 const fx_browser = @import("fx_browser");
 const fuzzy = @import("fuzzy");
+const mft_auto = @import("mft_auto.zig");
 
 pub const MappableModule = mappings.MappableModule;
 
@@ -189,6 +190,11 @@ pub const FxSelState = struct {
     map_return: bool = false,
     /// Why the map of a module could not be saved, which the panel shows as a mark on its plate. Empty when the last save worked.
     map_error: [mappings.module_count][96:0]u8 = @splat(@splat(0)),
+    /// The map of the AUTO page, which the panel has a plate for too, the map that was read, whether its plate is in focus, and why it could not be saved.
+    map_auto: mft_auto.AutoMap = .{},
+    map_auto_loaded: mft_auto.AutoMap = .{},
+    map_focus_auto: bool = false,
+    map_auto_error: [96:0]u8 = @splat(0),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -450,6 +456,7 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
             // The module in focus changes. Its mapping is already there, since the panel has all the modules at once.
             .map => {
                 state.map_selected = 0;
+                state.map_focus_auto = false;
                 return .none;
             },
             .actions => return .none,
@@ -555,7 +562,26 @@ pub fn assignTo(state: *FxSelState, module: MappableModule, control: usize, para
 pub fn selectControl(state: *FxSelState, module: MappableModule, index: usize) void {
     std.debug.assert(index < control_count);
     state.module = module;
+    state.map_focus_auto = false;
     state.map_selected = @intCast(index);
+}
+
+/// Puts the AUTO plate in focus and selects one of its controls.
+pub fn selectAuto(state: *FxSelState, index: usize) void {
+    std.debug.assert(index < control_count);
+    state.map_focus_auto = true;
+    state.map_selected = @intCast(index);
+}
+
+/// Gives a control of the AUTO page a target, or takes it away when `target` is null.
+pub fn assignAuto(state: *FxSelState, control: usize, target: ?mft_auto.Target) void {
+    std.debug.assert(control < control_count);
+    state.map_auto.setControl(control, target);
+}
+
+/// Whether the map of the AUTO page was changed since it was read.
+pub fn isAutoChanged(state: *const FxSelState) bool {
+    return !state.map_auto.eql(&state.map_auto_loaded);
 }
 
 /// The parameter that a control of a module has in the mappings that are being made, whatever the kind of control. A push that steps the shape of an EQ
@@ -652,7 +678,7 @@ fn scroll(state: *FxSelState, entries: i32, source: ?fx_browser.Source) void {
 
 fn mapLabel(state: *const FxSelState, encoder: usize) Label {
     const selected: usize = state.map_selected;
-    if (moduleForEncoder(encoder)) |module| return .{ .turn = knob_names[encoder], .press = @tagName(module), .chosen = module == state.module };
+    if (moduleForEncoder(encoder)) |module| return .{ .turn = knob_names[encoder], .press = @tagName(module), .chosen = !state.map_focus_auto and module == state.module };
     if (encoder == list_encoder) return .{ .turn = knob_names[encoder], .press = "Save", .chosen = selected == encoder };
     if (encoder == cancel_encoder) return .{ .turn = knob_names[encoder], .press = "Cancel", .chosen = selected == encoder };
     const chosen = selected == encoder or (encoder < mappings.push_count and selected == mappings.knob_count + encoder);
@@ -1018,4 +1044,22 @@ test "the browser that the mapping panel opens goes back to the panel, with what
     try t.expectEqual(Screen.browse, state.screen);
     try t.expectEqual(Outcome.none, press(&state, cancel_encoder, data.source(0)));
     try t.expectEqual(Screen.actions, state.screen);
+}
+
+test "the AUTO plate is put in focus by a click, its controls get actions and parameters, and a module button takes the focus back" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.screen = .map;
+    selectAuto(&state, 4);
+    try t.expect(state.map_focus_auto);
+    try t.expect(!label(&state, 10).chosen);
+    assignAuto(&state, 4, .{ .action = 40364 });
+    assignAuto(&state, mappings.knob_count + 1, .{ .fx_param = mft_auto.FxParam.init("JS: Saturation", 2) });
+    try t.expect(isAutoChanged(&state));
+    try t.expectEqual(@as(c_int, 40364), state.map_auto.control(4).?.action);
+    try t.expectEqual(Outcome.none, press(&state, 10, null));
+    try t.expect(!state.map_focus_auto);
+    try t.expectEqual(MappableModule.EQ, state.module);
+    selectControl(&state, .COMP, 2);
+    try t.expect(!state.map_focus_auto);
 }

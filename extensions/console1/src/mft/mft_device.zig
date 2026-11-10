@@ -17,7 +17,6 @@ const mft_state = @import("mft_state.zig");
 const MftActiveModule = mft_state.MftActiveModule;
 const page_count = mft_state.page_count;
 const pageForEncoder = mft_state.pageForEncoder;
-const mft_auto = @import("mft_auto.zig");
 const mft_fxsel = @import("mft_fxsel.zig");
 const knob_count = @import("mft_mappings.zig").knob_count;
 const push_count = @import("mft_mappings.zig").push_count;
@@ -93,6 +92,8 @@ pub const KnobInfo = struct {
     has_formatted: [knob_count]bool = @splat(false),
     /// The pushes that have an action, and the word for it, which is the name of the parameter or of what the click changes.
     push_mapped: [push_count]bool = @splat(false),
+    /// The knobs that run a REAPER action, which is the case on the AUTO page: they have a name and no value, so their ring shows nothing.
+    is_action: [knob_count]bool = @splat(false),
     push_name_bufs: [push_count][32:0]u8 = undefined,
 
     pub fn formatted(self: *const KnobInfo, slot: usize) [:0]const u8 {
@@ -565,13 +566,6 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = 0.5, .color = mode_color, .pressed = pressed, .icon = icons.transport[idx] });
             drawDualLabel(kit, dl, cell.cx, cell.label_y, mft_transport.rotationLabel(idx), mft_transport.pressLabel(idx), mode_color, 1, view.turn_lit & bit != 0, pressed, theme.text_dim);
         },
-        .AUTO => {
-            // The AUTO page is for the user, so the rings show nothing, and the windows say the suggested push or a dash.
-            const bit = @as(u8, 1) << @intCast(idx);
-            const pressed = held or view.press_lit & bit != 0;
-            drawEncoder(dl, cell.cx, cell.cy, .{ .color = mode_color, .pressed = pressed });
-            drawDualLabel(kit, dl, cell.cx, cell.label_y, "-", mft_auto.pushLabel(idx), mode_color, 1, false, pressed, theme.text_dim);
-        },
         .SETTINGS => {
             // The settings mode: the encoders move the form, so the ring shows nothing and the LED is off.
             drawEncoder(dl, cell.cx, cell.cy, .{ .color = mode_color, .pressed = held });
@@ -581,7 +575,7 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             const info = &view.knobs;
             const mapped = info.mapped[idx];
             const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
-            drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = mode_color, .pressed = held });
+            drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped and !info.is_action[idx]) value else null, .color = mode_color, .pressed = held });
             const push_mapped = idx < push_count and info.push_mapped[idx];
             if (view.push_note) |note| if (note.encoder == idx) {
                 var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = mode_color };
