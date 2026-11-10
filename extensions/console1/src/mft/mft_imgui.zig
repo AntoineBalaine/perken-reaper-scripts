@@ -292,36 +292,39 @@ fn draw(globals: *MftGlobals) !void {
 
 /// Where the window of the FX Selection opens the first time, to the right of the device, and how big it is.
 const fxsel_window_x: f64 = window_x + 640;
-const fxsel_window_w: f64 = 460;
-const fxsel_window_h: f64 = 480;
+const fxsel_window_w: f64 = 480;
+/// The padding of the window, and the width that every card has: the whole width of the window, so that the cards are as wide as each other whatever
+/// entry is on the cursor.
+const fxsel_padding: f64 = 6;
+const fxsel_card_w: f64 = fxsel_window_w - 2 * fxsel_padding;
+
+/// The height of a card that shows `rows` rows of text: its title, its rows, and its edges. Because the card has a height of its own, its size does not
+/// change with the entries that it holds.
+fn fxselCardHeight(line_height: f64, rows: usize) f64 {
+    return line_height * (@as(f64, @floatFromInt(rows)) + 1.7) + 18;
+}
+
+/// The height that the window opens at, which holds the search, the line of menus, and the two cards of the first level.
+fn fxselWindowHeight(line_height: f64, menu_count: usize) f64 {
+    const mapped_rows = fxsel_rows - menu_count;
+    return line_height * 2 + 12 + fxselCardHeight(line_height, mapped_rows) + fxselCardHeight(line_height, menu_count) + 2 * 8 + 2 * fxsel_padding + 24;
+}
 
 /// How many rows of a list show at a time. The cursor stays in the middle when the list is longer.
 const fxsel_rows: usize = 12;
-
-/// The heading of the window, engraved as the names of the modules are, but in the color of the module that the mode works on.
-fn drawFxSelHeading(text: [:0]const u8, color: c_int) !void {
-    if (fonts.tab != null) imgui.api.PushFont(ctx, fonts.tab);
-    defer if (fonts.tab != null) imgui.api.PopFont(ctx);
-    var x: f64 = undefined;
-    var y: f64 = undefined;
-    try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
-    var w: f64 = undefined;
-    var h: f64 = undefined;
-    try imgui.CalcTextSize(.{ ctx, text, &w, &h });
-    const dl = try imgui.GetWindowDrawList(.{ctx});
-    try imgui.DrawList_AddText(.{ dl, x + 1, y + 1, theme.text_engraved_shadow, text });
-    try imgui.DrawList_AddText(.{ dl, x, y, color, text });
-    try imgui.Dummy(.{ ctx, w, h });
-}
 
 /// The path of the menus that are open, as a line of names.
 fn fxSelBreadcrumb(buf: [:0]u8, state: *const mft_fxsel.FxSelState, source: fx_browser.Source) [:0]const u8 {
     var length: usize = 0;
     buf[0] = 0;
+    // The first name is the module, as in the window of the Console 1.
+    const module_name = @tagName(state.module);
+    @memcpy(buf[0..module_name.len], module_name);
+    length = module_name.len;
     var level: fx_browser.Level = .root;
     for (state.browse_path[0..state.browse_depth]) |index| {
         const text = mft_fxsel.entryName(state, source, level, index);
-        const written = std.fmt.bufPrint(buf[length .. buf.len - 1], "{s}{s}", .{ if (length > 0) "  >  " else "", text }) catch break;
+        const written = std.fmt.bufPrint(buf[length .. buf.len - 1], "  >  {s}", .{text}) catch break;
         length += written.len;
         level = fx_browser.enter(source, level, index) orelse break;
     }
@@ -332,7 +335,9 @@ fn fxSelBreadcrumb(buf: [:0]u8, state: *const mft_fxsel.FxSelState, source: fx_b
 /// The search field of the browser: it takes the keyboard when the browser opens, so that what is typed goes in it right away, and it has a hint
 /// while it is empty.
 fn drawFxSelSearch(state: *mft_fxsel.FxSelState) !void {
-    if (state.focus_search) {
+    // Because what is typed in the window is always meant for the search, the field takes the keyboard on every frame that the window has the focus, so
+    // that a click elsewhere in the window does not stop the typing.
+    if (state.focus_search or imgui.api.IsWindowFocused(ctx, null)) {
         try imgui.SetKeyboardFocusHere(.{ctx});
         state.focus_search = false;
     }
@@ -390,9 +395,10 @@ fn drawFxSelRow(label: [:0]const u8, index: usize, is_menu: bool, is_cursor: boo
 }
 
 /// The card of the first screen, which has the actions that can be done to the module.
-fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int) !mft_fxsel.Outcome {
+fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int, title: [:0]const u8, line_height: f64) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
-    if (!widgets.beginCard(k, "Actions", null, null, accent)) return outcome;
+    // The label of the window is the title of the card, in the color of the module.
+    if (!widgets.beginCard(k, title, fxsel_card_w, fxselCardHeight(line_height, mft_fxsel.action_count), accent)) return outcome;
     defer widgets.endCard(k);
     inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
         const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
@@ -405,14 +411,14 @@ fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_i
 }
 
 /// The contents of the browser: the cards of the level that is open, or the results of the search.
-fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_browser.Source, accent: c_int) !mft_fxsel.Outcome {
+fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_browser.Source, accent: c_int, line_height: f64) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
     if (state.searching()) {
         // The results take the place of the cards: the plugins of every type that match what was typed, the best first.
         var hits: [fx_browser.search_capacity]@import("fuzzy").Ranked = undefined;
         const count = fx_browser.search(source, state.searchText(), &hits);
         state.search_cursor = @min(state.search_cursor, @as(u16, @intCast(count -| 1)));
-        if (!widgets.beginCard(k, "Results", null, null, accent)) return outcome;
+        if (!widgets.beginCard(k, "Results", fxsel_card_w, fxselCardHeight(line_height, fxsel_rows), accent)) return outcome;
         defer widgets.endCard(k);
         if (count == 0) try imgui.Text(.{ ctx, "No plugin matches." });
         const range = rowRange(state.search_cursor, count, fxsel_rows);
@@ -428,17 +434,17 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             // The plugins that have a map are in one card, and the menus of the browser in another.
             const menu_count = fx_browser.rootMenuCount(source);
             const cursor: usize = state.cursor();
-            if (state.browser.count > 0) {
-                if (widgets.beginCard(k, "Mapped plugins", null, null, accent)) {
-                    defer widgets.endCard(k);
-                    const rows = fxsel_rows -| menu_count;
-                    const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, @max(rows, 3));
-                    for (range.first..range.last) |i| {
-                        if (try drawFxSelRow(state.browser.get(i), i, false, cursor == i, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
-                    }
+            // Both cards are as wide as the window, and have the height of their rows, so that the window holds them without being resized.
+            const mapped_rows = @max(fxsel_rows -| menu_count, 3);
+            if (widgets.beginCard(k, "Mapped plugins", fxsel_card_w, fxselCardHeight(line_height, mapped_rows), accent)) {
+                defer widgets.endCard(k);
+                if (state.browser.count == 0) try imgui.Text(.{ ctx, "No plugin has a map for this module." });
+                const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, mapped_rows);
+                for (range.first..range.last) |i| {
+                    if (try drawFxSelRow(state.browser.get(i), i, false, cursor == i, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
                 }
             }
-            if (widgets.beginCard(k, "Browse", null, null, accent)) {
+            if (widgets.beginCard(k, "Browse", fxsel_card_w, fxselCardHeight(line_height, menu_count), accent)) {
                 defer widgets.endCard(k);
                 var listed: usize = 0;
                 for (std.enums.values(fx_browser.RootMenu)) |menu| {
@@ -458,7 +464,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             var title_buf: [128:0]u8 = undefined;
             const last = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
             const title = std.mem.printSentinel(&title_buf, "{s}", .{last}, 0) catch "Plugins";
-            if (!widgets.beginCard(k, title, null, null, accent)) return outcome;
+            if (!widgets.beginCard(k, title, fxsel_card_w, fxselCardHeight(line_height, fxsel_rows), accent)) return outcome;
             defer widgets.endCard(k);
             const count = fx_browser.entryCount(source, level);
             if (count == 0) try imgui.Text(.{ ctx, "Nothing in this list." });
@@ -486,9 +492,17 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
     defer if (fonts.text != null) imgui.api.PopFont(ctx);
 
     imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
-    imgui.api.SetNextWindowSize(ctx, fxsel_window_w, fxsel_window_h, &imgui.Cond_FirstUseEver);
-    // The window has no title bar, since the heading says what it is.
-    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 6, 6);
+    // The window opens at the size that holds the two cards of the first level, so that it does not have to be resized to see them.
+    const line_height = imgui.api.GetTextLineHeightWithSpacing(ctx);
+    imgui.api.SetNextWindowSize(ctx, fxsel_window_w, fxselWindowHeight(line_height, fx_browser.rootMenuCount(.{
+        .mapped_count = 0,
+        .fx_chains = undefined,
+        .track_templates = undefined,
+        .plugins_by_type = undefined,
+        .tags = undefined,
+        .hidden_menus = mft_fxsel.hidden_menus,
+    })), &imgui.Cond_FirstUseEver);
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, fxsel_padding, fxsel_padding);
     const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar;
     const visible = try imgui.Begin(.{ ctx, "MFT FX Selection", null, flags });
     var window_vars: c_int = 1;
@@ -497,8 +511,8 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
     defer imgui.End(.{ctx}) catch {};
 
     const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
-    var heading_buf: [64:0]u8 = undefined;
-    try drawFxSelHeading(std.mem.printSentinel(&heading_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection", accent);
+    var title_buf: [64:0]u8 = undefined;
+    const title = std.mem.printSentinel(&title_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection";
 
     const source: ?fx_browser.Source = if (state.screen == .browse) browser_source.get(globals, state.browser.count) else null;
     if (state.screen == .browse) {
@@ -507,7 +521,7 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
             var crumb_buf: [512:0]u8 = undefined;
             const crumb = fxSelBreadcrumb(&crumb_buf, state, data);
             if (crumb.len > 0) {
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, accent });
                 try imgui.Text(.{ ctx, crumb });
                 try imgui.PopStyleColor(.{ ctx, 1 });
             }
@@ -516,9 +530,9 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
 
     var outcome: mft_fxsel.Outcome = .none;
     switch (state.screen) {
-        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent),
+        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height),
         .browse => if (source) |data| {
-            outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent);
+            outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent, line_height);
         } else {
             try imgui.Text(.{ ctx, "The list of plugins could not be read." });
         },
