@@ -770,12 +770,13 @@ fn mapTitleButton(title: [:0]const u8, label: [:0]const u8) !bool {
     return imgui.api.SmallButton(ctx, label);
 }
 
-/// A small square key with a wrench on it, as the key of the mock that opens the window of a plugin, as tall as the button of the plugin next to it. Its
-/// words are in its tooltip. It returns whether it was clicked.
+/// A small square key with a wrench on it, as the key of the mock that opens the window of a plugin. It is as tall as the button of the plugin next to
+/// it, which is a small button: such a button has no padding above and under its text, so it is as tall as the font. Placed after that button on its line,
+/// the key has the same top and bottom, and so sits on the line of the title too. Its words are in its tooltip. It returns whether it was clicked.
 fn mapWrenchKey(id: [:0]const u8, tip: [:0]const u8) bool {
     const dl = imgui.api.GetWindowDrawList(ctx);
     const at = widgets.cursorScreenPos(&fxsel_kit);
-    const size = imgui.api.GetFontSize(ctx) + 2;
+    const size = imgui.api.GetFontSize(ctx);
     const clicked = imgui.api.InvisibleButton(ctx, id, size, size, null);
     const hovered = imgui.api.IsItemHovered(ctx, null);
     widgets.rectFilled(dl, at.x, at.y, at.x + size, at.y + size, theme.knob_top, 4);
@@ -834,7 +835,7 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     if (state.map_fx_index[mi] >= 0 and track != null) {
         imgui.api.SameLine(ctx, null, null);
         var ui_id: [24:0]u8 = undefined;
-        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open the window of the plugin")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
     }
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
