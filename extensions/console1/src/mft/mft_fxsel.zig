@@ -194,6 +194,8 @@ pub const FxSelState = struct {
     map_auto: mft_auto.AutoMap = .{},
     map_auto_loaded: mft_auto.AutoMap = .{},
     map_focus_auto: bool = false,
+    /// The control of the AUTO plate that waits for an action to be chosen in REAPER's Action List, or null.
+    map_prompt: ?u8 = null,
     map_auto_error: [96:0]u8 = @splat(0),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.

@@ -28,15 +28,36 @@ pub const FxParam = struct {
     }
 };
 
+/// An action that a script or an extension adds to REAPER. Its command id changes from one session to the next, so it is kept by its name, which starts
+/// with an underscore ("_SWS_ABOUT"), and REAPER is asked for the id when the action runs.
+pub const NamedAction = struct {
+    text: [fx_name_len:0]u8 = @splat(0),
+
+    pub fn init(command_name: []const u8) NamedAction {
+        var out = NamedAction{};
+        const n = @min(command_name.len, fx_name_len);
+        @memcpy(out.text[0..n], command_name[0..n]);
+        out.text[n] = 0;
+        return out;
+    }
+
+    pub fn name(self: *const NamedAction) [:0]const u8 {
+        return std.mem.sliceTo(&self.text, 0);
+    }
+};
+
 /// What a control of the AUTO page does.
 pub const Target = union(enum) {
-    /// A REAPER action of the main section, by its command id.
+    /// A native REAPER action of the main section, by its command id, which does not change.
     action: c_int,
+    /// An action of a script or an extension, by its name.
+    named_action: NamedAction,
     fx_param: FxParam,
 
     pub fn eql(self: Target, other: Target) bool {
         return switch (self) {
             .action => |id| other == .action and other.action == id,
+            .named_action => |named| other == .named_action and std.mem.eql(u8, named.name(), other.named_action.name()),
             .fx_param => |fx| other == .fx_param and other.fx_param.param == fx.param and std.mem.eql(u8, fx.name(), other.fx_param.name()),
         };
     }
@@ -100,8 +121,11 @@ pub fn actionLabel(id: c_int) ?[:0]const u8 {
 pub fn parseTarget(text: []const u8) ?Target {
     const trimmed = std.mem.trim(u8, text, " \t\r");
     if (std.mem.startsWith(u8, trimmed, "action:")) {
-        const id = std.fmt.parseInt(c_int, trimmed["action:".len..], 10) catch return null;
-        return .{ .action = id };
+        const rest = trimmed["action:".len..];
+        if (std.fmt.parseInt(c_int, rest, 10)) |id| return .{ .action = id } else |_| {}
+        // An action of a script or an extension is kept by its name, which starts with an underscore.
+        if (rest.len > 1 and rest[0] == '_') return .{ .named_action = NamedAction.init(rest) };
+        return null;
     }
     if (std.mem.startsWith(u8, trimmed, "fx:")) {
         const rest = trimmed["fx:".len..];
@@ -116,6 +140,7 @@ pub fn parseTarget(text: []const u8) ?Target {
 fn writeTarget(w: *std.Io.Writer, target: Target) std.Io.Writer.Error!void {
     switch (target) {
         .action => |id| try w.print("action:{d}", .{id}),
+        .named_action => |named| try w.print("action:{s}", .{named.name()}),
         .fx_param => |fx| try w.print("fx:{s}|{d}", .{ fx.name(), fx.param }),
     }
 }
@@ -168,6 +193,10 @@ test "parseTarget: an action by its id, a parameter of a plugin whose name has c
     try t.expectEqual(@as(?Target, null), parseTarget("fx:|3"));
     try t.expectEqual(@as(?Target, null), parseTarget("fx:ReaEQ"));
     try t.expectEqual(@as(?Target, null), parseTarget("12"));
+    // An action of a script or an extension is kept by its name.
+    try t.expectEqualStrings("_SWS_ABOUT", parseTarget("action:_SWS_ABOUT").?.named_action.name());
+    try t.expectEqual(@as(?Target, null), parseTarget("action:SWS_ABOUT"));
+    try t.expectEqual(@as(?Target, null), parseTarget("action:"));
 }
 
 test "write and parse: the map of the AUTO page reads back the same" {
@@ -175,6 +204,7 @@ test "write and parse: the map of the AUTO page reads back the same" {
     var map = AutoMap{};
     map.setControl(0, .{ .fx_param = FxParam.init("JS: Saturation", 1) });
     map.setControl(mappings.knob_count + 2, .{ .action = 40026 });
+    map.setControl(7, .{ .named_action = NamedAction.init("_RS1234abcd") });
     var aw: std.Io.Writer.Allocating = .init(t.allocator);
     defer aw.deinit();
     try write(&map, &aw.writer);

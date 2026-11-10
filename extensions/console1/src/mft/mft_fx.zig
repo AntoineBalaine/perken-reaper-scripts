@@ -200,6 +200,54 @@ pub fn findFxByName(track: reaper.MediaTrack, name: []const u8) ?c_int {
     return null;
 }
 
+// The command id of an action of the AUTO page, which REAPER is asked for when the action is one of a script or an extension. Null for a target that is
+// no action, or an action that REAPER does not have any more.
+pub fn autoCommand(target: mft_auto.Target) ?c_int {
+    return switch (target) {
+        .action => |id| id,
+        .named_action => |named| blk: {
+            const id = reaper.NamedCommandLookup(named.name());
+            break :blk if (id > 0) id else null;
+        },
+        .fx_param => null,
+    };
+}
+
+// The target of an action that the Action List gave: a native action by its id, and one of a script or an extension by its name, since its id changes.
+pub fn actionTarget(id: c_int) mft_auto.Target {
+    // REAPER gives no name (a null pointer) for a native action, which the declaration of the binding does not allow, so the function is taken as one
+    // that can return null.
+    const lookup: *const fn (c_int) callconv(.c) ?[*:0]const u8 = @ptrCast(reaper.ReverseNamedCommandLookup);
+    const name = lookup(id) orelse return .{ .action = id };
+    var buf: [mft_auto.fx_name_len + 1]u8 = undefined;
+    const text = std.fmt.bufPrint(&buf, "_{s}", .{std.mem.span(name)}) catch return .{ .action = id };
+    return .{ .named_action = mft_auto.NamedAction.init(text) };
+}
+
+// The name of an action as the Action List writes it, written into `buf`, or the name of the list of the AUTO page when REAPER gives none.
+pub fn actionName(target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
+    // The unit tests have no REAPER to ask, so they get the name of the list of the AUTO page.
+    if (comptime @import("builtin").is_test) {
+        return switch (target) {
+            .action => |id| mft_auto.actionLabel(id) orelse "Action",
+            .named_action => |named| std.mem.printSentinel(buf, "{s}", .{named.name()}, 0) catch "Action",
+            .fx_param => "Action",
+        };
+    }
+    const id = autoCommand(target) orelse return switch (target) {
+        .named_action => |named| std.mem.printSentinel(buf, "{s} (missing)", .{named.name()}, 0) catch "Action",
+        else => "Action",
+    };
+    if (reaper.SectionFromUniqueID(0)) |main| {
+        if (reaper.kbd_getTextFromCmd(id, main)) |text| {
+            const span = std.mem.span(text);
+            if (span.len > 0) return std.mem.printSentinel(buf, "{s}", .{span}, 0) catch "Action";
+        }
+    }
+    if (mft_auto.actionLabel(id)) |label| return label;
+    return std.mem.printSentinel(buf, "Action {d}", .{id}, 0) catch "Action";
+}
+
 // The routing of the AUTO page on a track: the knobs and the pushes that have a parameter of an FX of the track, which is found by its name. The ones that
 // have an action are not in it, since they move no parameter.
 pub fn resolveAuto(globals: *MftGlobals, track: reaper.MediaTrack) SlotRouting {

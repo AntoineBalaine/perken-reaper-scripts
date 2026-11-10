@@ -565,21 +565,18 @@ const map_win_h: f64 = 44;
 /// The radius of the well of an encoder drawn at the size of the plates: the well of the device (30) at the scale of the mock's encoder.
 const map_well_r: f64 = 30 * map_enc / 80.0;
 
-/// Where the parts of a cell are, from its top: the center of the encoder, the role under its well, and the window under the role. The role is as tall as
-/// a line of the label font, so the places follow from the font.
+/// Where the parts of a cell are, from its top: the center of the encoder, and the window under its well.
 const MapCellLayout = struct {
     enc_cy: f64,
-    role_y: f64,
     win_y: f64,
     height: f64,
 };
 
 fn mapCellLayout() MapCellLayout {
     const enc_cy = 2 + map_enc / 2;
-    // The role sits a little under the well, and the window a little under the role, so that neither touches the other.
-    const role_y = enc_cy + map_well_r + 3;
-    const win_y = role_y + mapTextHeight() + 4;
-    return .{ .enc_cy = enc_cy, .role_y = role_y, .win_y = win_y, .height = win_y + map_win_h + 8 };
+    // The window sits a little under the well of the encoder.
+    const win_y = enc_cy + map_well_r + 5;
+    return .{ .enc_cy = enc_cy, .win_y = win_y, .height = win_y + map_win_h + 8 };
 }
 const map_grid_w: f64 = 4 * map_cell_w + 3 * map_cell_gap;
 const map_plate_w: f64 = map_grid_w + 28;
@@ -606,6 +603,23 @@ fn paramLabel(track: reaper.MediaTrack, fx: c_int, param: u16, buf: *[96:0]u8) [
     return std.mem.printSentinel(buf, "{d}", .{param}, 0) catch "?";
 }
 
+/// Whether Alt is held, which turns a click on a combo of the mapping panel into the removal of its mapping.
+fn altHeld() bool {
+    return imgui.api.IsKeyDown(ctx, imgui.Mod_Alt);
+}
+
+/// The combo of a control while Alt is held: it has the same text, and a click takes the mapping of the control away instead of opening the list. It returns
+/// whether it was clicked.
+fn altClearRow(id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
+    var label_buf: [200:0]u8 = undefined;
+    const label = std.mem.printSentinel(&label_buf, "{s}##alt{s}", .{ preview, id }, 0) catch return false;
+    var w = width;
+    var h: f64 = 0;
+    const clicked = imgui.api.Selectable(ctx, label, null, null, &w, &h);
+    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "Alt-click removes this mapping");
+    return clicked;
+}
+
 /// A combo that has no frame and no arrow, as the combos in the windows of the mock are: its text is the parameter that the control has, or a dash.
 /// Choosing a parameter puts the control in focus and gives it the parameter. It returns whether the mapping changed.
 fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, control: usize, x: f64, y: f64, width: f64) !bool {
@@ -627,6 +641,12 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         imgui.api.PopStyleVar(ctx, &vars);
         var colors_pushed: c_int = 4;
         imgui.api.PopStyleColor(ctx, &colors_pushed);
+    }
+    if (altHeld()) {
+        if (!altClearRow(&id, preview, width)) return false;
+        mft_fxsel.selectControl(state, module, control);
+        mft_fxsel.assign(state, null);
+        return true;
     }
     try imgui.SetNextItemWidth(.{ ctx, width });
     if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
@@ -660,16 +680,6 @@ fn mapText(dl: imgui.DrawListPtr, x: f64, y: f64, color: c_int, text: [:0]const 
     imgui.api.DrawList_AddText(dl, x, y, color, text);
 }
 
-/// The height of a line of the label font.
-fn mapTextHeight() f64 {
-    if (fonts.label != null) imgui.api.PushFont(ctx, fonts.label);
-    defer if (fonts.label != null) imgui.api.PopFont(ctx);
-    var w: f64 = 0;
-    var h: f64 = 0;
-    imgui.CalcTextSize(.{ ctx, "Ag", &w, &h }) catch {};
-    return h;
-}
-
 /// The width of a text in the label font.
 fn mapTextWidth(text: [:0]const u8) f64 {
     if (fonts.label != null) imgui.api.PushFont(ctx, fonts.label);
@@ -680,7 +690,7 @@ fn mapTextWidth(text: [:0]const u8) f64 {
     return w;
 }
 
-/// One cell of a plate: its number, the encoder as the device draws it, the role that the control has by default, and the window with the combo of the
+/// One cell of a plate: its number, the encoder as the device draws it, and the window under it with the combo of the
 /// knob (the turn line) and the combo of the push (the press line). The push of the encoders of the bottom row is global, so their press line is the name of
 /// their page and is no combo. The cell of the control that is selected is washed with amber.
 fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, index: usize, x0: f64, y0: f64, layout: MapCellLayout, color: c_int, changed: *bool) !void {
@@ -702,16 +712,7 @@ fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: m
     const value: ?f64 = if (!mapped) null else if (push_param != null and knob_param == null) 1.0 else 0.5;
     device.drawEncoder(dl, x0 + map_cell_w / 2, y0 + layout.enc_cy, .{ .value = value, .color = color, .scale = map_enc / 80.0 });
 
-    // The role is the default use of the position on the page, centered under the encoder.
-    var role_buf: [48:0]u8 = undefined;
-    const role_text = mft_port.roleLabel(module, false, index);
-    const role = std.ascii.upperString(role_buf[0..@min(role_text.len, role_buf.len - 1)], role_text);
-    role_buf[role.len] = 0;
-    const role_z: [:0]const u8 = role_buf[0..role.len :0];
-    const role_color = if (std.mem.eql(u8, role_text, "no default")) theme.text_dim else theme.label;
-    mapText(dl, x0 + (map_cell_w - mapTextWidth(role_z)) / 2, y0 + layout.role_y, role_color, role_z);
-
-    // The window under the role: lit in the color of the module when the control is mapped, with a turn line and a press line.
+    // The window under the encoder: lit in the color of the module when the control is mapped, with a turn line and a press line.
     const win_y = y0 + layout.win_y;
     device.drawLedWindowRect(dl, x0 + 1, win_y, x0 + map_cell_w - 1, map_win_h, color, if (mapped) 0.8 else 0);
     const zone_h = (map_win_h - 4) / 2;
@@ -739,27 +740,45 @@ fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: m
     if (imgui.api.InvisibleButton(ctx, &cell_id, map_cell_w, 2 + map_enc, null)) mft_fxsel.selectControl(state, module, index);
 }
 
-/// A plate: the line of the plugin above it, and under it the title of the module and the grid of its sixteen cells. The plate of the module in focus has
+/// Where the line of the title of a card is, from the cursor right under it (`under`), and where the text after the title starts. The card engraves its title
+/// in the title font, a pixel taller than the text, and leaves the space of two items under it.
+fn mapTitleLine(title: [:0]const u8, under: widgets.Point) struct { x: f64, y: f64, h: f64 } {
+    var upper_buf: [48:0]u8 = undefined;
+    const upper = std.ascii.upperString(upper_buf[0..@min(title.len, upper_buf.len - 1)], title);
+    upper_buf[upper.len] = 0;
+    const pushed = widgets.pushTitleFont(&fxsel_kit);
+    const size = widgets.textSize(&fxsel_kit, upper_buf[0..upper.len :0]);
+    widgets.popFont(&fxsel_kit, pushed);
+    var spacing_x: f64 = 0;
+    var spacing_y: f64 = 0;
+    imgui.GetStyleVar(.{ ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y }) catch {};
+    return .{ .x = under.x + size.w + 12, .y = under.y - (size.h + 1) - 2 * spacing_y, .h = size.h };
+}
+
+/// A button on the line of the title of a card, after the title. It returns whether it was clicked.
+fn mapTitleButton(title: [:0]const u8, under: widgets.Point, label: [:0]const u8) !bool {
+    const line = mapTitleLine(title, under);
+    imgui.api.SetCursorScreenPos(ctx, line.x, line.y - 2);
+    return imgui.api.SmallButton(ctx, label);
+}
+
+/// A note on the line of the title of a card, after the title, in the dim of the panel.
+fn mapTitleNote(title: [:0]const u8, under: widgets.Point, note: [:0]const u8) void {
+    const line = mapTitleLine(title, under);
+    imgui.api.SetCursorScreenPos(ctx, line.x, line.y);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.text_dim);
+    imgui.api.Text(ctx, note);
+    var popped: c_int = 1;
+    imgui.api.PopStyleColor(ctx, &popped);
+}
+
+/// A plate: the title of the module with the button of its plugin next to it, and under them the grid of its sixteen cells. The plate of the module in focus has
 /// the color of its module.
 fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, color: c_int, changed: *bool) !void {
     const mi = mft_fxsel.moduleIndex(module);
     const focus = state.module == module;
     imgui.api.BeginGroup(ctx);
     defer imgui.api.EndGroup(ctx);
-    // The line of the plugin: its name, and a key that opens its window. A module that has none says so.
-    var head_buf: [200:0]u8 = undefined;
-    const plugin = std.mem.sliceTo(&state.map_fx_name[mi], 0);
-    const head = if (state.map_fx_index[mi] >= 0) std.mem.printSentinel(&head_buf, "{s}##plugin{d}", .{ plugin, mi }, 0) catch "?" else std.mem.printSentinel(&head_buf, "no plugin: load one with Load FX##plugin{d}", .{mi}, 0) catch "?";
-    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, if (state.map_fx_index[mi] >= 0) theme.label else theme.text_dim });
-    var head_w: f64 = map_plate_w;
-    var head_h: f64 = 0;
-    if (imgui.api.Selectable(ctx, head, null, null, &head_w, &head_h)) {
-        // The plugin of a module is swapped from the browser, which opens for that module.
-        // The browser opens over the panel, which stays open and is where the controller goes back to.
-        mft_fxsel.browseFromMapping(state, module);
-        state.pending = .fill_browser;
-    }
-    try imgui.PopStyleColor(.{ ctx, 1 });
     if (state.map_error[mi][0] != 0) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
         try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_error[mi], 0) });
@@ -768,6 +787,21 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     if (!widgets.beginCard(&fxsel_kit, mapTitle(module), map_plate_w, null, if (focus) color else null)) return;
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
+    // The button of the plugin is on the line of the title, after it: a click opens the browser for the module, to swap the plugin. A module that has
+    // none says so on the button.
+    var button_buf: [200:0]u8 = undefined;
+    const plugin = std.mem.sliceTo(&state.map_fx_name[mi], 0);
+    const shown = plugin[0..@min(plugin.len, 34)];
+    const button = if (state.map_fx_index[mi] >= 0)
+        std.mem.printSentinel(&button_buf, "{s}{s}  v##plugin{d}", .{ shown, if (shown.len < plugin.len) "..." else "", mi }, 0) catch "?"
+    else
+        std.mem.printSentinel(&button_buf, "no plugin: Load FX  v##plugin{d}", .{mi}, 0) catch "?";
+    if (try mapTitleButton(mapTitle(module), origin, button)) {
+        // The browser opens over the panel, which stays open and is where the controller goes back to.
+        mft_fxsel.browseFromMapping(state, module);
+        state.pending = .fill_browser;
+    }
+    imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
     imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
     for (0..mappings.knob_count) |i| {
@@ -780,7 +814,7 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
 /// What a control of the AUTO page does, in words: the name of its action, or the plugin and the name of its parameter.
 fn autoTargetLabel(track: reaper.MediaTrack, target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
     switch (target) {
-        .action => |id| return mft_auto.actionLabel(id) orelse (std.mem.printSentinel(buf, "Action {d}", .{id}, 0) catch "Action"),
+        .action, .named_action => return mft_fx.actionName(target, buf),
         .fx_param => |fx| {
             var param_name: [64:0]u8 = undefined;
             param_name[0] = 0;
@@ -813,6 +847,12 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         var colors_pushed: c_int = 4;
         imgui.api.PopStyleColor(ctx, &colors_pushed);
     }
+    if (altHeld()) {
+        if (!altClearRow(&id, preview, width)) return false;
+        mft_fxsel.selectAuto(state, control);
+        mft_fxsel.assignAuto(state, control, null);
+        return true;
+    }
     try imgui.SetNextItemWidth(.{ ctx, width });
     if (!try imgui.BeginCombo(.{ ctx, &id, preview, imgui.ComboFlags_NoArrowButton })) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
@@ -825,6 +865,12 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
     try imgui.Text(.{ ctx, "REAPER actions" });
     try imgui.PopStyleColor(.{ ctx, 1 });
+    // Any action can be chosen in REAPER's own Action List, which opens and gives back the one that is chosen there.
+    if (try imgui.Selectable(.{ ctx, "Choose in the Action List..." })) {
+        const current: c_int = if (target) |t| (mft_fx.autoCommand(t) orelse 0) else 0;
+        _ = reaper.PromptForAction(1, current, 0);
+        state.map_prompt = @intCast(control);
+    }
     for (mft_auto.actions, 0..) |action, i| {
         var item: [96:0]u8 = undefined;
         if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##act{d}", .{ action.label, i }, 0) catch continue })) {
@@ -857,7 +903,7 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
     return changed;
 }
 
-/// A cell of the AUTO plate, with the layout of the cells of the modules: its role is the user's, and its combos offer actions and parameters.
+/// A cell of the AUTO plate, with the layout of the cells of the modules, whose combos offer actions and parameters.
 fn drawAutoCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: usize, x0: f64, y0: f64, layout: MapCellLayout, color: c_int, changed: *bool) !void {
     const dl = imgui.api.GetWindowDrawList(ctx);
     const top = index < mappings.push_count;
@@ -874,8 +920,6 @@ fn drawAutoCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: u
     // A knob that moves a parameter has its ring half lit, and a control that runs an action a full ring, as the mock marks them.
     const value: ?f64 = if (knob) |t| (if (t == .fx_param) 0.5 else 1.0) else if (push != null) 1.0 else null;
     device.drawEncoder(dl, x0 + map_cell_w / 2, y0 + layout.enc_cy, .{ .value = value, .color = color, .scale = map_enc / 80.0 });
-    const role: [:0]const u8 = "USER";
-    mapText(dl, x0 + (map_cell_w - mapTextWidth(role)) / 2, y0 + layout.role_y, theme.text_dim, role);
     const win_y = y0 + layout.win_y;
     device.drawLedWindowRect(dl, x0 + 1, win_y, x0 + map_cell_w - 1, map_win_h, color, if (mapped) 0.8 else 0);
     const zone_h = (map_win_h - 4) / 2;
@@ -899,9 +943,6 @@ fn drawAutoCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, index: u
 fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, color: c_int, changed: *bool) !void {
     imgui.api.BeginGroup(ctx);
     defer imgui.api.EndGroup(ctx);
-    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-    try imgui.Text(.{ ctx, "REAPER actions and FX parameters, user page" });
-    try imgui.PopStyleColor(.{ ctx, 1 });
     if (state.map_auto_error[0] != 0) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
         try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_auto_error, 0) });
@@ -910,6 +951,9 @@ fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, colo
     if (!widgets.beginCard(&fxsel_kit, "Auto", map_plate_w, null, if (state.map_focus_auto) color else null)) return;
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
+    // The AUTO page has no plugin: the line of its title says what its combos list.
+    mapTitleNote("Auto", origin, "REAPER actions and FX parameters, user page");
+    imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
     imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
     for (0..mappings.knob_count) |i| {
@@ -1021,6 +1065,20 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
     }
 }
 
+/// Asks REAPER whether the Action List that a combo of the AUTO plate opened has an action chosen. The chosen action goes to the control that waits for it;
+/// when the list was closed without one, the control stops waiting. It returns whether the map changed.
+fn pollActionList(state: *mft_fxsel.FxSelState) bool {
+    const control = state.map_prompt orelse return false;
+    const chosen = reaper.PromptForAction(0, 0, 0);
+    if (chosen == 0) return false;
+    _ = reaper.PromptForAction(-1, 0, 0);
+    state.map_prompt = null;
+    if (chosen < 0) return false;
+    mft_fxsel.selectAuto(state, control);
+    mft_fxsel.assignAuto(state, control, mft_fx.actionTarget(chosen));
+    return true;
+}
+
 /// The window of the mapping mode, which is a window of its own. Its keys at the left are the learn (a parameter moved in a plugin goes to the selected
 /// control), the single FX mode, and the one that leaves the mapping. The encoders select the control that they touch, and the module buttons put another
 /// module in focus.
@@ -1047,6 +1105,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     const track = globals.current_track;
     const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
     var changed = false;
+    if (pollActionList(state)) changed = true;
 
     // The bar of keys at the left.
     imgui.api.BeginGroup(ctx);
@@ -1222,6 +1281,13 @@ fn pushName(track: reaper.MediaTrack, route: mft_fx.PushRoute, buf: *[32:0]u8) v
     }
 }
 
+/// Copies a name into a buffer of the panel, cut to its size.
+fn copyName(buf: anytype, name: []const u8) void {
+    const n = @min(name.len, buf.len);
+    @memcpy(buf[0..n], name[0..n]);
+    buf[n] = 0;
+}
+
 // Reads the parameter values and names of the sixteen encoders for the active page.
 fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
     var info = KnobInfo{};
@@ -1250,17 +1316,19 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
         const map = globals.map_store.getAuto(mft_globals.hostIo());
         for (map.knobs, 0..) |maybe, slot| {
             const target = maybe orelse continue;
-            if (target != .action) continue;
+            if (target == .fx_param) continue;
             info.mapped[slot] = true;
             info.is_action[slot] = true;
             info.has_name[slot] = true;
-            _ = std.mem.printSentinel(&info.name_bufs[slot], "{s}", .{mft_auto.actionLabel(target.action) orelse "Action"}, 0) catch {};
+            var name_buf: [160:0]u8 = undefined;
+            copyName(&info.name_bufs[slot], mft_fx.actionName(target, &name_buf));
         }
         for (map.pushes, 0..) |maybe, push| {
             const target = maybe orelse continue;
-            if (target != .action) continue;
+            if (target == .fx_param) continue;
             info.push_mapped[push] = true;
-            _ = std.mem.printSentinel(&info.push_name_bufs[push], "{s}", .{mft_auto.actionLabel(target.action) orelse "Action"}, 0) catch {};
+            var name_buf: [160:0]u8 = undefined;
+            copyName(&info.push_name_bufs[push], mft_fx.actionName(target, &name_buf));
         }
     }
     return info;

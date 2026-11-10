@@ -270,12 +270,9 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
         // A knob of the AUTO page runs its action, or moves its parameter as the knobs of a module do.
         .AUTO => {
             const target = globals.map_store.getAuto(io).knobs[slot] orelse return;
-            switch (target) {
-                .action => |id| {
-                    reaper.Main_OnCommand(id, 0);
-                    return;
-                },
-                .fx_param => {},
+            if (target != .fx_param) {
+                if (mft_fx.autoCommand(target)) |id| reaper.Main_OnCommand(id, 0);
+                return;
             }
         },
         else => {},
@@ -376,7 +373,7 @@ fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
 fn autoPress(globals: *MftGlobals, push: u3) void {
     const target = globals.map_store.getAuto(mft_globals.hostIo()).pushes[push] orelse return;
     switch (target) {
-        .action => |id| reaper.Main_OnCommand(id, 0),
+        .action, .named_action => if (mft_fx.autoCommand(target)) |id| reaper.Main_OnCommand(id, 0),
         .fx_param => {
             const track = globals.current_track orelse return;
             const route = mft_fx.resolveAuto(globals, track).pushes[push] orelse return;
