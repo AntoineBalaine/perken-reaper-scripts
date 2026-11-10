@@ -156,12 +156,10 @@ export fn zRun() callconv(.c) void {
 
 export fn zSetTrackListChange() callconv(.c) void {}
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
-    _ = trackid;
-    _ = volume;
+    midi_out.syncTrackMix(MftGlobals.get(), trackid, volume, null);
 }
 export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.c) void {
-    _ = trackid;
-    _ = pan;
+    midi_out.syncTrackMix(MftGlobals.get(), trackid, null, pan);
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
     _ = trackid;

@@ -24,6 +24,24 @@ pub fn ringByte(normalized: f64) u8 {
     return @intFromFloat(normalized * 127.0);
 }
 
+/// The encoders of the TRANSPORT page whose rings show the volume and the pan of the track: the fifth and the sixth of the bottom row.
+pub const transport_volume_ring = 12;
+pub const transport_pan_ring = 13;
+
+/// The ring of a track volume (a linear factor): the fader's range goes from -60 dB at the bottom to +12 dB at the top, which is the
+/// range that the turns of the volume knob stay in.
+pub fn volumeRingByte(volume: f64) u8 {
+    if (std.math.isNan(volume)) return 0;
+    const db = 20.0 * @log10(@max(volume, 1e-6));
+    return ringByte((db + 60.0) / 72.0);
+}
+
+/// The ring of a pan from -1 (left) to 1 (right): the middle is the middle of the ring.
+pub fn panRingByte(pan: f64) u8 {
+    if (std.math.isNan(pan)) return 0;
+    return ringByte((pan + 1.0) / 2.0);
+}
+
 /// The FX and the parameter that a notification of REAPER names. REAPER packs them in one integer, the FX index in its high 16 bits
 /// and the parameter index in its low 16.
 pub const FxParam = struct { fx_index: u16, param: u16 };
@@ -88,6 +106,19 @@ test "ringByte: the ends, the middle, and the values that REAPER uses for a para
     try t.expectEqual(@as(u8, 0), ringByte(-1.0));
     try t.expectEqual(@as(u8, 0), ringByte(std.math.nan(f64)));
     try t.expectEqual(@as(u8, 127), ringByte(1.5));
+}
+
+test "volumeRingByte and panRingByte: the ends and the middle of the fader and of the pan" {
+    const t = std.testing;
+    try t.expectEqual(@as(u8, 0), volumeRingByte(0.0));
+    try t.expectEqual(@as(u8, 127), volumeRingByte(4.0));
+    // Unity gain is 60 of the 72 dB above the bottom.
+    try t.expectEqual(@as(u8, 105), volumeRingByte(1.0));
+    try t.expect(volumeRingByte(0.5) < volumeRingByte(1.0));
+    try t.expectEqual(@as(u8, 0), volumeRingByte(std.math.nan(f64)));
+    try t.expectEqual(@as(u8, 0), panRingByte(-1.0));
+    try t.expectEqual(@as(u8, 63), panRingByte(0.0));
+    try t.expectEqual(@as(u8, 127), panRingByte(1.0));
 }
 
 test "decodeFxParam: the FX index is the high half and the parameter the low half" {

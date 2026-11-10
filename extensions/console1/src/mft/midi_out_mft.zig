@@ -34,12 +34,26 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
             wanted = mft_feedback.wantedFrame(track, &fb.routing);
         }
     }
+    // On the transport page the rings of the volume and the pan show those of the track.
+    if (globals.mft.active_module == .TRANSPORT) {
+        if (globals.current_track) |track| {
+            wanted[mft_feedback.transport_volume_ring] = mft_feedback.volumeRingByte(reaper.GetMediaTrackInfo_Value(track, "D_VOL"));
+            wanted[mft_feedback.transport_pan_ring] = mft_feedback.panRingByte(reaper.GetMediaTrackInfo_Value(track, "D_PAN"));
+        }
+    }
     var changed: [mft_feedback.ring_count]u8 = undefined;
     const count = mft_feedback.diffRings(&fb.rings, &wanted, &changed);
     const midi_out = globals.m_midi_out.?;
     for (changed[0..count]) |slot| {
         c.MidiOut_Send(midi_out, 0xb0 | mft.ENCODER_ROT_CHANNEL, slot, wanted[slot], -1);
     }
+}
+
+// The volume or the pan of a track moved in REAPER. On the transport page, the ring of that knob follows when the track is the current one.
+pub fn syncTrackMix(globals: *MftGlobals, track: reaper.MediaTrack, volume: ?f64, pan: ?f64) void {
+    if (track != globals.current_track or globals.mft.active_module != .TRANSPORT) return;
+    if (volume) |v| setRing(globals, mft_feedback.transport_volume_ring, mft_feedback.volumeRingByte(v));
+    if (pan) |p| setRing(globals, mft_feedback.transport_pan_ring, mft_feedback.panRingByte(p));
 }
 
 // A parameter moved in REAPER (REAPER's SETFXPARAM notification). Its ring follows when one of the encoders of the active module moves it.
