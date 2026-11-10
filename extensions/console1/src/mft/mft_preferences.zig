@@ -46,10 +46,16 @@ pub const MftPreferences = struct {
     /// The hue of each of the sixteen color LEDs: the eight of the top rows take the color of the page in use, and each encoder of the bottom
     /// row, which selects a page, takes the color of its own page, so that the pages can be told apart.
     pub fn pageHues(self: *const MftPreferences, active: MftActiveModule) [16]u8 {
+        // (The FX SEL mode has its own frame, `fxsel_hues`.)
         var hues: [16]u8 = undefined;
         for (0..8) |i| hues[i] = self.colorForModule(active);
         for (0..8) |i| hues[8 + i] = self.colorForModule(@fromBackingInt(@intCast(i)));
         return hues;
+    }
+
+    /// The hue of every LED while the FX SEL mode is open.
+    pub fn fxselHues() [16]u8 {
+        return @splat(@import("mft_fxsel.zig").hue);
     }
 
     pub fn setColorForModule(self: *MftPreferences, module: MftActiveModule, hue: u8) void {

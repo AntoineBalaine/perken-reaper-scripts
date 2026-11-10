@@ -18,6 +18,7 @@ const MftActiveModule = mft_state.MftActiveModule;
 const page_count = mft_state.page_count;
 const pageForEncoder = mft_state.pageForEncoder;
 const mft_auto = @import("mft_auto.zig");
+const mft_fxsel = @import("mft_fxsel.zig");
 const knob_count = @import("mft_mappings.zig").knob_count;
 const push_count = @import("mft_mappings.zig").push_count;
 
@@ -117,6 +118,9 @@ pub const View = struct {
     held: u16 = 0,
     /// The encoders whose value is shown in a pop-up, one bit each: the ones that the mouse is over, that are held or
     /// have just been turned, and those that were a moment ago.
+    /// While the FX SEL mode is open, what the window of each encoder says, and the color of the mode. Null otherwise.
+    fxsel_labels: ?[16]mft_fxsel.Label = null,
+    fxsel_color: c_int = 0,
     show_value: u16 = 0,
     /// The pop-up of the last click on a push: the encoder and the text, or null once it has lingered.
     push_note: ?struct { encoder: u8, text: [32:0]u8 } = null,
@@ -636,12 +640,24 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     drawDualLabel(kit, dl, cell.cx, cell.label_y, turn, @tagName(module), color, if (active) 1 else 0.4, false, held, if (active) color else theme.text_dim);
 }
 
+/// One encoder while the FX SEL mode is open: it has no value, and its window says what a turn and a press do in the mode. The encoder that is
+/// chosen (the module, or the entry that the list is on) is sunk, and its window is lit.
+fn drawFxSelCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell: Cell, label: mft_fxsel.Label) void {
+    const color = view.fxsel_color;
+    const held = isHeld(view, idx) or (idx < 8 and (view.press_lit >> @intCast(idx)) & 1 == 1);
+    drawEncoder(dl, cell.cx, cell.cy, .{ .color = color, .pressed = held or label.chosen });
+    const has_function = label.turn != null or !std.mem.eql(u8, label.press, "-");
+    drawDualLabel(kit, dl, cell.cx, cell.label_y, label.turn, label.press, color, if (has_function) 1 else 0.4, false, held, if (label.chosen) color else theme.text_dim);
+}
+
 /// Draws the sixteen encoders. The LED color of the module in use is the accent of its knobs.
 fn drawCells(kit: *widgets.Panel, dl: Dl, view: *const View, gx: f64, gy: f64) void {
     var bubbles = Bubbles{};
     for (0..16) |idx| {
         const cell = cellAt(idx, gx, gy);
-        if (idx < 8) {
+        if (view.fxsel_labels) |labels| {
+            drawFxSelCell(kit, dl, view, idx, cell, labels[idx]);
+        } else if (idx < 8) {
             drawKnobCell(kit, dl, view, idx, cell, &bubbles);
         } else {
             drawModuleCell(kit, dl, view, idx, cell, &bubbles);
@@ -704,7 +720,11 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     }
     widgets.popFont(kit, pushed);
     imgui.api.SetCursorScreenPos(ctx, x + pad, y + pad);
-    widgets.display(kit, @tagName(view.active), view.color(view.active), widest + 20);
+    if (view.fxsel_labels != null) {
+        widgets.display(kit, "FX SEL", view.fxsel_color, widest + 20);
+    } else {
+        widgets.display(kit, @tagName(view.active), view.color(view.active), widest + 20);
+    }
 
     const cx = x + body_w / 2;
     const font = kit.fonts.tab;

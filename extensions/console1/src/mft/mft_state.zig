@@ -99,6 +99,8 @@ pub const PushNote = struct {
 };
 
 pub const MftState = struct {
+    /// The FX SEL mode, which takes over the controller while it is not null.
+    fxsel: ?@import("mft_fxsel.zig").FxSelState = null,
     /// What the last click on a push changed.
     push_note: PushNote = .{},
     /// What the player did with the controls lately.

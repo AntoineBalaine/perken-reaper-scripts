@@ -294,6 +294,31 @@ fn insertDefaultStrip(globals: *MftGlobals, track: reaper.MediaTrack) bool {
     return true;
 }
 
+// Loads a plugin into the slot of a module: the plugin that the slot has is replaced by the new one, which takes its place in the chain. Returns
+// false when the track has a channel strip, which does the work of the modules, or when the plugin could not be added.
+pub fn loadPlugin(track: reaper.MediaTrack, module: MappableModule, fx_name: [:0]const u8) bool {
+    if (findStrip(track) != null) return false;
+    const slot = slotsFor(module)[0];
+    // The new plugin goes where the old one was, and at the place that the order of the slots gives when there was none.
+    var position: c_int = -1;
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        if (fxSlot(track, i)) |existing| {
+            if (existing == slot) {
+                position = i;
+                break;
+            }
+        }
+    }
+    if (position >= 0) _ = reaper.TrackFX_Delete(track, position) else position = insertPosFor(track, slot);
+    const instantiate: c_int = if (position >= 0) -1000 - position else -1;
+    const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
+    if (index < 0) return false;
+    setSlotSuffix(track, index, fx_name, slot);
+    return true;
+}
+
 // Ensure each slot the module drives has a suffixed FX on the track. A missing
 // slot is filled by adopting an existing un-suffixed instance of its default
 // plugin if present, otherwise inserting a fresh one at the canonical position.

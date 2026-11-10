@@ -7,12 +7,14 @@ const reaper = @import("reaper").reaper;
 const mft = @import("../mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
 const mft_state = @import("../mft_state.zig");
+const mft_state_prefs = @import("../mft_preferences.zig").MftPreferences;
 const MftActiveModule = mft_state.MftActiveModule;
 const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
 const mft_auto = @import("../mft_auto.zig");
+const mft_fxsel = @import("../mft_fxsel.zig");
 const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const mft_feedback = @import("../mft_feedback.zig");
@@ -32,11 +34,91 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
         return;
     }
 
+    // The FX SEL mode takes over the encoders: nothing reaches the page while it is open. The side keys stay as they are.
+    if (globals.mft.fxsel) |*state| {
+        if (chan == mft.ENCODER_ROT_CHANNEL or chan == mft.ENCODER_BTN_CHANNEL) {
+            onFxSelEvent(state, chan, cc, val, globals);
+            return;
+        }
+    }
+
     switch (chan) {
         mft.ENCODER_ROT_CHANNEL => onEncoderRotation(cc, val, globals),
         mft.ENCODER_BTN_CHANNEL => onEncoderButton(cc, val, globals),
         mft.SIDE_BTN_CHANNEL => onSideButton(cc, val, globals),
         else => {},
+    }
+}
+
+// Sends the colors and the rings that the controller shows now: those of the FX SEL mode while it is open, and those of the page otherwise.
+fn showCurrentFrame(globals: *MftGlobals) void {
+    if (globals.m_midi_out) |mo| {
+        const hues = if (globals.mft.fxsel != null) mft_state_prefs.fxselHues() else globals.preferences.pageHues(globals.mft.active_module);
+        midi_out.sendPageColors(mo, hues);
+    }
+    midi_out.syncRings(globals, true);
+}
+
+/// Opens the FX SEL mode on the module of the page in use, or on the EQ when the page has none.
+pub fn openFxSel(globals: *MftGlobals) void {
+    var state = mft_fxsel.FxSelState{};
+    state.module = MappableModule.fromActive(globals.mft.active_module) orelse .EQ;
+    state.return_page = globals.mft.active_module;
+    globals.mft.fxsel = state;
+    showCurrentFrame(globals);
+}
+
+/// Closes the FX SEL mode and goes back to a page.
+pub fn closeFxSel(globals: *MftGlobals, page: MftActiveModule) void {
+    globals.mft.fxsel = null;
+    globals.mft.active_module = page;
+    showCurrentFrame(globals);
+}
+
+// The page of a module, which has the same name.
+fn pageOf(module: MappableModule) MftActiveModule {
+    return switch (module) {
+        .INPUT => .INPUT,
+        .GATE => .GATE,
+        .EQ => .EQ,
+        .COMP => .COMP,
+        .OUTPUT => .OUTPUT,
+    };
+}
+
+fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
+    state.setNote("");
+    var outcome: mft_fxsel.Outcome = .none;
+    if (chan == mft.ENCODER_ROT_CHANNEL) {
+        outcome = mft_fxsel.turn(state, cc, mft.decodeRelative(val));
+    } else {
+        const pressed = val == 127;
+        if (cc < 8) globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
+        if (!pressed) return;
+        outcome = mft_fxsel.press(state, cc);
+    }
+    switch (outcome) {
+        .none => {},
+        .leave => closeFxSel(globals, state.return_page),
+        .fill_browser => globals.map_store.listFx(io, state.module, &state.browser),
+        .load_plugin => |entry| {
+            const track = globals.current_track orelse {
+                state.setNote("There is no track to load the plugin on.");
+                return;
+            };
+            const name = state.browser.get(entry);
+            if (mft_fx.loadPlugin(track, state.module, name)) {
+                // The controller goes to the page of the module that got the plugin.
+                closeFxSel(globals, pageOf(state.module));
+            } else {
+                state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
+            }
+        },
+        .not_done => |action| {
+            var buf: [96]u8 = undefined;
+            state.setNote(std.fmt.bufPrint(&buf, "{s} is not done yet.", .{action.label()}) catch "Not done yet.");
+        },
     }
 }
 
@@ -228,6 +310,11 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
         } else if (MappableModule.fromActive(globals.mft.active_module)) |module| {
             if (globals.current_track) |track| mft_fx.toggleBypass(track, module);
         }
+        return;
+    }
+    if (cc == mft.SIDE_BUTTON_CCS[2]) {
+        // L3 opens the FX SEL mode, and closes it when it is open.
+        if (globals.mft.fxsel) |state| closeFxSel(globals, state.return_page) else openFxSel(globals);
         return;
     }
     const track = globals.current_track orelse return;

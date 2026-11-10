@@ -15,6 +15,7 @@ const panel_fonts = @import("panel_fonts");
 const widgets = @import("panel_widgets");
 const wizard = @import("mft_wizard.zig");
 const device = @import("mft_device.zig");
+const mft_fxsel = @import("mft_fxsel.zig");
 const colors = @import("mft_colors.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -263,19 +264,64 @@ fn draw(globals: *MftGlobals) !void {
 
     // The settings form and the calibration card belong to the settings mode, and are not shown in the others, unless
     // a calibration is under way. Because a folded device is its header row alone, nothing is under it then.
-    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active);
+    const in_fxsel = globals.mft.fxsel != null;
+    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active or in_fxsel);
     if (show_cards) {
         imgui.api.SetCursorScreenPos(ctx, response.left, response.bottom + cards_gap);
         imgui.api.Dummy(ctx, 1, 1);
     }
     // Settings mode draws its form under the device; otherwise the buffers stay synced from preferences for the next
     // time it is opened.
-    if (show_cards and active == .SETTINGS) {
+    if (show_cards and in_fxsel) {
+        drawFxSelList(globals);
+    } else if (show_cards and active == .SETTINGS) {
         try mft_settings.drawForm(&kit, globals, moduleColor(globals, active));
     } else {
         mft_settings.markUnsynced();
     }
-    if (show_cards) drawWizard(globals);
+    if (show_cards and !in_fxsel) drawWizard(globals);
+}
+
+/// The rows that the list of plugins shows at a time. The cursor stays in the middle when the list is longer.
+const browser_rows = 12;
+
+/// The card of the FX SEL mode, under the device: the module that the mode works on, the list of what can be done to it or the list of plugins
+/// that can be loaded for it, with the cursor on its entry, and a line that says what the last press did.
+fn drawFxSelList(globals: *MftGlobals) void {
+    const state = &(globals.mft.fxsel orelse return);
+    const accent = colors.hueToRgb(mft_fxsel.hue);
+    var buf: [160:0]u8 = undefined;
+    const title = std.mem.printSentinel(&buf, "FX SEL: {s}", .{@tagName(state.module)}, 0) catch "FX SEL";
+    if (!widgets.beginCard(&kit, title, null, null, accent)) return;
+    defer widgets.endCard(&kit);
+
+    switch (state.screen) {
+        .actions => {
+            imgui.api.TextColored(ctx, theme.grey, "Turn the encoder 13 and push it, or push a shortcut on the top row. The module is chosen with the buttons of the bottom row.");
+            inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
+                const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
+                const line = std.mem.printSentinel(&buf, "{s} {s}", .{ if (state.action_cursor == i) ">" else " ", action.label() }, 0) catch "";
+                imgui.api.TextColored(ctx, if (state.action_cursor == i) accent else theme.grey, line);
+            }
+        },
+        .browse => {
+            const count = state.browser.count;
+            if (count == 0) {
+                imgui.api.TextColored(ctx, theme.grey, "No plugin has a map for this module.");
+            } else {
+                const cursor: usize = state.browse_cursor;
+                const first = if (cursor < browser_rows / 2) 0 else @min(cursor - browser_rows / 2, if (count > browser_rows) count - browser_rows else 0);
+                const last = @min(count, first + browser_rows);
+                for (first..last) |i| {
+                    const line = std.mem.printSentinel(&buf, "{s} {s}", .{ if (cursor == i) ">" else " ", state.browser.get(i) }, 0) catch "";
+                    imgui.api.TextColored(ctx, if (cursor == i) accent else theme.grey, line);
+                }
+                const where = std.mem.printSentinel(&buf, "{d} of {d}", .{ cursor + 1, count }, 0) catch "";
+                imgui.api.TextColored(ctx, theme.grey, where);
+            }
+        },
+    }
+    if (state.noteText().len > 0) imgui.api.TextColored(ctx, theme.amber, state.noteText());
 }
 
 /// What the device shows this frame: the colors of the modules, the parameters of the active module, the encoders that
@@ -286,15 +332,21 @@ fn readView(globals: *MftGlobals) device.View {
         module_colors[i] = moduleColor(globals, @fromBackingInt(@intCast(field_value)));
     }
     const active = globals.mft.active_module;
-    const view = device.View{
+    var view = device.View{
         .active = active,
         .colors = module_colors,
-        .knobs = readKnobInfo(globals, active),
+        .knobs = if (globals.mft.fxsel == null) readKnobInfo(globals, active) else .{},
         .held = globals.mft.held_encoders,
         .side_lit = readSideLit(globals),
         .online = globals.online,
         .collapsed = folded,
     };
+    if (globals.mft.fxsel) |*state| {
+        var labels: [16]mft_fxsel.Label = undefined;
+        for (&labels, 0..) |*each, i| each.* = mft_fxsel.label(state, i);
+        view.fxsel_labels = labels;
+        view.fxsel_color = colors.hueToRgb(mft_fxsel.hue);
+    }
     return view;
 }
 
@@ -586,4 +638,31 @@ test "a transport turn, a press and a left key light the panel while they last, 
     try mock.assertBalanced();
     try std.testing.expect(globals.mft.activity.turnLit(0, now));
     try std.testing.expect(globals.mft.activity.sideLit(2, now + 10 * value_linger_ms));
+}
+
+test "the FX SEL mode draws its windows and its list on both screens with the stacks balanced" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    try draw(&globals);
+    state.action_cursor = 3;
+    state.setNote("Mapping is not done yet.");
+    try draw(&globals);
+    // The list of plugins: empty, then longer than the rows that fit, with the cursor at the start, in the middle and at the end.
+    state.screen = .browse;
+    try draw(&globals);
+    for (0..30) |i| {
+        var name: [24]u8 = undefined;
+        state.browser.add(std.fmt.bufPrint(&name, "JS: Plugin {d}", .{i}) catch "x");
+    }
+    for ([_]u16{ 0, 15, 29 }) |cursor| {
+        state.browse_cursor = cursor;
+        try draw(&globals);
+    }
+    try mock.assertBalanced();
 }

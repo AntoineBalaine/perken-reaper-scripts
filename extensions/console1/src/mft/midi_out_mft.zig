@@ -28,14 +28,17 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
     if (force) fb.invalidate();
     fb.routing = .{};
     var wanted: [mft_feedback.ring_count]u8 = @splat(0);
-    if (MappableModule.fromActive(globals.mft.active_module)) |module| {
-        if (globals.current_track) |track| {
-            fb.routing = mft_fx.resolveModule(globals, track, module);
-            wanted = mft_feedback.wantedFrame(track, &fb.routing);
+    // The FX SEL mode has no parameters on its encoders, so its rings are empty.
+    if (globals.mft.fxsel == null) {
+        if (MappableModule.fromActive(globals.mft.active_module)) |module| {
+            if (globals.current_track) |track| {
+                fb.routing = mft_fx.resolveModule(globals, track, module);
+                wanted = mft_feedback.wantedFrame(track, &fb.routing);
+            }
         }
     }
     // On the transport page the rings of the volume and the pan show those of the track.
-    if (globals.mft.active_module == .TRANSPORT) {
+    if (globals.mft.fxsel == null and globals.mft.active_module == .TRANSPORT) {
         if (globals.current_track) |track| {
             wanted[mft_feedback.transport_volume_ring] = mft_feedback.volumeRingByte(reaper.GetMediaTrackInfo_Value(track, "D_VOL"));
             wanted[mft_feedback.transport_pan_ring] = mft_feedback.panRingByte(reaper.GetMediaTrackInfo_Value(track, "D_PAN"));
@@ -52,7 +55,7 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
 // The meters of the active page, which REAPER does not report as notifications, so the run loop of the surface asks for them. On the compressor
 // page, the ring of the ninth encoder shows the gain reduction of the compressor, unless the map gives that encoder a parameter.
 pub fn syncMeters(globals: *MftGlobals) void {
-    if (globals.m_midi_out == null or globals.mft.active_module != .COMP) return;
+    if (globals.m_midi_out == null or globals.mft.fxsel != null or globals.mft.active_module != .COMP) return;
     const track = globals.current_track orelse return;
     const routing = &globals.feedback.routing;
     if (routing.targets[mft_feedback.gain_reduction_ring] != null) return;
@@ -73,14 +76,14 @@ pub fn syncMeters(globals: *MftGlobals) void {
 
 // The volume or the pan of a track moved in REAPER. On the transport page, the ring of that knob follows when the track is the current one.
 pub fn syncTrackMix(globals: *MftGlobals, track: reaper.MediaTrack, volume: ?f64, pan: ?f64) void {
-    if (track != globals.current_track or globals.mft.active_module != .TRANSPORT) return;
+    if (track != globals.current_track or globals.mft.fxsel != null or globals.mft.active_module != .TRANSPORT) return;
     if (volume) |v| setRing(globals, mft_feedback.transport_volume_ring, mft_feedback.volumeRingByte(v));
     if (pan) |p| setRing(globals, mft_feedback.transport_pan_ring, mft_feedback.panRingByte(p));
 }
 
 // A parameter moved in REAPER (REAPER's SETFXPARAM notification). Its ring follows when one of the encoders of the active module moves it.
 pub fn syncParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16, param: u16, value: f64) void {
-    if (track != globals.current_track) return;
+    if (track != globals.current_track or globals.mft.fxsel != null) return;
     const slot = mft_feedback.slotForParam(&globals.feedback.routing, fx_index, param) orelse return;
     setRing(globals, slot, mft_feedback.ringByte(value));
 }

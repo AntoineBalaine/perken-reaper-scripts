@@ -4,6 +4,7 @@ const fs_helpers = @import("fs_helpers");
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const MftModuleMapping = mappings.MftModuleMapping;
+const BrowserList = @import("mft_fxsel.zig").BrowserList;
 const log = std.log.scoped(.mft_maps);
 
 // Lazily loads and caches per-module FX mappings from
@@ -104,6 +105,26 @@ pub const MftMapStore = struct {
         return .{ .file = file, .reader = file.reader(io, buffer) };
     }
 
+    /// Fills `list` with the names of the plugins that have a map for the module, as the first level of the browser shows them. The name of a plugin is
+    /// the one in the header of its map, because the name of its folder has lost the characters that a file name cannot have.
+    pub fn listFx(self: *MftMapStore, io: std.Io, module: MappableModule, list: *BrowserList) void {
+        list.clear();
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, "factory", std.fs.path.sep_str, module.dirName() });
+        var dir = std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true }) catch return;
+        defer dir.close(io);
+        var iter = dir.iterate();
+        while (iter.next(io) catch null) |entry| {
+            if (entry.kind != .directory) continue;
+            var file_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const file_path = std.fmt.bufPrint(&file_path_buf, "{s}/default.ini", .{entry.name}) catch continue;
+            var text_buf: [1024]u8 = undefined;
+            const text = dir.readFile(io, file_path, &text_buf) catch continue;
+            if (fxNameFromHeader(text)) |name| list.add(name);
+        }
+        list.sort();
+    }
+
     pub fn deinit(self: *MftMapStore) void {
         inline for (.{ &self.INPUT, &self.GATE, &self.EQ, &self.COMP, &self.OUTPUT }) |cache| {
             cache.deinit(self.allocator);
@@ -186,6 +207,25 @@ fn parseStripMapping(parser: anytype) !mappings.StripMapping {
     }
     if (!version_found) return error.MissingVersion;
     return strip;
+}
+
+/// The name of the plugin in the header of a map (`fx_name = ...`), or null when the text has none.
+pub fn fxNameFromHeader(text: []const u8) ?[]const u8 {
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        if (!std.mem.startsWith(u8, line, "fx_name")) continue;
+        const eq = std.mem.indexOfScalar(u8, line, '=') orelse continue;
+        const name = std.mem.trim(u8, line[eq + 1 ..], " \t\r");
+        if (name.len > 0) return name;
+    }
+    return null;
+}
+
+test "fxNameFromHeader: the name after fx_name, trimmed, and null for a text without one" {
+    const t = std.testing;
+    try t.expectEqualStrings("VST: ReaEQ (Cockos)", fxNameFromHeader("version = 2\nmodule = EQ\nfx_name = VST: ReaEQ (Cockos)\r\nknob_1 = 0\n").?);
+    try t.expectEqual(@as(?[]const u8, null), fxNameFromHeader("version = 2\nknob_1 = 0\n"));
+    try t.expectEqual(@as(?[]const u8, null), fxNameFromHeader("fx_name =\n"));
 }
 
 /// The value of a knob: a parameter number, or `wet`.
