@@ -28,12 +28,13 @@ pub fn ringByte(normalized: f64) u8 {
 pub const transport_volume_ring = 12;
 pub const transport_pan_ring = 13;
 
-/// The ring of a track volume (a linear factor): the fader's range goes from -60 dB at the bottom to +12 dB at the top, which is the
-/// range that the turns of the volume knob stay in.
+/// The ring of a track volume (a linear factor). Because 0 dB is the position that matters, it is at noon, the middle of the ring: the lower
+/// half goes from -60 dB to 0 dB and the upper half from 0 dB to +12 dB, which is the range that the turns of the volume knob stay in.
 pub fn volumeRingByte(volume: f64) u8 {
     if (std.math.isNan(volume)) return 0;
     const db = 20.0 * @log10(@max(volume, 1e-6));
-    return ringByte((db + 60.0) / 72.0);
+    const position = if (db <= 0.0) 0.5 * (db + 60.0) / 60.0 else 0.5 + 0.5 * db / 12.0;
+    return ringByte(position);
 }
 
 /// The ring of a pan from -1 (left) to 1 (right): the middle is the middle of the ring.
@@ -112,8 +113,10 @@ test "volumeRingByte and panRingByte: the ends and the middle of the fader and o
     const t = std.testing;
     try t.expectEqual(@as(u8, 0), volumeRingByte(0.0));
     try t.expectEqual(@as(u8, 127), volumeRingByte(4.0));
-    // Unity gain is 60 of the 72 dB above the bottom.
-    try t.expectEqual(@as(u8, 105), volumeRingByte(1.0));
+    // Unity gain is at noon, and -30 dB and +6 dB are the middles of the two halves.
+    try t.expectEqual(@as(u8, 63), volumeRingByte(1.0));
+    try t.expectEqual(@as(u8, 31), volumeRingByte(std.math.pow(f64, 10.0, -30.0 / 20.0)));
+    try t.expectEqual(@as(u8, 95), volumeRingByte(std.math.pow(f64, 10.0, 6.0 / 20.0)));
     try t.expect(volumeRingByte(0.5) < volumeRingByte(1.0));
     try t.expectEqual(@as(u8, 0), volumeRingByte(std.math.nan(f64)));
     try t.expectEqual(@as(u8, 0), panRingByte(-1.0));

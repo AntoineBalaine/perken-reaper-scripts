@@ -591,7 +591,7 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = mode_color, .pressed = held });
             const push_mapped = idx < push_count and info.push_mapped[idx];
-            if (view.value_mode != .label) if (view.push_note) |note| if (note.encoder == idx) {
+            if (view.push_note) |note| if (note.encoder == idx) {
                 var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = mode_color };
                 @memcpy(&bubble.text, note.text[0..formatted_len :0]);
                 bubbles.add(bubble);
