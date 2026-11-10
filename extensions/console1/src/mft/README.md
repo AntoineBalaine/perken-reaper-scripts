@@ -12,7 +12,7 @@ drives.
 
 ## Building
 
-The toolchain is Zig 0.14.1.
+The toolchain is Zig 0.17.0, because the extension uses the `std.Io` convention of that version (see `mft_globals.hostIo`).
 
 ```
 zig build mft        # builds reaper_mft.so into zig-out/
@@ -217,9 +217,14 @@ from reaziglib (`zig build mft-test`).
 - Per-plugin sidechain routing. Because each module has eight push encoders
   available, sidechain routing can be exposed per plugin rather than as a global
   gate-to-comp link like the Console One. Deferred as a later feature.
-- A preferences system so settings mode can edit the per-module default plugin,
-  encoder sensitivity, and the LED colors.
 - Full reordering of an FX chain that is already out of order (today only newly
   inserted FX are positioned).
 - Confirm the physical side-button order (L1-L3, R1-R3) against the CC order
   8-13 on hardware; the wizard reports the observed CCs.
+
+## Parity with the Console One
+
+Because the MFT is meant to match the features of the Console One, the work is planned in phases: feedback from REAPER (done: the
+rings follow the parameters, see `mft_feedback.zig`), a page model with a layout table, the shared code in reaziglib, the module pages,
+the TRANSPORT and AUTO pages, track validation, the FX SEL mode, the mapping mode, the settings, and the calibration. The layout of
+each page and the phases are in the interactive mock and plan that were published as an artifact in the design session.
