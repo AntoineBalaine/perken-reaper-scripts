@@ -8,6 +8,7 @@ const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const MappableModule = @import("mft_mappings.zig").MappableModule;
 const mft_fx = @import("mft_fx.zig");
 const mft_feedback = @import("mft_feedback.zig");
+const settings_rows = @import("mft_settings_rows.zig");
 
 // Ring position on channel 1: a byte from 0 to 127. The byte is kept in `globals.feedback`, and a ring that already shows it is not sent
 // again.
@@ -39,6 +40,12 @@ pub fn syncRings(globals: *MftGlobals, force: bool) void {
                 fb.routing = mft_fx.resolveAuto(globals, track);
                 wanted = mft_feedback.wantedFrame(track, &fb.routing);
             }
+        }
+        // On the SETTINGS page, the ring of the first encoder says where the highlight of the rows is, and the ring of the second the value of that row.
+        if (globals.mft.active_module == .SETTINGS) {
+            const cursor: usize = @min(globals.mft.settings_cursor, settings_rows.row_count - 1);
+            wanted[0] = mft_feedback.ringByte(@as(f64, @floatFromInt(cursor)) / @as(f64, @floatFromInt(settings_rows.row_count - 1)));
+            wanted[1] = mft_feedback.ringByte(settings_rows.fraction(&globals.preferences, settings_rows.rows[cursor]));
         }
     }
     // On the transport page the rings of the volume and the pan show those of the track.

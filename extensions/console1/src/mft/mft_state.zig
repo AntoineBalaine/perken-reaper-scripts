@@ -113,8 +113,10 @@ pub const MftState = struct {
     // The FX index of the most recently tweaked parameter, so the side button
     // can toggle that plugin's floating window.
     last_fx_index: ?c_int = null,
-    // The highlighted row in settings mode (0..SETTINGS_ITEM_COUNT-1).
+    // The highlighted row of the settings (see mft_settings_rows.rows).
     settings_cursor: u8 = 0,
+    /// The ticks of the first encoder of the SETTINGS page that have not moved the highlight yet, which keep the sign of the turn.
+    settings_ticks: i16 = 0,
     // Whether the on-screen panel is shown (toggled by side button L2).
     panel_visible: bool = true,
     // Whether an encoder was turned while held in transport mode, so a press was

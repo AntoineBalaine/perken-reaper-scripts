@@ -17,6 +17,7 @@ const mft_fxsel = @import("../mft_fxsel.zig");
 const mft_presets = @import("../mft_presets.zig");
 const browser_source = @import("../mft_browser_source.zig");
 const mft_settings = @import("../mft_settings.zig");
+const settings_rows = @import("../mft_settings_rows.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const mft_feedback = @import("../mft_feedback.zig");
 const log = std.log.scoped(.mft_midi);
@@ -106,7 +107,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 state.setNote("There is no track to load the plugin on.");
                 return;
             };
-            if (mft_fx.loadPlugin(track, state.module, name)) {
+            if (mft_fx.loadPlugin(globals, track, state.module, name)) {
                 if (state.map_return) {
                     // The browser was opened from the mapping panel, which was open all along: it shows the new plugin, with the map that it has.
                     state.map_return = false;
@@ -279,7 +280,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     }
 
     globals.mft.markTurnedIfHeld(cc);
-    const fine: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
+    const fine: f32 = if (globals.mft.isHeld(cc)) globals.preferences.fine else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * fine * globals.preferences.sensitivity;
 
     const track = globals.current_track orelse return;
@@ -304,36 +305,41 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     midi_out.setRing(globals, slot, mft_feedback.ringByte(new_val));
 }
 
-fn wrapHue(cur: u8, delta: i8) u8 {
-    return @intCast(@mod(@as(i16, cur) + delta, 128));
-}
+// How many ticks of the first encoder of the SETTINGS page move the highlight by one row, as the list of the FX Selection counts them.
+const settings_ticks_per_row = 4;
 
-// Settings mode: encoder 1 scrolls the highlighted row, encoder 2 adjusts the
-// selected value. Text (plugin name) rows are edited with the keyboard in the
-// panel, so encoder 2 has no effect on them.
+// The SETTINGS page: the first encoder moves the highlight through the rows, round from the last to the first, one row for a few ticks, and the second one
+// adjusts the highlighted row. The mouse of the panel changes the same values.
 fn settingsRotate(globals: *MftGlobals, slot: u4, delta: i8) void {
     switch (slot) {
         0 => {
-            const n = @as(i16, globals.mft.settings_cursor) + delta;
-            globals.mft.settings_cursor = @intCast(@mod(n, mft_settings.ITEM_COUNT));
+            const total: i32 = @as(i32, globals.mft.settings_ticks) + delta;
+            const steps = @divTrunc(total, settings_ticks_per_row);
+            globals.mft.settings_ticks = @intCast(total - steps * settings_ticks_per_row);
+            if (steps == 0) return;
+            const n: i32 = settings_rows.row_count;
+            globals.mft.settings_cursor = @intCast(@mod(@as(i32, globals.mft.settings_cursor) + steps, n));
         },
-        1 => adjustSelectedSetting(globals, delta),
-        else => {},
+        1 => {
+            const row = settings_rows.rows[@min(globals.mft.settings_cursor, settings_rows.row_count - 1)];
+            settings_rows.adjust(&globals.preferences, row, delta);
+            // A color is sent to the LEDs as it changes.
+            if (row.kind == .hue) sendHue(globals, 0);
+        },
+        else => return,
     }
+    midi_out.syncRings(globals, false);
 }
 
-fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
-    const cursor = globals.mft.settings_cursor;
-    // The colors come first, in the order of the pages, then the sensitivity; the rest are plugin-name rows,
-    // which only the keyboard edits. The mouse of the panel changes the same values through the same functions.
-    if (cursor < mft_state.page_count) {
-        const module: MftActiveModule = @fromBackingInt(@intCast(cursor));
-        const hue = wrapHue(globals.preferences.colorForModule(module), delta);
-        mft_settings.setHue(globals, module, hue);
-    } else if (cursor == mft_settings.SENSITIVITY_ROW) {
-        const next = globals.preferences.sensitivity + @as(f32, @floatFromInt(delta)) * mft_settings.SENSITIVITY_STEP;
-        mft_settings.setSensitivity(globals, next);
+// The pushes of the SETTINGS page: the second one flips a switch or the mode, the seventh saves, and the eighth goes back to the saved values.
+fn settingsPress(globals: *MftGlobals, push: u8) void {
+    switch (push) {
+        1 => settings_rows.flip(&globals.preferences, settings_rows.rows[@min(globals.mft.settings_cursor, settings_rows.row_count - 1)]),
+        6 => mft_settings.save(globals),
+        7 => mft_settings.cancel(globals),
+        else => return,
     }
+    midi_out.syncRings(globals, false);
 }
 
 // Sends a hue to the LEDs of the controller, when it is connected. The settings install it as the way to send colors.
@@ -407,7 +413,10 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
                 globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
                 transportButton(globals, @intCast(cc), pressed);
             },
-            .SETTINGS => {},
+            .SETTINGS => {
+                globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
+                if (pressed) settingsPress(globals, cc);
+            },
             .AUTO => {
                 globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
                 if (pressed) autoPress(globals, @intCast(cc));
@@ -421,11 +430,11 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     const module = mft_state.pageForEncoder(cc) orelse return;
     globals.mft.active_module = module;
 
-    // Switching to a mappable module auto-inserts its default plugins onto the
-    // current track if absent, matching the Console One behavior.
-    if (MappableModule.fromActive(module)) |mappable| {
-        if (globals.current_track) |track| {
-            mft_fx.ensureModuleFx(globals, track, mappable);
+    // Switching to a mappable module inserts its default plugins onto the current track if absent, matching the Console One behavior, unless the
+    // settings turned the auto insert off.
+    if (globals.preferences.auto_insert) {
+        if (MappableModule.fromActive(module)) |mappable| {
+            if (globals.current_track) |track| mft_fx.ensureModuleFx(globals, track, mappable);
         }
     }
 

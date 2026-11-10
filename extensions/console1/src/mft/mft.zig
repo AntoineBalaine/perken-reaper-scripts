@@ -9,7 +9,6 @@ pub const SIDE_BTN_CHANNEL: u8 = 0x03;
 pub const COLOR_CHANNEL: u8 = 0x01;
 
 pub const BASE_SENSITIVITY: f32 = 1.0 / 127.0;
-pub const FINE_SENSITIVITY_MULTIPLIER: f32 = 0.1;
 
 pub const ModuleBtnCC = enum(u8) {
     INPUT = 8,

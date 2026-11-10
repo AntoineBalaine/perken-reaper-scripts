@@ -8,8 +8,8 @@ const plugin_list = @import("mft_plugin_list.zig");
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
-const page_count = @import("mft_state.zig").page_count;
 const colors = @import("mft_colors.zig");
+const rows_mod = @import("mft_settings_rows.zig");
 const rgba = @import("ui_palette").rgba;
 const log = std.log.scoped(.mft_settings);
 const MockImGui = @import("mock_imgui").MockImGui;
@@ -21,17 +21,21 @@ const MockImGui = @import("mock_imgui").MockImGui;
 // discarding edits.
 
 const NAME_LEN = 256;
-var buffers: [5][NAME_LEN:0]u8 = undefined;
+/// The edit buffers of the default plugins: the five modules, then the channel strip.
+var buffers: [6][NAME_LEN:0]u8 = undefined;
 var synced = false;
+const strip_slot = 5;
 
-// The rows that can be selected: a color for each page, then the sensitivity, then the five plugin names. The first row of each group
-// follows from the number of pages.
-pub const SENSITIVITY_ROW: i16 = page_count;
-pub const PLUGIN_ROW: i16 = page_count + 1;
-pub const ITEM_COUNT: i16 = PLUGIN_ROW + 5;
+const NAME_IDS = [6][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out", "##strip" };
 
-const SLOT_LABELS = [5][:0]const u8{ "Input", "Gate", "EQ", "Comp", "Output" };
-const NAME_IDS = [5][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out" };
+/// What the last key of the panel did, which the panel says under its plates.
+var status: [96:0]u8 = @splat(0);
+
+fn setStatus(text: []const u8) void {
+    const n = @min(text.len, status.len);
+    @memcpy(status[0..n], text[0..n]);
+    status[n] = 0;
+}
 
 /// Sends the hue of a module to the controller's LEDs. Because the sending needs the MIDI output, which the unit tests
 /// cannot link, the control surface installs it when it starts, and the tests leave it empty.
@@ -102,10 +106,14 @@ fn ensureSynced(globals: *MftGlobals) void {
     copyInto(&buffers[2], p.default_eq);
     copyInto(&buffers[3], p.default_comp);
     copyInto(&buffers[4], p.default_output);
+    copyInto(&buffers[strip_slot], p.default_strip);
     synced = true;
 }
 
-fn save(globals: *MftGlobals) void {
+/// Writes the settings to preferences.ini, the default plugins being the ones chosen in the panel. The key of the panel and the push of the encoder 7 of
+/// the SETTINGS page do it.
+pub fn save(globals: *MftGlobals) void {
+    ensureSynced(globals);
     const io = mft_globals.hostIo();
     const p = &globals.preferences;
     // Point the preference strings at the (static) edit buffers, then persist.
@@ -114,18 +122,25 @@ fn save(globals: *MftGlobals) void {
     p.default_eq = bufSlice(2);
     p.default_comp = bufSlice(3);
     p.default_output = bufSlice(4);
+    p.default_strip = bufSlice(strip_slot);
     p.saveToDisk(io, globals.resource_path) catch |err| {
         log.err("failed to save preferences: {s}", .{@errorName(err)});
+        setStatus("The settings could not be saved to preferences.ini.");
+        return;
     };
+    setStatus("Saved to preferences.ini.");
 }
 
-fn cancel(globals: *MftGlobals) void {
+/// Reads preferences.ini again, which drops the edits. The key of the panel and the push of the encoder 8 of the SETTINGS page do it.
+pub fn cancel(globals: *MftGlobals) void {
     const io = mft_globals.hostIo();
     // Reload from disk, discarding edits (numeric and text).
     if (MftPreferences.load(globals.arena.allocator(), io, globals.resource_path)) |reloaded| {
         globals.preferences = reloaded;
     } else |_| {}
     synced = false;
+    if (send_hue) |send| send(globals, 0);
+    setStatus("Back to the saved values.");
 }
 
 // The width of the screen that names a row of the form, and the size of the bar that shows its value.
@@ -134,11 +149,6 @@ const BAR_W: f64 = 280.0;
 const BAR_H: f64 = 22.0;
 // How many segments the bar of a hue is cut into, to show the wheel of the controller's LEDs.
 const WHEEL_SEGMENTS: usize = 64;
-
-// Draws a row of the form on a recessed screen, lit with the card's accent when it is the selected row.
-fn row(kit: *widgets.Panel, selected: bool, text: [:0]const u8) void {
-    widgets.display(kit, text, if (selected) widgets.accent(kit) else theme.text_dim, ROW_W);
-}
 
 // A bar that shows a position from 0 to 1 with a thumb, and that a click or a drag with the mouse moves. Returns the
 // position after the mouse, or null when the mouse does not hold the bar. A bar with a `fill` fills up to the thumb in
@@ -208,52 +218,183 @@ fn pluginChoices(kit: *widgets.Panel, slot: usize) !void {
     }
 }
 
-// The form is a card with the accent of the settings module.
-pub fn drawForm(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void {
-    ensureSynced(globals);
+// ---- the panel ----
+//
+// The window of the SETTINGS page, as the mock of the design has it: a bar of round keys at the left (save, cancel, and the install of the factory presets),
+// and a plate for each group of rows. The row that the first encoder is on is lit, a click on a row puts it there, and its value is changed with the second
+// encoder or with the mouse.
+
+const label_w: f64 = 170;
+const plate_w: f64 = label_w + BAR_W + 90;
+
+/// The round keys of the bar.
+const Key = enum { save, cancel, install };
+
+fn drawKey(kit: *widgets.Panel, key: Key, enabled: bool, tip: [:0]const u8) bool {
+    const ctx = kit.ctx;
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const at = widgets.cursorScreenPos(kit);
+    const size: f64 = 32;
+    const id: [:0]const u8 = switch (key) {
+        .save => "##stsave",
+        .cancel => "##stcancel",
+        .install => "##stinstall",
+    };
+    const clicked = imgui.api.InvisibleButton(ctx, id, size, size, null);
+    const hovered = imgui.api.IsItemHovered(ctx, null);
+    const cx = at.x + size / 2;
+    const cy = at.y + size / 2;
+    widgets.circleFilled(dl, cx, cy + 2, size / 2, rgba(0x00000099));
+    widgets.circleFilled(dl, cx, cy, size / 2, theme.knob_top);
+    widgets.circle(dl, cx, cy, size / 2, if (hovered and enabled) theme.amber else theme.knob_edge, 1);
+    const tone = if (!enabled) theme.text_dim else if (hovered) theme.amber else theme.label;
+    switch (key) {
+        .save => {
+            widgets.line(dl, cx - 6, cy + 0.5, cx - 2, cy + 4.5, tone, 1.9);
+            widgets.line(dl, cx - 2, cy + 4.5, cx + 6, cy - 4, tone, 1.9);
+        },
+        .cancel => {
+            widgets.line(dl, cx - 5, cy - 5, cx + 5, cy + 5, tone, 1.9);
+            widgets.line(dl, cx - 5, cy + 5, cx + 5, cy - 5, tone, 1.9);
+        },
+        .install => {
+            widgets.line(dl, cx, cy - 6, cx, cy + 3, tone, 1.9);
+            widgets.line(dl, cx - 4, cy - 1, cx, cy + 3, tone, 1.9);
+            widgets.line(dl, cx + 4, cy - 1, cx, cy + 3, tone, 1.9);
+            widgets.line(dl, cx - 6, cy + 6, cx + 6, cy + 6, tone, 1.9);
+        },
+    }
+    if (hovered) widgets.tooltip(kit, tip);
+    return clicked and enabled;
+}
+
+/// The two choices of the default mode, side by side, the one that is chosen being lit. It returns the choice that was clicked, or null.
+fn rocker(kit: *widgets.Panel, single: bool) ?bool {
+    const ctx = kit.ctx;
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const choices = [2][:0]const u8{ "Multi FX", "Single FX" };
+    var picked: ?bool = null;
+    const pushed = widgets.pushLabelFont(kit);
+    defer widgets.popFont(kit, pushed);
+    const height = imgui.api.GetTextLineHeight(ctx) + 8;
+    const width: f64 = 96;
+    const at = widgets.cursorScreenPos(kit);
+    for (choices, 0..) |choice, i| {
+        const x = at.x + @as(f64, @floatFromInt(i)) * width;
+        imgui.api.SetCursorScreenPos(ctx, x, at.y);
+        const chosen = (i == 1) == single;
+        if (imgui.api.InvisibleButton(ctx, if (i == 0) "##stmulti" else "##stsingle", width, height, null)) picked = i == 1;
+        const hovered = imgui.api.IsItemHovered(ctx, null);
+        widgets.rectFilled(dl, x, at.y, x + width, at.y + height, if (chosen) widgets.faded(widgets.accent(kit), 0x55) else theme.slot_bg, 4);
+        widgets.rect(dl, x, at.y, x + width, at.y + height, if (hovered) widgets.accent(kit) else theme.slot_edge, 4, 1);
+        const size = widgets.textSize(kit, choice);
+        imgui.api.DrawList_AddText(dl, x + (width - size.w) / 2, at.y + (height - size.h) / 2, if (chosen) theme.text else theme.text_dim, choice);
+    }
+    return picked;
+}
+
+/// One row: its name, lit when the first encoder is on it, and its value. A click on the name puts the encoder there.
+fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
     const ctx = kit.ctx;
     const p = &globals.preferences;
-    const cursor = globals.mft.settings_cursor;
-    var buf: [96:0]u8 = undefined;
+    const r = rows_mod.rows[index];
+    const selected = globals.mft.settings_cursor == index;
+    var name_buf: [64:0]u8 = undefined;
+    const name = std.mem.printSentinel(&name_buf, "{s}##strow{d}", .{ r.label, index }, 0) catch "?";
+    var lit = selected;
+    var w: f64 = label_w;
+    var h: f64 = 0;
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (r.kind == .not_done) theme.text_dim else theme.text);
+    if (imgui.api.Selectable(ctx, name, &lit, null, &w, &h)) globals.mft.settings_cursor = @intCast(index);
+    var popped: c_int = 1;
+    imgui.api.PopStyleColor(ctx, &popped);
+    imgui.api.SameLine(ctx, null, null);
+    var buf: [32:0]u8 = undefined;
+    switch (r.kind) {
+        .hue => {
+            const hue = rows_mod.hue(p, r.setting);
+            if (bar(kit, r.label, @as(f64, @floatFromInt(hue)) / @as(f64, HUE_MAX), null)) |moved| {
+                globals.mft.settings_cursor = @intCast(index);
+                const next = hueAtFraction(moved);
+                if (next != hue) {
+                    rows_mod.setHue(p, r.setting, next);
+                    if (send_hue) |send| send(globals, next);
+                }
+            }
+            imgui.api.SameLine(ctx, null, null);
+            imgui.api.TextColored(ctx, colors.hueToRgb(hue), std.mem.printSentinel(&buf, "{d:>3}", .{hue}, 0) catch "");
+        },
+        .number => {
+            const fraction = rows_mod.fraction(p, r);
+            if (bar(kit, r.label, fraction, widgets.accent(kit))) |moved| {
+                globals.mft.settings_cursor = @intCast(index);
+                switch (r.setting) {
+                    .sensitivity => p.sensitivity = sensitivityAtFraction(moved),
+                    .fine => p.fine = std.math.clamp(@as(f32, @floatCast(@round((rows_mod.fine_min + moved * (rows_mod.fine_max - rows_mod.fine_min)) / rows_mod.fine_step) * rows_mod.fine_step)), rows_mod.fine_min, rows_mod.fine_max),
+                    else => unreachable,
+                }
+            }
+            imgui.api.SameLine(ctx, null, null);
+            const value: f32 = if (r.setting == .sensitivity) p.sensitivity else p.fine;
+            imgui.api.TextColored(ctx, widgets.accent(kit), std.mem.printSentinel(&buf, "{d:.2}", .{value}, 0) catch "");
+        },
+        .toggle => {
+            var value = rows_mod.toggleValue(p, r.setting);
+            var toggle_buf: [40:0]u8 = undefined;
+            const toggle_label = std.mem.printSentinel(&toggle_buf, "{s}##sttoggle{d}", .{ if (value) "On" else "Off", index }, 0) catch "?";
+            if (widgets.toggle(kit, toggle_label, &value)) {
+                globals.mft.settings_cursor = @intCast(index);
+                rows_mod.setToggle(p, r.setting, value);
+            }
+        },
+        .plugin => try pluginPicker(kit, rows_mod.pluginSlot(r.setting) orelse strip_slot),
+        .mode => if (rocker(kit, p.single_fx_mode)) |single| {
+            globals.mft.settings_cursor = @intCast(index);
+            p.single_fx_mode = single;
+        },
+        .not_done => {
+            imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.text_dim);
+            imgui.api.Text(ctx, "not done yet");
+            imgui.api.PopStyleColor(ctx, &popped);
+        },
+    }
+}
 
-    if (!widgets.beginCard(kit, "Settings", null, null, accent)) return;
-    defer widgets.endCard(kit);
+/// Draws the panel of the settings inside a window that the caller began: the bar of keys, and a plate for each group of rows, as many to a row as
+/// the window has room for.
+pub fn drawPanel(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void {
+    ensureSynced(globals);
+    const ctx = kit.ctx;
+    imgui.api.BeginGroup(ctx);
+    imgui.api.Spacing(ctx);
+    imgui.api.Spacing(ctx);
+    if (drawKey(kit, .save, true, "Save the settings")) save(globals);
+    if (drawKey(kit, .cancel, true, "Cancel: back to the saved values")) cancel(globals);
+    _ = drawKey(kit, .install, false, "Install the factory presets (not done yet: the maps are installed by build-install.sh)");
+    imgui.api.EndGroup(ctx);
+    imgui.api.SameLine(ctx, null, null);
 
-    imgui.api.TextColored(ctx, theme.grey, "Click or drag a bar, or scroll with encoder 1 and adjust with encoder 2");
-    // A hue is shown on a bar that has the wheel of the controller's LEDs, and the number after it is in that color.
-    inline for (@typeInfo(MftActiveModule).@"enum".field_names, @typeInfo(MftActiveModule).@"enum".field_values, 0..) |field_name, field_value, i| {
-        const module: MftActiveModule = @fromBackingInt(@intCast(field_value));
-        const hue = p.colorForModule(module);
-        row(kit, cursor == i, std.mem.printSentinel(&buf, "{s} color", .{field_name}, 0) catch "color");
-        imgui.api.SameLine(ctx, null, null);
-        if (bar(kit, field_name, @as(f64, @floatFromInt(hue)) / @as(f64, HUE_MAX), null)) |moved| {
-            const next = hueAtFraction(moved);
-            if (next != hue) setHue(globals, module, next);
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    var available_w: f64 = 0;
+    var available_h: f64 = 0;
+    imgui.api.GetContentRegionAvail(ctx, &available_w, &available_h);
+    const per_row: usize = @max(1, @as(usize, @intFromFloat(@max((available_w + 14) / (plate_w + 14), 1))));
+    var placed: usize = 0;
+    inline for (@typeInfo(rows_mod.Group).@"enum".field_names) |field_name| {
+        const group = @field(rows_mod.Group, field_name);
+        var gap: f64 = 14;
+        if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &gap);
+        placed += 1;
+        if (widgets.beginCard(kit, group.title(), plate_w, null, accent)) {
+            defer widgets.endCard(kit);
+            for (rows_mod.rows, 0..) |r, i| {
+                if (r.group == group) try drawRow(kit, globals, i);
+            }
         }
-        imgui.api.SameLine(ctx, null, null);
-        imgui.api.TextColored(ctx, colors.hueToRgb(p.colorForModule(module)), std.mem.printSentinel(&buf, "{d:>3}", .{p.colorForModule(module)}, 0) catch "");
     }
-    row(kit, cursor == SENSITIVITY_ROW, "Sensitivity");
-    imgui.api.SameLine(ctx, null, null);
-    if (bar(kit, "sensitivity", (p.sensitivity - SENSITIVITY_MIN) / (SENSITIVITY_MAX - SENSITIVITY_MIN), accent)) |moved| {
-        const next = sensitivityAtFraction(moved);
-        if (next != p.sensitivity) setSensitivity(globals, next);
-    }
-    imgui.api.SameLine(ctx, null, null);
-    imgui.api.TextColored(ctx, accent, std.mem.printSentinel(&buf, "{d:.2}", .{p.sensitivity}, 0) catch "");
-
-    imgui.api.Spacing(ctx);
-    imgui.api.TextColored(ctx, theme.grey, "Default plugin per slot (keyboard):");
-    for (0..5) |i| {
-        row(kit, cursor == PLUGIN_ROW + @as(i16, @intCast(i)), SLOT_LABELS[i]);
-        imgui.api.SameLine(ctx, null, null);
-        try pluginPicker(kit, i);
-    }
-
-    imgui.api.Spacing(ctx);
-    if (widgets.pushButton(kit, "Save settings", 0)) save(globals);
-    imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(kit, "Cancel", 0)) cancel(globals);
+    const text = std.mem.sliceTo(&status, 0);
+    if (text.len > 0) imgui.api.TextColored(ctx, theme.amber, text);
 }
 
 const test_plugins = [_][:0]const u8{ "VST: ReaGate (Cockos)", "JS: Saturation", "VST: ReaEQ (Cockos)" };

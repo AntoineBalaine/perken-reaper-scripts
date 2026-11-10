@@ -119,6 +119,8 @@ pub const View = struct {
     held: u16 = 0,
     /// The encoders whose value is shown in a pop-up, one bit each: the ones that the mouse is over, that are held or
     /// have just been turned, and those that were a moment ago.
+    /// On the SETTINGS page: where the highlight of the rows is, the value of the highlighted row (both from 0 to 1), and its name.
+    settings: ?SettingsView = null,
     /// While the FX SEL mode is open, what the window of each encoder says, and the color of the mode. Null otherwise.
     fxsel_labels: ?[16]mft_fxsel.Label = null,
     fxsel_color: c_int = 0,
@@ -140,6 +142,9 @@ pub const View = struct {
         return self.colors[@backingInt(module)];
     }
 };
+
+/// What the encoders of the SETTINGS page show.
+pub const SettingsView = struct { cursor: f64 = 0, value: f64 = 0, row_label: [:0]const u8 = "-" };
 
 /// What the player did with the buttons of the corner during the frame, and where the device ended, so that the panel
 /// can draw what follows it.
@@ -567,9 +572,31 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             drawDualLabel(kit, dl, cell.cx, cell.label_y, mft_transport.rotationLabel(idx), mft_transport.pressLabel(idx), mode_color, 1, view.turn_lit & bit != 0, pressed, theme.text_dim);
         },
         .SETTINGS => {
-            // The settings mode: the encoders move the form, so the ring shows nothing and the LED is off.
-            drawEncoder(dl, cell.cx, cell.cy, .{ .color = mode_color, .pressed = held });
-            drawLedLabel(kit, dl, cell.cx, cell.label_y, null, null, mode_color, 0);
+            // The first encoder scrolls the rows, and its ring says where the highlight is; the second adjusts the highlighted row, whose name is on
+            // its window, and its push flips a switch; the pushes 7 and 8 save and cancel. The others do nothing.
+            const settings = view.settings orelse SettingsView{};
+            const value: ?f64 = switch (idx) {
+                0 => settings.cursor,
+                1 => settings.value,
+                else => null,
+            };
+            drawEncoder(dl, cell.cx, cell.cy, .{ .value = value, .color = mode_color, .pressed = held });
+            const turn: ?[:0]const u8 = switch (idx) {
+                0 => "Row",
+                1 => settings.row_label,
+                else => null,
+            };
+            const press: [:0]const u8 = switch (idx) {
+                1 => "Flip",
+                6 => "Save",
+                7 => "Cancel",
+                else => "-",
+            };
+            if (turn == null and std.mem.eql(u8, press, "-")) {
+                drawLedLabel(kit, dl, cell.cx, cell.label_y, null, null, mode_color, 0);
+            } else {
+                drawDualLabel(kit, dl, cell.cx, cell.label_y, turn, press, mode_color, 1, false, held, theme.text_dim);
+            }
         },
         else => {
             const info = &view.knobs;

@@ -21,6 +21,7 @@ const fx_browser = @import("fx_browser");
 const colors = @import("mft_colors.zig");
 const mft_port = @import("mft_port.zig");
 const mft_auto = @import("mft_auto.zig");
+const settings_rows = @import("mft_settings_rows.zig");
 const rgba = @import("ui_palette").rgba;
 const pi = std.math.pi;
 const log = std.log.scoped(.mft_imgui);
@@ -199,6 +200,31 @@ fn drawWindows(globals: *MftGlobals) !void {
     try draw(globals);
     try drawFxSelWindow(globals);
     try drawMappingWindow(globals);
+    try drawSettingsWindow(globals);
+}
+
+// The window of the settings has its own kit state, as the other windows do.
+var settings_kit: widgets.Panel = .{};
+
+/// The window of the SETTINGS page, which is a window of its own, as the mapping panel is, and is shown while the page is in use.
+fn drawSettingsWindow(globals: *MftGlobals) !void {
+    if (globals.mft.active_module != .SETTINGS or globals.mft.fxsel != null) return;
+    settings_kit.ctx = ctx;
+    settings_kit.fonts = fonts;
+    theme.push(ctx);
+    defer theme.pop(ctx);
+    if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
+    defer if (fonts.text != null) imgui.api.PopFont(ctx);
+    imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
+    imgui.api.SetNextWindowSize(ctx, 1200, 760, &imgui.Cond_FirstUseEver);
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 16, 16);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar;
+    const visible = try imgui.Begin(.{ ctx, "MFT Settings", null, flags });
+    var window_vars: c_int = 1;
+    imgui.api.PopStyleVar(ctx, &window_vars);
+    if (!visible) return;
+    defer imgui.End(.{ctx}) catch {};
+    try mft_settings.drawPanel(&settings_kit, globals, moduleColor(globals, .SETTINGS));
 }
 
 // Forgets the context and what was made in it: the fonts and the kit's state belong to it.
@@ -207,6 +233,7 @@ fn dropContext() void {
     fonts = .{};
     kit = .{};
     fxsel_kit = .{};
+    settings_kit = .{};
 }
 
 /// Where the window opens the first time, in pixels from the top left of the screen.
@@ -280,18 +307,15 @@ fn draw(globals: *MftGlobals) !void {
 
     // The settings form and the calibration card belong to the settings mode, and are not shown in the others, unless
     // a calibration is under way. Because a folded device is its header row alone, nothing is under it then.
-    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active);
+    const show_cards = !folded and globals.wizard.active;
     if (show_cards) {
         imgui.api.SetCursorScreenPos(ctx, response.left, response.bottom + cards_gap);
         imgui.api.Dummy(ctx, 1, 1);
     }
     // Settings mode draws its form under the device; otherwise the buffers stay synced from preferences for the next
     // time it is opened.
-    if (show_cards and active == .SETTINGS) {
-        try mft_settings.drawForm(&kit, globals, moduleColor(globals, active));
-    } else {
-        mft_settings.markUnsynced();
-    }
+    // The settings have a window of their own; otherwise the buffers stay synced from the preferences for the next time it is opened.
+    if (active != .SETTINGS) mft_settings.markUnsynced();
     if (show_cards) drawWizard(globals);
 }
 
@@ -1332,11 +1356,20 @@ fn readView(globals: *MftGlobals) device.View {
         .online = globals.online,
         .collapsed = folded,
     };
+    if (active == .SETTINGS) {
+        const cursor: usize = @min(globals.mft.settings_cursor, settings_rows.row_count - 1);
+        const row = settings_rows.rows[cursor];
+        view.settings = .{
+            .cursor = @as(f64, @floatFromInt(cursor)) / @as(f64, @floatFromInt(settings_rows.row_count - 1)),
+            .value = settings_rows.fraction(&globals.preferences, row),
+            .row_label = row.label,
+        };
+    }
     if (globals.mft.fxsel) |*state| {
         var labels: [16]mft_fxsel.Label = undefined;
         for (&labels, 0..) |*each, i| each.* = mft_fxsel.label(state, i);
         view.fxsel_labels = labels;
-        view.fxsel_color = colors.hueToRgb(mft_fxsel.hue);
+        view.fxsel_color = colors.hueToRgb(globals.preferences.color_fxsel);
     }
     return view;
 }
@@ -1532,7 +1565,7 @@ test "dropping the context takes the fonts and the kit's state with it" {
     try std.testing.expect(fonts.text == null);
 }
 
-test "the settings form leaves the stacks balanced wherever the cursor is" {
+test "the settings have a window of their own, which leaves the stacks balanced on every row, with every switch on and off" {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -1540,11 +1573,17 @@ test "the settings form leaves the stacks balanced wherever the cursor is" {
 
     var globals: MftGlobals = .{};
     globals.mft.active_module = .SETTINGS;
-    // A color row, the sensitivity, the first and the last plugin name.
-    for ([_]i16{ 0, mft_settings.SENSITIVITY_ROW, mft_settings.PLUGIN_ROW, mft_settings.ITEM_COUNT - 1 }) |cursor| {
+    for (0..settings_rows.row_count) |cursor| {
         globals.mft.settings_cursor = @intCast(cursor);
-        try draw(&globals);
+        try drawWindows(&globals);
     }
+    globals.preferences.single_fx_mode = true;
+    globals.preferences.auto_insert = false;
+    globals.preferences.show_plugin_ui = true;
+    try drawWindows(&globals);
+    // A click on the key that cancels reads the file again, and the panel says so.
+    mock.click("##stcancel");
+    try drawWindows(&globals);
     try mock.assertBalanced();
 }
 

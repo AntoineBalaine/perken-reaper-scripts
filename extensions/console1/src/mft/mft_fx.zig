@@ -406,12 +406,13 @@ fn insertDefaultStrip(globals: *MftGlobals, track: reaper.MediaTrack) bool {
         return false;
     }
     setSlotSuffix(track, index, name, .strip);
+    afterInsert(globals, track, index);
     return true;
 }
 
 // Loads a plugin into the slot of a module: the plugin that the slot has is replaced by the new one, which takes its place in the chain. Returns
 // false when the track has a channel strip, which does the work of the modules, or when the plugin could not be added.
-pub fn loadPlugin(track: reaper.MediaTrack, module: MappableModule, fx_name: [:0]const u8) bool {
+pub fn loadPlugin(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule, fx_name: [:0]const u8) bool {
     if (findStrip(track) != null) return false;
     const slot = slotsFor(module)[0];
     // The new plugin goes where the old one was, and at the place that the order of the slots gives when there was none.
@@ -431,7 +432,14 @@ pub fn loadPlugin(track: reaper.MediaTrack, module: MappableModule, fx_name: [:0
     const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
     if (index < 0) return false;
     setSlotSuffix(track, index, fx_name, slot);
+    afterInsert(globals, track, index);
     return true;
+}
+
+// What the preferences ask of a plugin that the controller has just inserted: that it be bypassed, and that its window open.
+fn afterInsert(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: c_int) void {
+    if (globals.preferences.auto_insert_bypassed) reaper.TrackFX_SetEnabled(track, fx_index, false);
+    if (globals.preferences.show_plugin_ui) reaper.TrackFX_Show(track, fx_index, SHOW_FLOATING);
 }
 
 // Ensure each slot the module drives has a suffixed FX on the track. A missing
@@ -458,6 +466,7 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
         const new_idx = reaper.TrackFX_AddByName(track, name, false, instantiate);
         if (new_idx < 0) continue;
         setSlotSuffix(track, new_idx, name, slot);
+        afterInsert(globals, track, new_idx);
     }
 }
 

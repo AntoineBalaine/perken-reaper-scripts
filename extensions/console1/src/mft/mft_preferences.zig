@@ -19,6 +19,15 @@ pub const MftPreferences = struct {
     default_strip: [:0]const u8 = "",
     // Multiplier on the base per-click step, 0.1 to 4.0.
     sensitivity: f32 = 1.0,
+    /// How much smaller the step of a knob is while its push is held, which is the fine adjustment: from 0.01 to 1.
+    fine: f32 = 0.1,
+    /// Whether a message says in REAPER's console that the controller is ready, when the surface starts.
+    startup_message: bool = false,
+    /// Whether the window of a plugin opens when the controller inserts it.
+    show_plugin_ui: bool = false,
+    /// Whether a module button inserts the default plugin of the module on a track that has none, and whether that plugin is inserted bypassed.
+    auto_insert: bool = true,
+    auto_insert_bypassed: bool = false,
     // Hue positions on the MFT color wheel (channel 2).
     color_input: u8 = 0x0F,
     // Pinker than the comp's red, which 0x5A (90) and 0x5E (94) were too close to.
@@ -29,6 +38,8 @@ pub const MftPreferences = struct {
     color_transport: u8 = 0x6B,
     color_auto: u8 = 0x19,
     color_output: u8 = 0x2E,
+    /// The color of the LEDs and of the panel in the FX Selection mode.
+    color_fxsel: u8 = 0x2B,
 
     pub fn colorForModule(self: *const MftPreferences, module: MftActiveModule) u8 {
         return switch (module) {
@@ -57,7 +68,7 @@ pub const MftPreferences = struct {
     /// output) keep the color of their module, so that they can be told apart, and the others have the color of the mode.
     pub fn fxselHues(self: *const MftPreferences) [16]u8 {
         const fxsel = @import("mft_fxsel.zig");
-        var hues: [16]u8 = @splat(fxsel.hue);
+        var hues: [16]u8 = @splat(self.color_fxsel);
         for (8..16) |encoder| {
             if (fxsel.moduleForEncoder(encoder) != null) hues[encoder] = self.colorForModule(@fromBackingInt(@intCast(encoder - 8)));
         }
@@ -112,7 +123,13 @@ pub const MftPreferences = struct {
 
         try w.writeAll("; MFT preferences\n");
         try w.print("sensitivity = {d:.2}\n", .{self.sensitivity});
-        try w.print("single_fx_mode = {s}\n", .{if (self.single_fx_mode) "true" else "false"});
+        try w.print("fine = {d:.2}\n", .{self.fine});
+        try w.print("single_fx_mode = {s}\n", .{boolText(self.single_fx_mode)});
+        try w.print("startup_message = {s}\n", .{boolText(self.startup_message)});
+        try w.print("show_plugin_ui = {s}\n", .{boolText(self.show_plugin_ui)});
+        try w.print("auto_insert = {s}\n", .{boolText(self.auto_insert)});
+        try w.print("auto_insert_bypassed = {s}\n", .{boolText(self.auto_insert_bypassed)});
+        try w.print("color_fxsel = {d}\n", .{self.color_fxsel});
         try w.print("color_input = {d}\n", .{self.color_input});
         try w.print("color_gate = {d}\n", .{self.color_gate});
         try w.print("color_eq = {d}\n", .{self.color_eq});
@@ -131,6 +148,10 @@ pub const MftPreferences = struct {
     }
 };
 
+fn boolText(value: bool) []const u8 {
+    return if (value) "true" else "false";
+}
+
 const Section = enum { none, input, gate, eq, comp, output, strip };
 
 fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !void {
@@ -145,6 +166,18 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
                     self.sensitivity = std.fmt.parseFloat(f32, kv.value) catch self.sensitivity;
                 } else if (std.mem.eql(u8, kv.key, "single_fx_mode")) {
                     self.single_fx_mode = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "fine")) {
+                    self.fine = std.math.clamp(std.fmt.parseFloat(f32, kv.value) catch self.fine, 0.01, 1.0);
+                } else if (std.mem.eql(u8, kv.key, "startup_message")) {
+                    self.startup_message = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "show_plugin_ui")) {
+                    self.show_plugin_ui = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "auto_insert")) {
+                    self.auto_insert = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "auto_insert_bypassed")) {
+                    self.auto_insert_bypassed = std.mem.eql(u8, kv.value, "true");
+                } else if (std.mem.eql(u8, kv.key, "color_fxsel")) {
+                    self.color_fxsel = std.fmt.parseInt(u8, kv.value, 10) catch self.color_fxsel;
                 } else if (std.mem.eql(u8, kv.key, "color_io")) {
                     // Because the input and the output were one page in the older files, their color is the color of both.
                     self.color_input = std.fmt.parseInt(u8, kv.value, 10) catch self.color_input;
@@ -271,4 +304,29 @@ test "fxselHues: the module buttons keep their colors, and the other encoders ha
     try t.expectEqual(mode_hue, hues[13]);
     try t.expectEqual(mode_hue, hues[14]);
     try t.expectEqual(@as(u8, 44), hues[15]);
+}
+
+test "MftPreferences: the options of the settings panel are read, and kept in their ranges" {
+    const t = std.testing;
+    const example =
+        \\fine = 5
+        \\startup_message = true
+        \\show_plugin_ui = true
+        \\auto_insert = false
+        \\auto_insert_bypassed = true
+        \\color_fxsel = 77
+    ;
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+    var prefs = MftPreferences{};
+    try parse(&prefs, &parser, t.allocator);
+    try t.expectEqual(@as(f32, 1.0), prefs.fine);
+    try t.expect(prefs.startup_message and prefs.show_plugin_ui and !prefs.auto_insert and prefs.auto_insert_bypassed);
+    try t.expectEqual(@as(u8, 77), prefs.color_fxsel);
+    try t.expectEqual(@as(u8, 77), prefs.fxselHues()[0]);
+    // Without the lines, the controller inserts plugins, not bypassed, and the fine step is a tenth.
+    const defaults = MftPreferences{};
+    try t.expect(defaults.auto_insert and !defaults.auto_insert_bypassed);
+    try t.expectEqual(@as(f32, 0.1), defaults.fine);
 }

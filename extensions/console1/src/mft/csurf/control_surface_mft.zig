@@ -64,6 +64,8 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         midi_out.clearAll(mo);
         midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
         midi_out.syncRings(globals, true);
+        // The settings can ask for a line in REAPER's console that says that the controller is ready.
+        if (globals.preferences.startup_message) reaper.ShowConsoleMsg("MIDI Fighter Twister: connected and ready.\n");
     } else {
         log.err("couldn’t create midi out", .{});
     }
