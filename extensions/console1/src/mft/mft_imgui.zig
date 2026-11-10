@@ -483,7 +483,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             const mapped_height = @max(room - menus_height - 8, fxselCardHeight(line_height, 3));
             const mapped_rows = fxselRowsFor(line_height, mapped_height);
             fxsel_page_rows = mapped_rows;
-            if (widgets.beginCard(k, "Mapped plugins", card_w, mapped_height, accent)) {
+            if (widgets.beginCard(k, if (state.strip_target) "Channel strips with a map" else "Mapped plugins", card_w, mapped_height, accent)) {
                 defer widgets.endCard(k);
                 if (state.browser.count == 0) try imgui.Text(.{ ctx, "No plugin has a map for this module." });
                 const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, mapped_rows);
@@ -667,7 +667,7 @@ fn learnSelectRow(id: [:0]const u8, full: [:0]const u8, width: f64, selected: bo
 /// Choosing a parameter puts the control in focus and gives it the parameter. It returns whether the mapping changed.
 fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, control: usize, x: f64, y: f64, width: f64) !bool {
     const mi = mft_fxsel.moduleIndex(module);
-    const fx = state.map_fx_index[mi];
+    const fx = mft_fxsel.mapFx(state, module);
     var id: [32:0]u8 = undefined;
     _ = std.mem.printSentinel(&id, "##map{d}_{d}", .{ mi, control }, 0) catch return false;
     var param_buf: [96:0]u8 = undefined;
@@ -748,7 +748,7 @@ fn mapTextWidth(text: [:0]const u8) f64 {
 fn drawMapCell(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, index: usize, x0: f64, y0: f64, layout: MapCellLayout, color: c_int, changed: *bool) !void {
     const dl = imgui.api.GetWindowDrawList(ctx);
     const mi = mft_fxsel.moduleIndex(module);
-    const has_plugin = state.map_fx_index[mi] >= 0;
+    const has_plugin = mft_fxsel.mapFx(state, module) >= 0;
     const top = index < mappings.push_count;
     const knob_param = mft_fxsel.controlParam(state, module, index);
     const push_param = if (top) mft_fxsel.controlParam(state, module, mappings.knob_count + index) else null;
@@ -1073,6 +1073,74 @@ fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, colo
     }
 }
 
+/// The card of the channel strip, in the single FX mode: the button of the strip and the key of its window on the line of its title, and a section for each
+/// module, with the title of the module and its sixteen cells, which edit the page of the strip for that module. The section of the module in focus has its
+/// title in the color of the module.
+fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, globals: *MftGlobals, changed: *bool) !void {
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    if (state.map_strip_error[0] != 0) {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
+        try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_strip_error, 0) });
+        try imgui.PopStyleColor(.{ ctx, 1 });
+    }
+    var available_w: f64 = 0;
+    var available_h: f64 = 0;
+    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
+    const section_gap: f64 = 18;
+    const per_row: usize = @max(1, @as(usize, @intFromFloat(@max((available_w - 28 + section_gap) / (map_grid_w + section_gap), 1))));
+    const card_w = @as(f64, @floatFromInt(per_row)) * (map_grid_w + section_gap) - section_gap + 28;
+    const title = "Channel strip";
+    if (!widgets.beginCard(&fxsel_kit, title, card_w, null, colors.hueToRgb(globals.preferences.color_fxsel))) return;
+    defer widgets.endCard(&fxsel_kit);
+    const origin = widgets.cursorScreenPos(&fxsel_kit);
+
+    var button_buf: [200:0]u8 = undefined;
+    const strip = std.mem.sliceTo(&state.map_strip_name, 0);
+    const button = if (state.map_strip_fx >= 0)
+        std.mem.printSentinel(&button_buf, "{s}  v##strip", .{strip[0..@min(strip.len, 60)]}, 0) catch "?"
+    else
+        std.mem.printSentinel(&button_buf, "no channel strip: Load FX  v##strip", .{}, 0) catch "?";
+    const strip_button = try mapTitleButton(title, button);
+    if (strip_button.clicked) {
+        // The browser lists the channel strips, and the strip that is chosen there replaces the one of the track.
+        state.strip_target = true;
+        mft_fxsel.browseFromMapping(state, state.module);
+        state.pending = .fill_browser;
+    }
+    if (state.map_strip_fx >= 0 and track != null) {
+        if (mapWrenchKey("##uistrip", "Open FX window", strip_button)) mft_fx.toggleFxWindow(track, state.map_strip_fx);
+    }
+
+    // The sections, as many to a row as the card has room for.
+    const layout = mapCellLayout();
+    const title_h = imgui.api.GetTextLineHeightWithSpacing(ctx) + 4;
+    const section_h = title_h + 4 * layout.height;
+    const rows_count = (mappings.module_count + per_row - 1) / per_row;
+    imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
+    imgui.api.Dummy(ctx, card_w - 28, @as(f64, @floatFromInt(rows_count)) * (section_h + 10));
+    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names, 0..) |field_name, i| {
+        const module = @field(mft_fxsel.MappableModule, field_name);
+        const color = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module)));
+        const sx = origin.x + @as(f64, @floatFromInt(i % per_row)) * (map_grid_w + section_gap);
+        const sy = origin.y + @as(f64, @floatFromInt(i / per_row)) * (section_h + 10);
+        const dl = imgui.api.GetWindowDrawList(ctx);
+        var upper_buf: [32:0]u8 = undefined;
+        const upper = std.ascii.upperString(upper_buf[0..mapTitle(module).len], mapTitle(module));
+        upper_buf[upper.len] = 0;
+        const focus = !state.map_focus_auto and state.module == module;
+        mapText(dl, sx, sy, if (focus) color else theme.text_dim, upper_buf[0..upper.len :0]);
+        for (0..mappings.knob_count) |cell| {
+            const col: f64 = @floatFromInt(cell % 4);
+            const row: f64 = @floatFromInt(cell / 4);
+            try drawMapCell(state, track, module, cell, sx + col * (map_cell_w + map_cell_gap), sy + title_h + row * layout.height, layout, color, changed);
+        }
+    }
+    // The last cell moved the cursor by hand, so an item closes the card at its bottom.
+    imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y + @as(f64, @floatFromInt(rows_count)) * (section_h + 10));
+    imgui.api.Dummy(ctx, 1, 1);
+}
+
 /// A round key of the bar at the left of the panel. It returns whether it was clicked.
 fn drawMapKey(id: [:0]const u8, kind: enum { learn, single, close }, on: bool, enabled: bool, tip: [:0]const u8) bool {
     const dl = imgui.api.GetWindowDrawList(ctx);
@@ -1083,10 +1151,11 @@ fn drawMapKey(id: [:0]const u8, kind: enum { learn, single, close }, on: bool, e
     const cx = at.x + size / 2;
     const cy = at.y + size / 2;
     const lit = on and kind == .learn;
+    const single_on = on and kind == .single;
     widgets.circleFilled(dl, cx, cy + 2, size / 2, rgba(0x00000099));
     widgets.circleFilled(dl, cx, cy, size / 2, if (lit) rgba(0xE03A3AFF) else theme.knob_top);
-    widgets.circle(dl, cx, cy, size / 2, if (hovered and enabled) theme.amber else theme.knob_edge, 1);
-    const tone = if (lit) rgba(0xFFFFFFFF) else if (!enabled) theme.text_dim else if (hovered) theme.amber else theme.label;
+    widgets.circle(dl, cx, cy, size / 2, if (single_on) rgba(0xFF9A3CFF) else if (hovered and enabled) theme.amber else theme.knob_edge, 1);
+    const tone = if (lit) rgba(0xFFFFFFFF) else if (single_on) rgba(0xFFB066FF) else if (!enabled) theme.text_dim else if (hovered) theme.amber else theme.label;
     switch (kind) {
         .learn => widgets.circleFilled(dl, cx, cy, 5.5, tone),
         .single => {
@@ -1133,7 +1202,7 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
             var param_buf: [96:0]u8 = undefined;
             var line_buf: [220:0]u8 = undefined;
             const role = mft_port.roleLabel(module, is_push, if (is_push) control - mappings.knob_count else control);
-            const line = std.mem.printSentinel(&line_buf, "{s} {s}{s} > {s}", .{ field_name, role, if (is_push) " (push)" else "", paramLabel(track, state.map_fx_index[mi], param, &param_buf) }, 0) catch "?";
+            const line = std.mem.printSentinel(&line_buf, "{s} {s}{s} > {s}", .{ field_name, role, if (is_push) " (push)" else "", paramLabel(track, mft_fxsel.mapFx(state, module), param, &param_buf) }, 0) catch "?";
             const x = origin.x + @as(f64, @floatFromInt(count / 10)) * column_w;
             const y = origin.y + @as(f64, @floatFromInt(count % 10)) * row_h;
             imgui.api.SetCursorScreenPos(ctx, x, y);
@@ -1222,7 +1291,11 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     imgui.api.Spacing(ctx);
     imgui.api.Spacing(ctx);
     if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) "MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin" else "MIDI learn: touch an encoder, then move a parameter in the plugin window")) state.map_learn = !state.map_learn;
-    _ = drawMapKey("##single", .single, false, false, "Single FX mode: one plugin for all the modules (not done yet)");
+    if (drawMapKey("##single", .single, state.map_single, true, if (state.map_single) "Back to a plugin for each module" else "Single FX mode: one channel strip for all the modules")) {
+        state.map_single = !state.map_single;
+        state.strip_target = state.map_single;
+        state.map_selected = 0;
+    }
     if (drawMapKey("##close", .close, false, true, "Close the mapping")) state.screen = .actions;
     imgui.api.EndGroup(ctx);
     imgui.api.SameLine(ctx, null, null);
@@ -1234,12 +1307,18 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
     const per_row: usize = @max(1, @as(usize, @intFromFloat(@max((available_w + 14) / (map_plate_w + 14), 1))));
     var placed: usize = 0;
-    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
-        const module = @field(mft_fxsel.MappableModule, field_name);
-        var plate_gap: f64 = 14;
-        if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
-        try drawMapPlate(state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
-        placed += 1;
+    if (state.map_single) {
+        // The single FX mode: one card for the channel strip, with a section for each module, instead of a plate for each. The AUTO plate goes under it.
+        try drawMapStripCard(state, track, globals, &changed);
+        placed = per_row;
+    } else {
+        inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
+            const module = @field(mft_fxsel.MappableModule, field_name);
+            var plate_gap: f64 = 14;
+            if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
+            try drawMapPlate(state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
+            placed += 1;
+        }
     }
     {
         var plate_gap: f64 = 14;
@@ -1297,7 +1376,10 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
 
     const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
     var title_buf: [64:0]u8 = undefined;
-    const title = std.mem.printSentinel(&title_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection";
+    const title = if (state.strip_target)
+        "FX Selection - Channel strip"
+    else
+        std.mem.printSentinel(&title_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection";
 
     const source: ?fx_browser.Source = if (state.screen == .browse) browser_source.get(globals, state.browser.count) else null;
     if (state.screen == .browse) {
@@ -1941,5 +2023,31 @@ test "while the MIDI learn is on, a click on the press line of a cell selects it
     mock.selectItem(std.mem.printSentinel(&label_buf, "-##learn##map{d}_{d}", .{ comp, 4 }, 0) catch unreachable);
     try drawWindows(&globals);
     try std.testing.expectEqual(@as(u8, 4), state.map_selected);
+    try mock.assertBalanced();
+}
+
+test "the single FX mode of the mapping panel draws the card of the channel strip, with or without a strip, with the stacks balanced" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .map;
+    state.map_single = true;
+    try drawWindows(&globals);
+    const name = "JS: Lumina Channel Strip";
+    @memcpy(state.map_strip_name[0..name.len], name);
+    state.map_strip_fx = 2;
+    state.map_strip.pages[mft_fxsel.moduleIndex(.EQ)].knobs[0] = 3;
+    const error_text = "The map file could not be written: AccessDenied.";
+    @memcpy(state.map_strip_error[0..error_text.len], error_text);
+    try drawWindows(&globals);
+    // The key of the single FX mode goes back to the plates of the modules.
+    mock.click("##single");
+    try drawWindows(&globals);
+    try std.testing.expect(!state.map_single);
     try mock.assertBalanced();
 }

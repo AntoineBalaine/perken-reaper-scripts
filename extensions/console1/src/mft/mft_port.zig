@@ -238,6 +238,18 @@ pub fn writeModuleMap(w: *std.Io.Writer, module: MappableModule, fx_name: []cons
     try writePage(w, page);
 }
 
+/// Writes the map of a channel strip: the headers, then a section for each page that has controls.
+pub fn writeStripMap(w: *std.Io.Writer, fx_name: []const u8, strip: *const mappings.StripMapping) std.Io.Writer.Error!void {
+    try w.print("version = {d}\nmodule = STRIP\nfx_name = {s}\n", .{ mappings.MFT_MAPPING_FORMAT_VERSION, fx_name });
+    inline for (@typeInfo(MappableModule).@"enum".field_names, 0..) |name, i| {
+        const page = &strip.pages[i];
+        if (!page.isEmpty()) {
+            try w.print("\n[{s}]\n", .{name});
+            try writePage(w, page);
+        }
+    }
+}
+
 /// Writes a converted map as a map file of the controller: the headers, then the page of a module map, or a section for each page that has
 /// controls for a strip.
 pub fn write(converted: *const Converted, w: *std.Io.Writer) std.Io.Writer.Error!void {

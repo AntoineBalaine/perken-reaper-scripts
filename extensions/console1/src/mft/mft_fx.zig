@@ -442,6 +442,22 @@ fn afterInsert(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: c_int) 
     if (globals.preferences.show_plugin_ui) reaper.TrackFX_Show(track, fx_index, SHOW_FLOATING);
 }
 
+// Loads a channel strip onto the track: the strip that the track has is replaced by the new one, which takes its place, and a track that had none gets it at
+// the end of its chain. Returns false when REAPER could not add it.
+pub fn loadStrip(globals: *MftGlobals, track: reaper.MediaTrack, fx_name: [:0]const u8) bool {
+    var position: c_int = -1;
+    if (findStrip(track)) |existing| {
+        position = existing;
+        _ = reaper.TrackFX_Delete(track, existing);
+    }
+    const instantiate: c_int = if (position >= 0) -1000 - position else -1;
+    const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
+    if (index < 0) return false;
+    setSlotSuffix(track, index, fx_name, .strip);
+    afterInsert(globals, track, index);
+    return true;
+}
+
 // Ensure each slot the module drives has a suffixed FX on the track. A missing
 // slot is filled by adopting an existing un-suffixed instance of its default
 // plugin if present, otherwise inserting a fresh one at the canonical position.

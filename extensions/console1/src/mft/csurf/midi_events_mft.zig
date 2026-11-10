@@ -101,17 +101,19 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
     switch (outcome) {
         .none => {},
         .leave => closeFxSel(globals, state.return_page),
-        .fill_browser => globals.map_store.listFx(io, state.module, &state.browser),
+        .fill_browser => if (state.strip_target) globals.map_store.listStrips(io, &state.browser) else globals.map_store.listFx(io, state.module, &state.browser),
         .load_plugin => |name| {
             const track = globals.current_track orelse {
                 state.setNote("There is no track to load the plugin on.");
                 return;
             };
-            if (mft_fx.loadPlugin(globals, track, state.module, name)) {
+            const loaded = if (state.strip_target) mft_fx.loadStrip(globals, track, name) else mft_fx.loadPlugin(globals, track, state.module, name);
+            if (loaded) {
                 if (state.map_return) {
                     // The browser was opened from the mapping panel, which was open all along: it shows the new plugin, with the map that it has.
                     state.map_return = false;
                     state.screen = .map;
+                    state.map_single = state.strip_target;
                     applyOutcome(globals, state, .open_mapping);
                     return;
                 }
@@ -124,7 +126,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
         .fill_presets => {
             state.presets.clear();
             const track = globals.current_track orelse return;
-            const fx = mft_fx.fxForModule(track, state.module) orelse {
+            const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
                 state.setNote("This module has no plugin on the track.");
                 return;
             };
@@ -132,7 +134,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
         },
         .load_preset => |name| {
             const track = globals.current_track orelse return;
-            const fx = mft_fx.fxForModule(track, state.module) orelse {
+            const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
                 state.setNote("This module has no plugin on the track.");
                 return;
             };
@@ -143,7 +145,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 state.setNote("There is no track to save the preset from.");
                 return;
             };
-            const fx = mft_fx.fxForModule(track, state.module) orelse {
+            const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
                 state.setNote("This module has no plugin on the track.");
                 return;
             };
@@ -165,7 +167,22 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             state.map_auto = globals.map_store.getAuto(io);
             state.map_auto_loaded = state.map_auto;
             state.map_auto_error[0] = 0;
+            state.map_strip = .{};
+            state.map_strip_loaded = .{};
+            state.map_strip_fx = -1;
+            state.map_strip_name[0] = 0;
+            state.map_strip_error[0] = 0;
             const track = globals.current_track orelse return;
+            // The channel strip of the track, whose map the single FX mode edits. A track that has one opens in that mode.
+            if (mft_fx.findStrip(track)) |strip_fx| {
+                if (mft_fx.fxMapName(track, strip_fx, &state.map_strip_name)) |name| {
+                    state.map_strip_fx = strip_fx;
+                    state.map_strip = globals.map_store.getStrip(io, name) orelse .{};
+                    state.map_strip_loaded = state.map_strip;
+                    state.map_single = true;
+                    state.strip_target = true;
+                }
+            }
             inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
                 const module = @field(MappableModule, field_name);
                 const i = mft_fxsel.moduleIndex(module);
@@ -190,6 +207,15 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
 /// which marks the plate of the module with it.
 pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) void {
     const io = mft_globals.hostIo();
+    if (state.map_strip_fx >= 0 and mft_fxsel.isStripChanged(state)) {
+        const length = std.mem.sliceTo(&state.map_strip_name, 0).len;
+        if (globals.map_store.saveStrip(io, state.map_strip_name[0..length :0], &state.map_strip)) {
+            state.map_strip_loaded = state.map_strip;
+            state.map_strip_error[0] = 0;
+        } else |err| {
+            _ = std.mem.printSentinel(&state.map_strip_error, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+        }
+    }
     if (mft_fxsel.isAutoChanged(state)) {
         if (globals.map_store.saveAuto(io, &state.map_auto)) {
             state.map_auto_loaded = state.map_auto;
@@ -226,7 +252,7 @@ pub fn learnParam(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: u16,
         storeChangedMappings(globals, state);
         return;
     }
-    if (state.map_fx_index[mft_fxsel.moduleIndex(state.module)] != @as(c_int, fx_index)) return;
+    if (mft_fxsel.mapFx(state, state.module) != @as(c_int, fx_index)) return;
     mft_fxsel.assign(state, param);
     storeChangedMappings(globals, state);
 }

@@ -120,6 +120,22 @@ pub const MftMapStore = struct {
         self.auto = map.*;
     }
 
+    /// Saves the map of a channel strip as the user's, which is read before the factory one, and drops the one that was kept in memory.
+    pub fn saveStrip(self: *MftMapStore, io: std.Io, fx_name: [:0]const u8, strip: *const mappings.StripMapping) !void {
+        var name_buf: [512:0]u8 = undefined;
+        const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+        var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const dir_path = fs_helpers.joinStrings(&dir_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, "user", std.fs.path.sep_str, "STRIP", std.fs.path.sep_str, sanitized });
+        try std.Io.Dir.cwd().createDirPath(io, dir_path);
+        var aw: std.Io.Writer.Allocating = .init(self.allocator);
+        defer aw.deinit();
+        try mft_port.writeStripMap(&aw.writer, fx_name, strip);
+        var file_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const file_path = fs_helpers.joinStrings(&file_buf, &.{ dir_path, std.fs.path.sep_str, "default.ini" });
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = file_path, .data = aw.written() });
+        _ = self.STRIP.swapRemove(fx_name);
+    }
+
     /// Returns the map of a channel strip plugin, loading it from `maps/factory/STRIP/<fx name>/default.ini` the first time. As for the other maps,
     /// a null entry in the cache records a load that failed, so that the disk is not read again on every turn.
     pub fn getStrip(self: *MftMapStore, io: std.Io, fx_name: [:0]const u8) ?mappings.StripMapping {
@@ -139,7 +155,11 @@ pub const MftMapStore = struct {
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
         var file_buffer: [4096]u8 = undefined;
-        var opened = try self.openMap(io, "factory", "STRIP", fx_name, &file_buffer);
+        // The map of a strip that the user made comes before the factory one.
+        var opened = self.openMap(io, "user", "STRIP", fx_name, &file_buffer) catch |err| switch (err) {
+            error.FileNotFound => try self.openMap(io, "factory", "STRIP", fx_name, &file_buffer),
+            else => return err,
+        };
         defer opened.file.close(io);
         var parser = ini.parse(temp_arena.allocator(), &opened.reader.interface, ";#");
         defer parser.deinit();
@@ -165,11 +185,20 @@ pub const MftMapStore = struct {
     /// Fills `list` with the names of the plugins that have a map for the module, as the first level of the browser shows them. The name of a plugin is
     /// the one in the header of its map, because the name of its folder has lost the characters that a file name cannot have.
     pub fn listFx(self: *MftMapStore, io: std.Io, module: MappableModule, list: *BrowserList) void {
+        self.listDir(io, module.dirName(), list);
+    }
+
+    /// Fills `list` with the names of the channel strips that have a map, which the browser lists in the single FX mode.
+    pub fn listStrips(self: *MftMapStore, io: std.Io, list: *BrowserList) void {
+        self.listDir(io, "STRIP", list);
+    }
+
+    fn listDir(self: *MftMapStore, io: std.Io, dir_name: []const u8, list: *BrowserList) void {
         list.clear();
         // The maps of the user and the factory maps of the module, a plugin that has both being listed once.
         for ([_][]const u8{ "user", "factory" }) |root| {
             var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, root, std.fs.path.sep_str, module.dirName() });
+            const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, root, std.fs.path.sep_str, dir_name });
             var dir = std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true }) catch continue;
             defer dir.close(io);
             var iter = dir.iterate();
@@ -532,4 +561,26 @@ test "the map of the AUTO page is the factory one until the user saves one, whic
     store.auto = null;
     const read = store.getAuto(io);
     try t.expect(read.eql(&mine));
+}
+
+test "the map of a channel strip that the user saves is read back before the factory one, and the strip is listed" {
+    const t = std.testing;
+    const io = t.io;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realPathFileAlloc(io, ".", t.allocator);
+    defer t.allocator.free(root);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var store = MftMapStore.init(arena.allocator(), root);
+    var strip = mappings.StripMapping{};
+    strip.pages[@backingInt(MappableModule.EQ)].setSlot(0, 3);
+    strip.pages[@backingInt(MappableModule.OUTPUT)].setPush(1, .{ .param = 8 });
+    try store.saveStrip(io, "JS: Lumina Channel Strip", &strip);
+    const read = store.getStrip(io, "JS: Lumina Channel Strip").?;
+    try t.expect(std.meta.eql(read, strip));
+    var list = BrowserList{};
+    store.listStrips(io, &list);
+    try t.expectEqual(@as(usize, 1), list.count);
+    try t.expectEqualStrings("JS: Lumina Channel Strip", list.get(0));
 }

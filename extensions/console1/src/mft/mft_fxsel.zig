@@ -20,6 +20,8 @@ pub const hue: u8 = 0x2B;
 /// The encoders that have a function in the mode, by their position on the grid (from 0, row by row).
 pub const list_encoder = 12;
 pub const cancel_encoder = 13;
+/// The encoder 15, whose push turns the single FX mode on and off: the mode then works on the channel strip of the track instead of a module.
+pub const single_encoder = 14;
 
 /// How many ticks of the encoder scroll the list by one entry. Because the encoder sends a tick for every small turn, and a list of dozens of
 /// entries would fly past, the ticks are counted and the cursor moves once for each of these.
@@ -157,6 +159,8 @@ pub const FxSelState = struct {
     screen: Screen = .actions,
     /// The module that the mode works on.
     module: MappableModule = .EQ,
+    /// Whether the mode works on the channel strip of the track (the single FX mode) instead of the module.
+    strip_target: bool = false,
     /// The entry of the list of actions, and the entry of the list of plugins.
     action_cursor: u8 = 0,
     /// Where the browser is: the menus that are open (`browse_path` has the entry that opened each one), and the cursor of every level.
@@ -197,6 +201,14 @@ pub const FxSelState = struct {
     /// The control of the AUTO plate that waits for an action to be chosen in REAPER's Action List, or null.
     map_prompt: ?u8 = null,
     map_auto_error: [96:0]u8 = @splat(0),
+    /// The single FX mode of the mapping panel: the map of the channel strip of the track, which has a page for each module, the map that was read, the
+    /// strip and its name, and why it could not be saved. While the mode is on, the module plates edit the pages of the strip.
+    map_single: bool = false,
+    map_strip: mappings.StripMapping = .{},
+    map_strip_loaded: mappings.StripMapping = .{},
+    map_strip_fx: c_int = -1,
+    map_strip_name: [160:0]u8 = @splat(0),
+    map_strip_error: [96:0]u8 = @splat(0),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -387,6 +399,7 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
         .create_mapping => {
             state.screen = .map;
             state.map_selected = 0;
+            state.map_single = state.strip_target;
             return .open_mapping;
         },
     }
@@ -421,6 +434,29 @@ fn confirmEntry(state: *FxSelState, source: fx_browser.Source) Outcome {
     }
 }
 
+/// The push of the encoder 15: the single FX mode goes on or off. The list of the screen is read again for the channel strip or the module, and the mapping
+/// panel shows the card of the strip or the plates of the modules.
+fn toggleSingle(state: *FxSelState) Outcome {
+    // In the mapping panel the mode that is shown is the one that flips, since a track that has a strip opens it in the single FX mode.
+    state.strip_target = if (state.screen == .map) !state.map_single else !state.strip_target;
+    switch (state.screen) {
+        .actions => return .none,
+        .browse => {
+            state.resetBrowser();
+            return .fill_browser;
+        },
+        .presets, .save => {
+            state.preset_cursor = 0;
+            return .fill_presets;
+        },
+        .map => {
+            state.map_single = state.strip_target;
+            state.map_selected = 0;
+            return .none;
+        },
+    }
+}
+
 /// Confirms the name typed for a preset. A name that a preset has already is not replaced at once: the first confirmation says so, and the second,
 /// of the same name, replaces it.
 fn confirmSave(state: *FxSelState) Outcome {
@@ -444,8 +480,10 @@ fn confirmSave(state: *FxSelState) Outcome {
 /// A press of an encoder.
 pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Outcome {
     state.scroll_ticks = 0;
+    if (encoder == single_encoder) return toggleSingle(state);
     if (moduleForEncoder(encoder)) |module| {
         state.module = module;
+        state.strip_target = false;
         switch (state.screen) {
             .browse => {
                 state.resetBrowser();
@@ -549,10 +587,30 @@ pub fn assign(state: *FxSelState, param: ?u16) void {
     assignTo(state, state.module, state.map_selected, param);
 }
 
+/// The mapping that the plate of a module edits: the page of the channel strip while the single FX mode is on, and the map of the plugin of the module
+/// otherwise.
+pub fn editOf(state: *FxSelState, module: MappableModule) *mappings.MftModuleMapping {
+    return if (state.map_single) &state.map_strip.pages[moduleIndex(module)] else &state.map_edits[moduleIndex(module)];
+}
+
+fn editOfConst(state: *const FxSelState, module: MappableModule) *const mappings.MftModuleMapping {
+    return if (state.map_single) &state.map_strip.pages[moduleIndex(module)] else &state.map_edits[moduleIndex(module)];
+}
+
+/// The FX that the plate of a module maps: the channel strip while the single FX mode is on, and the plugin of the module otherwise; -1 when there is none.
+pub fn mapFx(state: *const FxSelState, module: MappableModule) c_int {
+    return if (state.map_single) state.map_strip_fx else state.map_fx_index[moduleIndex(module)];
+}
+
+/// Whether the map of the channel strip was changed since it was read.
+pub fn isStripChanged(state: *const FxSelState) bool {
+    return !std.meta.eql(state.map_strip, state.map_strip_loaded);
+}
+
 /// Gives a control of a module a parameter, or takes it away when `param` is null.
 pub fn assignTo(state: *FxSelState, module: MappableModule, control: usize, param: ?u16) void {
     std.debug.assert(control < control_count);
-    const edit = &state.map_edits[moduleIndex(module)];
+    const edit = editOf(state, module);
     if (control < mappings.knob_count) {
         edit.knobs[control] = param;
     } else {
@@ -589,7 +647,7 @@ pub fn isAutoChanged(state: *const FxSelState) bool {
 /// The parameter that a control of a module has in the mappings that are being made, whatever the kind of control. A push that steps the shape of an EQ
 /// band has none.
 pub fn controlParam(state: *const FxSelState, module: MappableModule, index: usize) ?u16 {
-    const edit = &state.map_edits[moduleIndex(module)];
+    const edit = editOfConst(state, module);
     if (index < mappings.knob_count) return edit.knobs[index];
     const action = edit.pushes[index - mappings.knob_count] orelse return null;
     return switch (action) {
@@ -636,7 +694,8 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
         }
         return .{};
     }
-    if (moduleForEncoder(encoder)) |module| return .{ .press = @tagName(module), .chosen = module == state.module };
+    if (encoder == single_encoder) return .{ .press = "Single FX", .chosen = state.strip_target };
+    if (moduleForEncoder(encoder)) |module| return .{ .press = @tagName(module), .chosen = !state.strip_target and module == state.module };
     if (encoder == list_encoder) {
         return .{ .turn = switch (state.screen) {
             .actions => state.action().label(),
@@ -680,6 +739,7 @@ fn scroll(state: *FxSelState, entries: i32, source: ?fx_browser.Source) void {
 
 fn mapLabel(state: *const FxSelState, encoder: usize) Label {
     const selected: usize = state.map_selected;
+    if (encoder == single_encoder) return .{ .turn = knob_names[encoder], .press = "Single FX", .chosen = state.map_single or selected == encoder };
     if (moduleForEncoder(encoder)) |module| return .{ .turn = knob_names[encoder], .press = @tagName(module), .chosen = !state.map_focus_auto and module == state.module };
     if (encoder == list_encoder) return .{ .turn = knob_names[encoder], .press = "Save", .chosen = selected == encoder };
     if (encoder == cancel_encoder) return .{ .turn = knob_names[encoder], .press = "Cancel", .chosen = selected == encoder };
@@ -1064,4 +1124,40 @@ test "the AUTO plate is put in focus by a click, its controls get actions and pa
     try t.expectEqual(MappableModule.EQ, state.module);
     selectControl(&state, .COMP, 2);
     try t.expect(!state.map_focus_auto);
+}
+
+test "the encoder 15 turns the single FX mode on and off, which reads the lists of the channel strip, and a module button turns it off" {
+    const t = std.testing;
+    var state = FxSelState{};
+    try t.expectEqual(Outcome.none, press(&state, single_encoder, null));
+    try t.expect(state.strip_target);
+    try t.expect(label(&state, single_encoder).chosen);
+    try t.expect(!label(&state, 10).chosen);
+    _ = press(&state, list_encoder, null);
+    try t.expectEqual(Screen.browse, state.screen);
+    try t.expectEqual(Outcome.fill_browser, press(&state, single_encoder, null));
+    try t.expect(!state.strip_target);
+    _ = press(&state, single_encoder, null);
+    try t.expectEqual(Outcome.fill_browser, press(&state, 9, null));
+    try t.expect(!state.strip_target);
+    try t.expectEqual(MappableModule.GATE, state.module);
+}
+
+test "in the single FX mode the plates edit the pages of the channel strip, and the maps of the modules stay as they were" {
+    const t = std.testing;
+    var state = FxSelState{};
+    state.strip_target = true;
+    state.action_cursor = @backingInt(Action.create_mapping);
+    try t.expectEqual(Outcome.open_mapping, press(&state, list_encoder, null));
+    try t.expect(state.map_single);
+    state.map_strip_fx = 4;
+    assignTo(&state, .EQ, 2, 9);
+    try t.expectEqual(@as(?u16, 9), state.map_strip.pages[moduleIndex(.EQ)].knobs[2]);
+    try t.expectEqual(@as(?u16, null), state.map_edits[moduleIndex(.EQ)].knobs[2]);
+    try t.expect(isStripChanged(&state));
+    try t.expectEqual(@as(c_int, 4), mapFx(&state, .COMP));
+    // The push of the encoder 15 goes back to the plates of the modules.
+    try t.expectEqual(Outcome.none, press(&state, single_encoder, null));
+    try t.expect(!state.map_single);
+    try t.expectEqual(@as(?u16, null), controlParam(&state, .EQ, 2));
 }
