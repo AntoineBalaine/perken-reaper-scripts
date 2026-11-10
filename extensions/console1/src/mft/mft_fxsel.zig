@@ -184,6 +184,9 @@ pub const FxSelState = struct {
     map_selected: u8 = 0,
     /// Whether a parameter that is moved in the plugin is learned by the selected control.
     map_learn: bool = false,
+    /// Whether the browser (or any screen of the first level) was opened from the mapping panel, which stays open under it and is where the controller goes back
+    /// to when the browser closes.
+    map_return: bool = false,
     /// Why the map of a module could not be saved, which the panel shows as a mark on its plate. Empty when the last save worked.
     map_error: [mappings.module_count][96:0]u8 = @splat(@splat(0)),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
@@ -467,7 +470,9 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
                 } else if (state.browse_depth > 0) {
                     state.browse_depth -= 1;
                 } else {
-                    state.screen = .actions;
+                    // The browser goes back to what opened it: the mapping panel, or the first screen.
+                    state.screen = if (state.map_return) .map else .actions;
+                    state.map_return = false;
                 }
                 break :blk .none;
             },
@@ -519,6 +524,15 @@ pub fn pageOf(module: MappableModule) mft_state.MftActiveModule {
 /// The place of a module in the arrays of the mapping mode.
 pub fn moduleIndex(module: MappableModule) usize {
     return @backingInt(module);
+}
+
+/// Opens the browser for a module from the mapping panel, which stays open under it.
+pub fn browseFromMapping(state: *FxSelState, module: MappableModule) void {
+    state.module = module;
+    state.map_return = true;
+    state.screen = .browse;
+    state.resetBrowser();
+    state.focus_search = true;
 }
 
 /// Gives the selected control of the module in focus a parameter, or takes its parameter away when `param` is null.
@@ -978,4 +992,30 @@ test "the windows of the mapping mode name the knob and the push of each encoder
     try t.expectEqualStrings("Cancel", label(&state, cancel_encoder).press);
     try t.expectEqualStrings("Knob 15", label(&state, 14).turn.?);
     try t.expectEqualStrings("Push 8", controlName(mappings.knob_count + 7));
+}
+
+test "the browser that the mapping panel opens goes back to the panel, with what was mapped still there" {
+    const t = std.testing;
+    var data = TestData{};
+    try data.init(t.allocator);
+    defer data.deinit(t.allocator);
+    var state = FxSelState{};
+    state.screen = .map;
+    state.module = .COMP;
+    assignTo(&state, .EQ, 3, 7);
+    browseFromMapping(&state, .GATE);
+    try t.expectEqual(Screen.browse, state.screen);
+    try t.expectEqual(MappableModule.GATE, state.module);
+    try t.expect(state.map_return);
+    // Back leaves the browser for the panel, and the mapping is as it was.
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, data.source(0)));
+    try t.expectEqual(Screen.map, state.screen);
+    try t.expect(!state.map_return);
+    try t.expectEqual(@as(?u16, 7), controlParam(&state, .EQ, 3));
+    // A browser that the first screen opened goes back to the first screen.
+    state.screen = .actions;
+    _ = press(&state, list_encoder, null);
+    try t.expectEqual(Screen.browse, state.screen);
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, data.source(0)));
+    try t.expectEqual(Screen.actions, state.screen);
 }

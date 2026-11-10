@@ -107,6 +107,13 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 return;
             };
             if (mft_fx.loadPlugin(track, state.module, name)) {
+                if (state.map_return) {
+                    // The browser was opened from the mapping panel, which was open all along: it shows the new plugin, with the map that it has.
+                    state.map_return = false;
+                    state.screen = .map;
+                    applyOutcome(globals, state, .open_mapping);
+                    return;
+                }
                 // The controller goes to the page of the module that got the plugin.
                 closeFxSel(globals, mft_fxsel.pageOf(state.module));
             } else {

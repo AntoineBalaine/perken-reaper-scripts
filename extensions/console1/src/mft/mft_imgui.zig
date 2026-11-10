@@ -725,10 +725,8 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, if (state.map_fx_index[mi] >= 0) theme.label else theme.text_dim });
     if (try imgui.Selectable(.{ ctx, head })) {
         // The plugin of a module is swapped from the browser, which opens for that module.
-        state.module = module;
-        state.screen = .browse;
-        state.resetBrowser();
-        state.focus_search = true;
+        // The browser opens over the panel, which stays open and is where the controller goes back to.
+        mft_fxsel.browseFromMapping(state, module);
         state.pending = .fill_browser;
     }
     try imgui.PopStyleColor(.{ ctx, 1 });
@@ -785,6 +783,16 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
     const origin = widgets.cursorScreenPos(&fxsel_kit);
     const row_h = imgui.api.GetTextLineHeightWithSpacing(ctx) + 2;
     const column_w: f64 = 270;
+    // The room of the entries is reserved first, because ImGui wants an item under a cursor that was moved by hand, and the entries are then put in it.
+    var total: usize = 0;
+    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
+        const module = @field(mft_fxsel.MappableModule, field_name);
+        for (0..mft_fxsel.control_count) |control| {
+            if (mft_fxsel.controlParam(state, module, control) != null) total += 1;
+        }
+    }
+    const columns: f64 = @floatFromInt(@max((total + 9) / 10, 1));
+    imgui.api.Dummy(ctx, columns * column_w, @as(f64, @floatFromInt(@max(@min(total, 10), 1))) * row_h);
     var count: usize = 0;
     inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |field_name| {
         const module = @field(mft_fxsel.MappableModule, field_name);
@@ -811,11 +819,10 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
         }
     }
     if (count == 0) {
+        imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
         try imgui.Text(.{ ctx, "Nothing is assigned yet." });
         try imgui.PopStyleColor(.{ ctx, 1 });
-    } else {
-        imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y + @as(f64, @floatFromInt(@min(count, 10))) * row_h);
     }
 }
 
@@ -824,7 +831,8 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
 /// module in focus.
 fn drawMappingWindow(globals: *MftGlobals) !void {
     const state = &(globals.mft.fxsel orelse return);
-    if (state.screen != .map) return;
+    // The panel stays open while the browser is open over it.
+    if (state.screen != .map and !state.map_return) return;
     fxsel_kit.ctx = ctx;
     fxsel_kit.fonts = fonts;
     theme.push(ctx);
@@ -1409,5 +1417,26 @@ test "the mapping panel draws a plate for every module, with and without a plugi
     state.map_selected = 9;
     state.map_edits = @splat(.{});
     try drawWindows(&globals);
+    try mock.assertBalanced();
+}
+
+test "the browser opened from the mapping panel is drawn over the panel, which stays" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    state.screen = .map;
+    state.map_edits[mft_fxsel.moduleIndex(.COMP)].knobs[2] = 5;
+    state.map_fx_index[mft_fxsel.moduleIndex(.COMP)] = 3;
+    try drawWindows(&globals);
+    const panel_widgets = mock.widgetCount(.selectable);
+    mft_fxsel.browseFromMapping(state, .COMP);
+    try drawWindows(&globals);
+    // The panel still draws its plates, and the browser draws its window too.
+    try std.testing.expect(mock.widgetCount(.selectable) >= panel_widgets);
     try mock.assertBalanced();
 }
