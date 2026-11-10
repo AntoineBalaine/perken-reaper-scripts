@@ -36,6 +36,7 @@ var activity: Activity = .{};
 var formatted_values: FormattedValues = .{};
 
 const KnobInfo = device.KnobInfo;
+const knob_count = mappings.knob_count;
 
 fn moduleColor(globals: *MftGlobals, module: MftActiveModule) c_int {
     return colors.hueToRgb(globals.preferences.colorForModule(module));
@@ -50,8 +51,8 @@ pub const value_linger_ms: i64 = @import("mft_state.zig").linger_ms;
 /// value changed. Because the panel mirrors the controller, a turn is only known by the value changing between two
 /// frames.
 pub const Activity = struct {
-    last: [8]f64 = @splat(0.0),
-    engaged_at: [8]i64 = @splat(never),
+    last: [knob_count]f64 = @splat(0.0),
+    engaged_at: [knob_count]i64 = @splat(never),
     module: ?MftActiveModule = null,
     track: reaper.MediaTrack = null,
 
@@ -64,17 +65,17 @@ pub const Activity = struct {
     /// mouse is over or that is held right now. Returns a bit for each mapped encoder that was engaged or turned less
     /// than `value_linger_ms` ago. Because a new module or a new track brings other values that nobody turned, the
     /// comparison starts again when either one changes.
-    pub fn update(self: *Activity, module: MftActiveModule, track: reaper.MediaTrack, info: *const KnobInfo, engaged: u8, now_ms: i64) u8 {
+    pub fn update(self: *Activity, module: MftActiveModule, track: reaper.MediaTrack, info: *const KnobInfo, engaged: u16, now_ms: i64) u16 {
         if (self.module != module or self.track != track) {
             self.module = module;
             self.track = track;
             self.last = info.vals;
             self.engaged_at = @splat(never);
         }
-        var bits: u8 = 0;
-        for (0..8) |slot| {
+        var bits: u16 = 0;
+        for (0..knob_count) |slot| {
             const turned = info.mapped[slot] and @abs(info.vals[slot] - self.last[slot]) > threshold;
-            const bit = @as(u8, 1) << @intCast(slot);
+            const bit = @as(u16, 1) << @intCast(slot);
             if (turned or engaged & bit != 0) self.engaged_at[slot] = now_ms;
             self.last[slot] = info.vals[slot];
             if (info.mapped[slot] and now_ms - self.engaged_at[slot] < value_linger_ms) bits |= bit;
@@ -97,9 +98,9 @@ fn reaperFormat(track: reaper.MediaTrack, fx: c_int, param: c_int, buf: *[format
 /// its knob shows one, and again only when the value changed since it was asked. Owning the buffers here keeps them
 /// out of the frame's data until the panel copies them in.
 pub const FormattedValues = struct {
-    bufs: [8][formatted_len:0]u8 = undefined,
-    ok: [8]bool = @splat(false),
-    asked_for: [8]f64 = @splat(-1.0),
+    bufs: [knob_count][formatted_len:0]u8 = undefined,
+    ok: [knob_count]bool = @splat(false),
+    asked_for: [knob_count]f64 = @splat(-1.0),
     module: ?MftActiveModule = null,
     track: reaper.MediaTrack = null,
     source: FormatSource = &reaperFormat,
@@ -108,7 +109,7 @@ pub const FormattedValues = struct {
 
     /// Fills the formatted values of `info` for the encoders in `wanted`, one bit each. An empty text or a failed call
     /// leaves the encoder with its percentage.
-    pub fn fill(self: *FormattedValues, module: MftActiveModule, track: reaper.MediaTrack, info: *KnobInfo, wanted: u8) void {
+    pub fn fill(self: *FormattedValues, module: MftActiveModule, track: reaper.MediaTrack, info: *KnobInfo, wanted: u16) void {
         if (self.module != module or self.track != track) {
             self.module = module;
             self.track = track;
@@ -116,8 +117,8 @@ pub const FormattedValues = struct {
             self.asked_for = @splat(-1.0);
         }
         const track_ptr = track orelse return;
-        for (0..8) |slot| {
-            const bit = @as(u8, 1) << @intCast(slot);
+        for (0..knob_count) |slot| {
+            const bit = @as(u16, 1) << @intCast(slot);
             if (!info.mapped[slot] or wanted & bit == 0) continue;
             if (self.asked_for[slot] != info.vals[slot]) {
                 self.asked_for[slot] = info.vals[slot];
@@ -241,10 +242,10 @@ fn draw(globals: *MftGlobals) !void {
     }
     for (0..3) |i| view.left_lit[i] = globals.mft.activity.sideLit(i, now_ms);
     // The pop-ups of the values follow the mouse and the held encoders, and linger for a moment after them.
-    const engaged = device.hoveredKnobs(&kit, widgets.cursorScreenPos(&kit), &view) | @as(u8, @truncate(view.held));
+    const engaged = device.hoveredKnobs(&kit, widgets.cursorScreenPos(&kit), &view) | view.held;
     view.show_value = activity.update(active, globals.current_track, &view.knobs, engaged, now_ms);
     // Only the knobs that show a value ask the plugin for its text. The other modes than the pop-up show it always.
-    const wanted: u8 = if (view.value_mode == .popup) view.show_value else 0xFF;
+    const wanted: u16 = if (view.value_mode == .popup) view.show_value else 0xFFFF;
     formatted_values.fill(active, globals.current_track, &view.knobs, wanted);
     const response = device.draw(&kit, &view);
     if (response.close) globals.mft.panel_visible = false;
@@ -297,7 +298,7 @@ fn readSideLit(globals: *MftGlobals) [3]bool {
     };
 }
 
-// Reads the eight top-row parameter values and names for the active module.
+// Reads the parameter values and names of the sixteen encoders for the active page.
 fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
     var info = KnobInfo{};
     const module = MappableModule.fromActive(active) orelse return info;
@@ -442,7 +443,7 @@ test "the settings form leaves the stacks balanced wherever the cursor is" {
     var globals: MftGlobals = .{};
     globals.mft.active_module = .SETTINGS;
     // A color row, the sensitivity, the first and the last plugin name.
-    for ([_]u8{ 0, 6, 7, 11 }) |cursor| {
+    for ([_]i16{ 0, mft_settings.SENSITIVITY_ROW, mft_settings.PLUGIN_ROW, mft_settings.ITEM_COUNT - 1 }) |cursor| {
         globals.mft.settings_cursor = @intCast(cursor);
         try draw(&globals);
     }
@@ -454,27 +455,28 @@ test "a value shows in its pop-up while the knob is turned, hovered or held, and
     var info = KnobInfo{};
     info.mapped[0] = true;
     info.mapped[1] = true;
-    info.vals = .{ 0.2, 0.7, 0, 0, 0, 0, 0, 0 };
-    const first: u8 = 0b01;
+    info.vals[0] = 0.2;
+    info.vals[1] = 0.7;
+    const first: u16 = 0b01;
     const linger = value_linger_ms;
 
     // The first frame of a module only learns the values, because nobody turned anything.
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 1000));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 1016));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.INPUT, null, &info, 0, 1000));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.INPUT, null, &info, 0, 1016));
     // The first encoder turns, and its pop-up stays for the linger time.
     info.vals[0] = 0.3;
     try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 2000));
     try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 2000 + linger - 1));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 2000 + linger));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.INPUT, null, &info, 0, 2000 + linger));
     // The mouse hovers over the first encoder: the pop-up stays as long as the mouse is there, then lingers.
     try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, first, 5000));
     try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, first, 9000));
     try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 9000 + linger - 1));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 9000 + linger));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.INPUT, null, &info, 0, 9000 + linger));
     // An encoder with nothing mapped never shows a value, and a change of module brings values nobody turned.
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0b100, 12000));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.INPUT, null, &info, 0b100, 12000));
     info.vals[1] = 0.9;
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.GATE, null, &info, 0, 13000));
+    try std.testing.expectEqual(@as(u16, 0), tracker.update(.GATE, null, &info, 0, 13000));
 }
 
 test "the mouse over a knob is found, and a folded device has no knob to hover" {
@@ -489,9 +491,9 @@ test "the mouse over a knob is found, and a folded device has no knob to hover" 
     const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h, view.value_mode);
     mock.mouse_x = cell.cx;
     mock.mouse_y = cell.cy;
-    try std.testing.expectEqual(@as(u8, 0b10), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
+    try std.testing.expectEqual(@as(u16, 0b10), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
     view.collapsed = true;
-    try std.testing.expectEqual(@as(u8, 0), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
+    try std.testing.expectEqual(@as(u16, 0), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
 }
 
 const FakeFormat = struct {

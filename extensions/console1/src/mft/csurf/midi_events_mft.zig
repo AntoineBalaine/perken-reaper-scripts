@@ -41,8 +41,8 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
 
 fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     const io = mft_globals.hostIo();
-    if (cc >= 8) return;
-    const slot: u3 = @intCast(cc);
+    if (cc >= mappings.knob_count) return;
+    const slot: u4 = @intCast(cc);
 
     const delta = mft.decodeRelative(val);
     if (delta == 0) return;
@@ -51,13 +51,15 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
         .TRANSPORT => {
+            // Only the eight top encoders have a transport function; the bottom row is for the pages.
+            if (slot >= 8) return;
             globals.mft.activity.markTurn(slot, std.Io.Timestamp.now(io, .awake).toMilliseconds());
             // Knob 3 held + turned does vertical zoom instead of horizontal.
             if (slot == 2 and globals.mft.isHeld(2)) {
                 globals.mft.transport_turned = true;
                 mft_transport.zoomVertical(delta);
             } else {
-                mft_transport.onRotate(slot, delta);
+                mft_transport.onRotate(@intCast(slot), delta);
             }
             return;
         },
@@ -95,7 +97,7 @@ fn wrapHue(cur: u8, delta: i8) u8 {
 // Settings mode: encoder 1 scrolls the highlighted row, encoder 2 adjusts the
 // selected value. Text (plugin name) rows are edited with the keyboard in the
 // panel, so encoder 2 has no effect on them.
-fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
+fn settingsRotate(globals: *MftGlobals, slot: u4, delta: i8) void {
     switch (slot) {
         0 => {
             const n = @as(i16, globals.mft.settings_cursor) + delta;

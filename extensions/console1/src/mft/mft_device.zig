@@ -17,6 +17,7 @@ const mft_state = @import("mft_state.zig");
 const MftActiveModule = mft_state.MftActiveModule;
 const page_count = mft_state.page_count;
 const pageForEncoder = mft_state.pageForEncoder;
+const knob_count = @import("mft_mappings.zig").knob_count;
 
 const rgba = palette.rgba;
 const Dl = imgui.DrawListPtr;
@@ -91,17 +92,17 @@ pub const formatted_len = 31;
 
 /// The eight top encoders of the active module, as the panel reads them each frame.
 pub const KnobInfo = struct {
-    vals: [8]f64 = @splat(0.0),
-    mapped: [8]bool = @splat(false),
-    name_bufs: [8][64:0]u8 = undefined,
-    has_name: [8]bool = @splat(false),
+    vals: [knob_count]f64 = @splat(0.0),
+    mapped: [knob_count]bool = @splat(false),
+    name_bufs: [knob_count][64:0]u8 = undefined,
+    has_name: [knob_count]bool = @splat(false),
     /// Where each mapped parameter lives, so that the panel can ask the plugin for its formatted value.
-    fx_index: [8]c_int = @splat(0),
-    param: [8]c_int = @splat(0),
+    fx_index: [knob_count]c_int = @splat(0),
+    param: [knob_count]c_int = @splat(0),
     /// The value as the plugin formats it ("-12.0 dB"), for the encoders that show one. An encoder without one shows
     /// the percentage.
-    formatted_bufs: [8][formatted_len:0]u8 = undefined,
-    has_formatted: [8]bool = @splat(false),
+    formatted_bufs: [knob_count][formatted_len:0]u8 = undefined,
+    has_formatted: [knob_count]bool = @splat(false),
 
     pub fn formatted(self: *const KnobInfo, slot: usize) [:0]const u8 {
         return std.mem.sliceTo(&self.formatted_bufs[slot], 0);
@@ -120,9 +121,9 @@ pub const View = struct {
     knobs: KnobInfo = .{},
     /// The encoders that are held down, one bit each, as `MftState.held_encoders` has them.
     held: u16 = 0,
-    /// The top encoders whose value is shown in a pop-up, one bit each: the ones that the mouse is over, that are held or
+    /// The encoders whose value is shown in a pop-up, one bit each: the ones that the mouse is over, that are held or
     /// have just been turned, and those that were a moment ago.
-    show_value: u8 = 0,
+    show_value: u16 = 0,
     /// Whether mute, solo and phase are on for the track, in the order of the keys on the right.
     side_lit: [3]bool = @splat(false),
     /// The transport encoders whose turn and whose press are lit, one bit each: the controller was used lately.
@@ -460,7 +461,7 @@ fn drawBubble(kit: *widgets.Panel, dl: Dl, bubble: *const Bubble) void {
 
 /// Where the cells of one frame put the pop-ups, which are drawn last so that no cell covers them.
 const Bubbles = struct {
-    items: [8]Bubble = undefined,
+    items: [knob_count]Bubble = undefined,
     len: usize = 0,
 
     pub fn add(self: *Bubbles, bubble: Bubble) void {
@@ -484,25 +485,63 @@ fn isHeld(view: *const View, idx: usize) bool {
     return (view.held >> @intCast(idx)) & 1 == 1;
 }
 
-/// Which of the top eight knobs the mouse is over, one bit each. Because the pop-up of a value must also stay for a
+/// Which of the sixteen knobs the mouse is over, one bit each. Because the pop-up of a value must also stay for a
 /// moment after the mouse leaves, the panel asks this before the device is drawn, and keeps the time. `origin` is where
 /// the device will be drawn, which is the cursor now. Only the window under the mouse counts, so that a window above
 /// this one hides the knobs under it.
-pub fn hoveredKnobs(kit: *widgets.Panel, origin: widgets.Point, view: *const View) u8 {
+pub fn hoveredKnobs(kit: *widgets.Panel, origin: widgets.Point, view: *const View) u16 {
     if (view.collapsed) return 0;
     const ctx = kit.ctx;
     if (!imgui.api.IsWindowHovered(ctx, null)) return 0;
     const gx = origin.x + pad + side_w + side_gap;
     const gy = origin.y + pad + header_h;
     const reach = ring_r + 6;
-    var bits: u8 = 0;
-    for (0..8) |idx| {
+    var bits: u16 = 0;
+    for (0..knob_count) |idx| {
         const cell = cellAt(idx, gx, gy, view.value_mode);
         if (imgui.api.IsMouseHoveringRect(ctx, cell.cx - reach, cell.cy - reach, cell.cx + reach, cell.cy + reach, null)) {
-            bits |= @as(u8, 1) << @intCast(idx);
+            bits |= @as(u16, 1) << @intCast(idx);
         }
     }
     return bits;
+}
+
+/// The texts that a mapped knob shows: its name, its value as the plugin writes it (or the percentage), and the value from 0 to 1.
+const KnobText = struct {
+    name: [:0]const u8,
+    value_text: [:0]const u8,
+    value: f64,
+};
+
+/// Reads the texts of the knob `idx` of a view. The buffers belong to the caller, because the texts that are made here point into them.
+fn knobText(info: *const KnobInfo, idx: usize, name_buf: *[16:0]u8, value_buf: *[16:0]u8) KnobText {
+    const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
+    const name: [:0]const u8 = if (info.has_name[idx]) info.name(idx) else std.mem.printSentinel(name_buf, "K{d}", .{idx + 1}, 0) catch "K";
+    // The plugin's own text is shown when the panel has it, and the percentage otherwise.
+    const percent: i32 = @intFromFloat(@round(value * 100.0));
+    const percent_text = std.mem.printSentinel(value_buf, "{d}%", .{percent}, 0) catch "?";
+    return .{ .name = name, .value_text = if (info.has_formatted[idx]) info.formatted(idx) else percent_text, .value = value };
+}
+
+/// Shows the value of a knob outside its window, when the value mode asks for it: over the ring, or in a pop-up that lasts while `show` is
+/// true. The mode that has the value in the window shows nothing here.
+fn showValue(kit: *widgets.Panel, dl: Dl, view: *const View, cell: Cell, text: [:0]const u8, color: c_int, show: bool, bubbles: *Bubbles) void {
+    switch (view.value_mode) {
+        .above => {
+            // The value is printed over the ring, in the color of the page.
+            const pushed = widgets.pushLabelFont(kit);
+            printedText(kit, dl, cell.cx, cell.cy - led_ring_r - 22 - text_up, text, color);
+            widgets.popFont(kit, pushed);
+        },
+        .popup => {
+            if (!show) return;
+            var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = color };
+            std.debug.assert(text.len <= formatted_len);
+            @memcpy(bubble.text[0 .. text.len + 1], text[0 .. text.len + 1]);
+            bubbles.add(bubble);
+        },
+        .label => {},
+    }
 }
 
 /// One of the top eight encoders, which show the transport functions in transport mode, the mapped parameters in the
@@ -532,33 +571,12 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
                 return;
             }
             var name_buf: [16:0]u8 = undefined;
-            const name: [:0]const u8 = if (info.has_name[idx]) info.name(idx) else std.mem.printSentinel(&name_buf, "K{d}", .{idx + 1}, 0) catch "K";
-            // The plugin's own text is shown when the panel has it, and the percentage otherwise.
             var value_buf: [16:0]u8 = undefined;
-            const percent: i32 = @intFromFloat(@round(value * 100.0));
-            const percent_text = std.mem.printSentinel(&value_buf, "{d}%", .{percent}, 0) catch "?";
-            const value_text: [:0]const u8 = if (info.has_formatted[idx]) info.formatted(idx) else percent_text;
-            switch (view.value_mode) {
-                .above => {
-                    // The value is printed over the ring, in the color of the mode, and the window under the knob
-                    // keeps the name.
-                    const pushed = widgets.pushLabelFont(kit);
-                    printedText(kit, dl, cell.cx, cell.cy - led_ring_r - 22 - text_up, value_text, mode_color);
-                    widgets.popFont(kit, pushed);
-                    drawLedLabel(kit, dl, cell.cx, cell.label_y, name, null, mode_color, 1);
-                },
-                .popup => {
-                    // The value shows in a bubble over the knob while the knob is held or has just been turned.
-                    if ((view.show_value >> @intCast(idx)) & 1 == 1 or held) {
-                        var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = mode_color };
-                        std.debug.assert(value_text.len <= formatted_len);
-                        @memcpy(bubble.text[0 .. value_text.len + 1], value_text[0 .. value_text.len + 1]);
-                        bubbles.add(bubble);
-                    }
-                    drawLedLabel(kit, dl, cell.cx, cell.label_y, name, null, mode_color, 1);
-                },
-                .label => drawLedLabel(kit, dl, cell.cx, cell.label_y, name, value_text, mode_color, 1),
-            }
+            const text = knobText(info, idx, &name_buf, &value_buf);
+            // The value is shown over the ring or in a bubble while the knob is held or has just been turned, and in the label otherwise.
+            const show = (view.show_value >> @intCast(idx)) & 1 == 1 or held;
+            showValue(kit, dl, view, cell, text.value_text, mode_color, show, bubbles);
+            drawLedLabel(kit, dl, cell.cx, cell.label_y, text.name, if (view.value_mode == .label) text.value_text else null, mode_color, 1);
         },
     }
 }
@@ -568,22 +586,29 @@ pub fn moduleForCell(idx: usize) ?MftActiveModule {
     return pageForEncoder(idx);
 }
 
-/// One of the bottom eight encoders, which select a page and light their LED in its color, brighter for the page in use.
-fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell: Cell) void {
-    const module = moduleForCell(idx) orelse {
-        drawEncoder(dl, cell.cx, cell.cy, .{ .color = theme.text_dim, .pressed = isHeld(view, idx) });
-        drawLedLabel(kit, dl, cell.cx, cell.label_y, null, null, theme.text_dim, 0);
-        return;
-    };
+/// One of the bottom eight encoders. A click selects its page, so its window says the name of the page on the press line, in the color of
+/// the page and brighter for the page in use. A turn belongs to the page in use like the turn of the top rows, so the ring shows the
+/// parameter that the page maps to it, and the turn line has its name.
+fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell: Cell, bubbles: *Bubbles) void {
+    const module = moduleForCell(idx) orelse unreachable;
     const color = view.color(module);
     const active = module == view.active;
     const held = isHeld(view, idx);
-    // The ring stays dark: its LEDs are for showing a value. The module in use is shown by the sunk cap, the lit window
-    // and the color of its word.
-    drawEncoder(dl, cell.cx, cell.cy, .{ .color = color, .pressed = held or active });
-    // The word under a module button says what a click does, so it is written as a press: with the sign of a press, and
-    // lit while the button is held. The module in use is in the color of the module.
-    drawDualLabel(kit, dl, cell.cx, cell.label_y, null, @tagName(module), color, if (active) 1 else 0.4, false, held, if (active) color else theme.text_dim);
+    const info = &view.knobs;
+    const mapped = info.mapped[idx];
+    const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
+    drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = color, .pressed = held or active });
+    var name_buf: [16:0]u8 = undefined;
+    var value_buf: [16:0]u8 = undefined;
+    var turn: ?[:0]const u8 = null;
+    if (mapped) {
+        const text = knobText(info, idx, &name_buf, &value_buf);
+        turn = text.name;
+        showValue(kit, dl, view, cell, text.value_text, view.color(view.active), (view.show_value >> @intCast(idx)) & 1 == 1, bubbles);
+    }
+    // The word under a page button says what a click does, so it is written as a press: with the sign of a press, and lit while the button
+    // is held. The page in use is in the color of the page.
+    drawDualLabel(kit, dl, cell.cx, cell.label_y, turn, @tagName(module), color, if (active) 1 else 0.4, false, held, if (active) color else theme.text_dim);
 }
 
 /// Draws the sixteen encoders. The LED color of the module in use is the accent of its knobs.
@@ -594,7 +619,7 @@ fn drawCells(kit: *widgets.Panel, dl: Dl, view: *const View, gx: f64, gy: f64) v
         if (idx < 8) {
             drawKnobCell(kit, dl, view, idx, cell, &bubbles);
         } else {
-            drawModuleCell(kit, dl, view, idx, cell);
+            drawModuleCell(kit, dl, view, idx, cell, &bubbles);
         }
     }
     for (bubbles.items[0..bubbles.len]) |*bubble| drawBubble(kit, dl, bubble);
