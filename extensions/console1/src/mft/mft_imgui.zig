@@ -22,6 +22,7 @@ const colors = @import("mft_colors.zig");
 const mft_port = @import("mft_port.zig");
 const mft_auto = @import("mft_auto.zig");
 const rgba = @import("ui_palette").rgba;
+const pi = std.math.pi;
 const log = std.log.scoped(.mft_imgui);
 
 const plugin_name = "MFT";
@@ -769,6 +770,27 @@ fn mapTitleButton(title: [:0]const u8, label: [:0]const u8) !bool {
     return imgui.api.SmallButton(ctx, label);
 }
 
+/// A small square key with a wrench on it, as the key of the mock that opens the window of a plugin, as tall as the button of the plugin next to it. Its
+/// words are in its tooltip. It returns whether it was clicked.
+fn mapWrenchKey(id: [:0]const u8, tip: [:0]const u8) bool {
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const at = widgets.cursorScreenPos(&fxsel_kit);
+    const size = imgui.api.GetFontSize(ctx) + 2;
+    const clicked = imgui.api.InvisibleButton(ctx, id, size, size, null);
+    const hovered = imgui.api.IsItemHovered(ctx, null);
+    widgets.rectFilled(dl, at.x, at.y, at.x + size, at.y + size, theme.knob_top, 4);
+    widgets.rect(dl, at.x, at.y, at.x + size, at.y + size, if (hovered) theme.amber else theme.knob_edge, 4, 1);
+    // The wrench: a handle from the lower left, and the ring of its head at the upper right, open on its far side.
+    const tone = if (hovered) theme.amber else theme.label;
+    const cx = at.x + size / 2;
+    const cy = at.y + size / 2;
+    const r = size * 0.18;
+    widgets.line(dl, cx - size * 0.28, cy + size * 0.28, cx + size * 0.05, cy - size * 0.05, tone, 2.2);
+    widgets.arc(dl, cx + size * 0.12, cy - size * 0.12, r, pi * 0.95, pi * 2.55, tone, 1.8);
+    if (hovered) widgets.tooltip(&fxsel_kit, tip);
+    return clicked;
+}
+
 /// A note on the line of the title of a card, after the title, in the dim of the panel.
 fn mapTitleNote(title: [:0]const u8, note: [:0]const u8) void {
     const line = mapTitleLine(title);
@@ -812,7 +834,7 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     if (state.map_fx_index[mi] >= 0 and track != null) {
         imgui.api.SameLine(ctx, null, null);
         var ui_id: [24:0]u8 = undefined;
-        if (imgui.api.SmallButton(ctx, std.mem.printSentinel(&ui_id, "Open UI##ui{d}", .{mi}, 0) catch "Open UI")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open the window of the plugin")) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
     }
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
