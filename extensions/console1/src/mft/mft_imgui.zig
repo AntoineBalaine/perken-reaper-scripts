@@ -16,6 +16,8 @@ const widgets = @import("panel_widgets");
 const wizard = @import("mft_wizard.zig");
 const device = @import("mft_device.zig");
 const mft_fxsel = @import("mft_fxsel.zig");
+const browser_source = @import("mft_browser_source.zig");
+const fx_browser = @import("fx_browser");
 const colors = @import("mft_colors.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -311,15 +313,23 @@ fn drawFxSelList(k: *widgets.Panel, globals: *MftGlobals) void {
             }
         },
         .browse => {
-            const count = state.browser.count;
+            const source = browser_source.get(globals, state.browser.count) orelse {
+                imgui.api.TextColored(ctx, theme.grey, "The list of plugins could not be read.");
+                if (state.noteText().len > 0) imgui.api.TextColored(ctx, theme.amber, state.noteText());
+                return;
+            };
+            const level = state.level(source);
+            const count = fx_browser.entryCount(source, level);
             if (count == 0) {
-                imgui.api.TextColored(ctx, theme.grey, "No plugin has a map for this module.");
+                imgui.api.TextColored(ctx, theme.grey, "Nothing in this list.");
             } else {
-                const cursor: usize = state.browse_cursor;
+                const cursor: usize = state.cursor();
                 const first = if (cursor < browser_rows / 2) 0 else @min(cursor - browser_rows / 2, if (count > browser_rows) count - browser_rows else 0);
                 const last = @min(count, first + browser_rows);
                 for (first..last) |i| {
-                    const line = std.mem.printSentinel(&buf, "{s} {s}", .{ if (cursor == i) ">" else " ", state.browser.get(i) }, 0) catch "";
+                    const name = mft_fxsel.entryName(state, source, level, i);
+                    const arrow = if (fx_browser.isMenu(source, level, i)) " >" else "";
+                    const line = std.mem.printSentinel(&buf, "{s} {s}{s}", .{ if (cursor == i) ">" else " ", name, arrow }, 0) catch "";
                     imgui.api.TextColored(ctx, if (cursor == i) accent else theme.grey, line);
                 }
                 const where = std.mem.printSentinel(&buf, "{d} of {d}", .{ cursor + 1, count }, 0) catch "";
@@ -687,7 +697,7 @@ test "the FX SEL mode has a window of its own, drawn on both screens with the st
         state.browser.add(std.fmt.bufPrint(&name, "JS: Plugin {d}", .{i}) catch "x");
     }
     for ([_]u16{ 0, 15, 29 }) |cursor| {
-        state.browse_cursor = cursor;
+        state.browse_cursors[0] = cursor;
         try drawWindows(&globals);
     }
     try mock.assertBalanced();

@@ -8,6 +8,7 @@
 const std = @import("std");
 const mft_state = @import("mft_state.zig");
 const mappings = @import("mft_mappings.zig");
+const fx_browser = @import("fx_browser");
 
 pub const MappableModule = mappings.MappableModule;
 
@@ -28,6 +29,38 @@ pub const Screen = enum {
     /// The plugins that can be loaded for the module.
     browse,
 };
+
+/// The menus of the browser that the controller leaves out. The FX chains and the track templates insert more than a plugin into a module, the
+/// container and the video processor have nothing to map, and the recent plugins are not kept here, so what is left are the plugins that have a
+/// map and the lists of all the plugins, by type and by tag.
+pub const hidden_menus = fx_browser.HiddenMenus.initMany(&.{ .fx_chains, .track_templates, .container, .video_processor, .recent });
+
+/// The name of a menu of the first level.
+pub fn rootMenuName(menu: fx_browser.RootMenu) [:0]const u8 {
+    return switch (menu) {
+        .fx_chains => "FX chains",
+        .track_templates => "Track templates",
+        .all_plugins => "All plugins",
+        .tags_category => "Categories",
+        .tags_developer => "Developers",
+        .container => "Container",
+        .video_processor => "Video processor",
+        .recent => "Recent",
+    };
+}
+
+/// The name that the window shows for an entry of the level that is open: the plugins that have a map and the menus on the first level, and what
+/// `fx_browser` names on the others.
+pub fn entryName(state: *const FxSelState, source: fx_browser.Source, level: fx_browser.Level, index: usize) [:0]const u8 {
+    switch (level) {
+        .root => {
+            if (index < state.browser.count) return state.browser.get(index);
+            const menu = fx_browser.rootMenuOf(source, index) orelse return "?";
+            return rootMenuName(menu);
+        },
+        else => return fx_browser.entryName(source, level, index) orelse "?",
+    }
+}
 
 /// What can be done to the module, in the order of the list.
 pub const Action = enum {
@@ -108,7 +141,10 @@ pub const FxSelState = struct {
     module: MappableModule = .EQ,
     /// The entry of the list of actions, and the entry of the list of plugins.
     action_cursor: u8 = 0,
-    browse_cursor: u16 = 0,
+    /// Where the browser is: the menus that are open (`browse_path` has the entry that opened each one), and the cursor of every level.
+    browse_depth: u8 = 0,
+    browse_path: [fx_browser.max_depth]usize = @splat(0),
+    browse_cursors: [fx_browser.max_depth + 1]u16 = @splat(0),
     /// The ticks of the encoder that have not made a step yet, which keep the sign of the turn.
     scroll_ticks: i16 = 0,
     /// The page that the controller was on when the mode opened, which it goes back to when the mode closes.
@@ -125,6 +161,22 @@ pub const FxSelState = struct {
 
     pub fn noteText(self: *const FxSelState) [:0]const u8 {
         return std.mem.sliceTo(&self.note, 0);
+    }
+
+    /// The entry of the level that is open that the cursor is on.
+    pub fn cursor(self: *const FxSelState) u16 {
+        return self.browse_cursors[self.browse_depth];
+    }
+
+    /// Goes back to the first level, with the cursor on the first entry.
+    pub fn resetBrowser(self: *FxSelState) void {
+        self.browse_depth = 0;
+        self.browse_cursors = @splat(0);
+    }
+
+    /// The level that is open, or the first one when the path leads nowhere (the data changed).
+    pub fn level(self: *const FxSelState, source: fx_browser.Source) fx_browser.Level {
+        return fx_browser.levelAt(source, self.browse_path[0..self.browse_depth]) orelse .root;
     }
 
     pub fn action(self: *const FxSelState) Action {
@@ -151,8 +203,8 @@ pub const Outcome = union(enum) {
     leave,
     /// The list of plugins has to be filled again, for the module of the state.
     fill_browser,
-    /// The plugin at that entry of the list is to be loaded, and the mode closed.
-    load_plugin: u16,
+    /// The plugin of that name is to be loaded for the module, and the mode closed.
+    load_plugin: [:0]const u8,
     /// The action has no screen yet.
     not_done: Action,
 };
@@ -163,8 +215,16 @@ fn move(cursor: anytype, steps: i32, count: usize) void {
     cursor.* = @intCast(std.math.clamp(next, 0, @as(i32, @intCast(count)) - 1));
 }
 
+/// How many entries the list of the screen has. The browser has the levels of `fx_browser`, and none when the data of the plugins is not there.
+pub fn listCount(state: *const FxSelState, source: ?fx_browser.Source) usize {
+    return switch (state.screen) {
+        .actions => action_count,
+        .browse => if (source) |data| fx_browser.entryCount(data, state.level(data)) else 0,
+    };
+}
+
 /// A turn of an encoder. Only the encoder 13 does something: it scrolls the list of the screen, one entry for each `ticks_per_step` ticks.
-pub fn turn(state: *FxSelState, encoder: usize, delta: i8) Outcome {
+pub fn turn(state: *FxSelState, encoder: usize, delta: i8, source: ?fx_browser.Source) Outcome {
     if (encoder != list_encoder or delta == 0) return .none;
     const total: i32 = @as(i32, state.scroll_ticks) + delta;
     const steps = @divTrunc(total, ticks_per_step);
@@ -172,7 +232,7 @@ pub fn turn(state: *FxSelState, encoder: usize, delta: i8) Outcome {
     if (steps == 0) return .none;
     switch (state.screen) {
         .actions => move(&state.action_cursor, steps, action_count),
-        .browse => move(&state.browse_cursor, steps, state.browser.count),
+        .browse => move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
     }
     return .none;
 }
@@ -181,26 +241,48 @@ fn runAction(state: *FxSelState, action: Action) Outcome {
     switch (action) {
         .load_fx => {
             state.screen = .browse;
-            state.browse_cursor = 0;
+            state.resetBrowser();
             return .fill_browser;
         },
         .select_preset, .save_preset, .create_mapping => return .{ .not_done = action },
     }
 }
 
+/// Confirms the entry that the cursor is on in the browser: a menu opens, and a plugin is loaded.
+fn confirmEntry(state: *FxSelState, source: fx_browser.Source) Outcome {
+    const level = state.level(source);
+    const index = state.cursor();
+    var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    switch (fx_browser.activate(source, level, index, &path_buf)) {
+        .enter => {
+            if (state.browse_depth >= fx_browser.max_depth) return .none;
+            state.browse_path[state.browse_depth] = index;
+            state.browse_depth += 1;
+            state.browse_cursors[state.browse_depth] = 0;
+            return .none;
+        },
+        .mapped => |entry| return .{ .load_plugin = state.browser.get(entry) },
+        .plugin => |name| return .{ .load_plugin = name },
+        // The menus that insert chains and templates are hidden, so these do not come; a leaf of the first level has nothing to load.
+        .fx_chain, .track_template, .root_leaf, .none => return .none,
+    }
+}
+
 /// A press of an encoder.
-pub fn press(state: *FxSelState, encoder: usize) Outcome {
+pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Outcome {
     state.scroll_ticks = 0;
     if (moduleForEncoder(encoder)) |module| {
         state.module = module;
-        state.browse_cursor = 0;
-        return if (state.screen == .browse) .fill_browser else .none;
+        if (state.screen != .browse) return .none;
+        state.resetBrowser();
+        return .fill_browser;
     }
     if (encoder == cancel_encoder) {
         return switch (state.screen) {
             .actions => .leave,
             .browse => blk: {
-                state.screen = .actions;
+                // Back leaves the menu that is open, and the browser when it is on the first level.
+                if (state.browse_depth > 0) state.browse_depth -= 1 else state.screen = .actions;
                 break :blk .none;
             },
         };
@@ -208,7 +290,7 @@ pub fn press(state: *FxSelState, encoder: usize) Outcome {
     if (encoder == list_encoder) {
         return switch (state.screen) {
             .actions => runAction(state, state.action()),
-            .browse => if (state.browser.count == 0) .none else .{ .load_plugin = state.browse_cursor },
+            .browse => if (source) |data| confirmEntry(state, data) else .none,
         };
     }
     // The top row has a shortcut for each action on the first screen.
@@ -242,26 +324,49 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
     return .{};
 }
 
+/// A browser source for the tests: the plugins that have a map (`mapped`), and the VST list with a few plugins.
+const TestData = struct {
+    chains: fx_browser_types.Directory = .{ .path = "/chains", .name = "chains", .subdirs = null, .files = null },
+    templates: fx_browser_types.Directory = .{ .path = "/templates", .name = "templates", .subdirs = null, .files = null },
+    by_type: fx_browser_types.FxByType = fx_browser_types.FxByType.initFill(.{}),
+    tags: fx_browser_types.FxTags = .{ .category = .{}, .developer = .{} },
+
+    fn init(self: *TestData, allocator: std.mem.Allocator) !void {
+        try self.by_type.getPtr(.VST).put(allocator, "ReaEQ", {});
+        try self.by_type.getPtr(.VST).put(allocator, "ReaComp", {});
+    }
+
+    fn deinit(self: *TestData, allocator: std.mem.Allocator) void {
+        for (&self.by_type.values) |*list| list.deinit(allocator);
+    }
+
+    fn source(self: *const TestData, mapped: usize) fx_browser.Source {
+        return .{ .mapped_count = mapped, .fx_chains = &self.chains, .track_templates = &self.templates, .plugins_by_type = &self.by_type, .tags = &self.tags, .hidden_menus = hidden_menus };
+    }
+};
+
+const fx_browser_types = @import("fx_parser_types");
+
 /// Turns the encoder 13 by `entries` entries (negative for the other way), as many ticks as that takes.
-fn scroll(state: *FxSelState, entries: i32) void {
+fn scroll(state: *FxSelState, entries: i32, source: ?fx_browser.Source) void {
     const sign: i8 = if (entries < 0) -1 else 1;
     var ticks: i32 = @intCast(@abs(entries) * ticks_per_step);
-    while (ticks > 0) : (ticks -= 1) _ = turn(state, list_encoder, sign);
+    while (ticks > 0) : (ticks -= 1) _ = turn(state, list_encoder, sign, source);
 }
 
 test "the encoder scrolls one entry for every few ticks, and keeps the ticks that did not make a step" {
     const t = std.testing;
     var state = FxSelState{};
-    for (0..ticks_per_step - 1) |_| _ = turn(&state, list_encoder, 1);
+    for (0..ticks_per_step - 1) |_| _ = turn(&state, list_encoder, 1, null);
     try t.expectEqual(@as(u8, 0), state.action_cursor);
-    _ = turn(&state, list_encoder, 1);
+    _ = turn(&state, list_encoder, 1, null);
     try t.expectEqual(@as(u8, 1), state.action_cursor);
     // A fast turn that sends a large tick moves several entries at once, and the rest is kept.
-    _ = turn(&state, list_encoder, ticks_per_step + 2);
+    _ = turn(&state, list_encoder, ticks_per_step + 2, null);
     try t.expectEqual(@as(u8, 2), state.action_cursor);
     try t.expectEqual(@as(i16, 2), state.scroll_ticks);
     // A press starts the count again.
-    _ = press(&state, 5);
+    _ = press(&state, 5, null);
     try t.expectEqual(@as(i16, 0), state.scroll_ticks);
 }
 
@@ -269,50 +374,94 @@ test "the first screen scrolls the list, stops at its ends, and the module butto
     const t = std.testing;
     var state = FxSelState{};
     try t.expectEqual(Action.load_fx, state.action());
-    scroll(&state, -1);
+    scroll(&state, -1, null);
     try t.expectEqual(@as(u8, 0), state.action_cursor);
-    scroll(&state, 10);
+    scroll(&state, 10, null);
     try t.expectEqual(Action.create_mapping, state.action());
     // Another encoder does not scroll.
-    for (0..ticks_per_step) |_| _ = turn(&state, 5, 1);
+    for (0..ticks_per_step) |_| _ = turn(&state, 5, 1, null);
     try t.expectEqual(Action.create_mapping, state.action());
 
-    try t.expectEqual(Outcome.none, press(&state, 9));
+    try t.expectEqual(Outcome.none, press(&state, 9, null));
     try t.expectEqual(MappableModule.GATE, state.module);
-    try t.expectEqual(Outcome.none, press(&state, 15));
+    try t.expectEqual(Outcome.none, press(&state, 15, null));
     try t.expectEqual(MappableModule.OUTPUT, state.module);
 }
 
-test "Load FX opens the browser, which loads the entry that the cursor is on, and Back goes to the first screen" {
+test "the browser lists the plugins that have a map and then the menus, opens a menu, loads a plugin, and Back leaves level by level" {
     const t = std.testing;
+    var data = TestData{};
+    try data.init(t.allocator);
+    defer data.deinit(t.allocator);
     var state = FxSelState{};
-    try t.expectEqual(Outcome.fill_browser, press(&state, list_encoder));
+    try t.expectEqual(Outcome.fill_browser, press(&state, list_encoder, null));
     try t.expectEqual(Screen.browse, state.screen);
-    // The list is empty until the handler fills it, so a press loads nothing.
-    try t.expectEqual(Outcome.none, press(&state, list_encoder));
+    // The first level: two plugins that have a map, then the menus that are not hidden (all plugins, categories, developers).
     state.browser.add("VST: ReaEQ (Cockos)");
     state.browser.add("JS: 3-Band EQ");
-    state.browser.add("JS: 4-Band EQ");
-    scroll(&state, 3);
-    try t.expectEqual(@as(u16, 2), state.browse_cursor);
-    try t.expectEqual(Outcome{ .load_plugin = 2 }, press(&state, list_encoder));
-    // A module button in the browser asks for the list of that module, from the top.
-    try t.expectEqual(Outcome.fill_browser, press(&state, 11));
-    try t.expectEqual(@as(u16, 0), state.browse_cursor);
-    try t.expectEqual(Outcome.none, press(&state, cancel_encoder));
+    const source = data.source(state.browser.count);
+    try t.expectEqual(@as(usize, 2 + 3), listCount(&state, source));
+    try t.expectEqualStrings("JS: 3-Band EQ", entryName(&state, source, state.level(source), 1));
+    try t.expectEqualStrings("All plugins", entryName(&state, source, state.level(source), 2));
+
+    // A plugin that has a map is loaded by its name.
+    scroll(&state, 1, source);
+    const mapped = press(&state, list_encoder, source);
+    try t.expectEqualStrings("JS: 3-Band EQ", mapped.load_plugin);
+
+    // The menu of all the plugins opens the types, and the type opens its list, whose entry is loaded.
+    scroll(&state, 1, source);
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, source));
+    try t.expectEqual(@as(u8, 1), state.browse_depth);
+    try t.expectEqual(@as(u16, 0), state.cursor());
+    // The first type is VST, which has two plugins.
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, source));
+    try t.expectEqual(@as(u8, 2), state.browse_depth);
+    try t.expectEqual(@as(usize, 2), listCount(&state, source));
+    scroll(&state, 1, source);
+    const loaded = press(&state, list_encoder, source);
+    try t.expectEqualStrings("ReaComp", loaded.load_plugin);
+
+    // Back leaves the lists one at a time, the first level goes back to the first screen, and then the mode closes.
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, source));
+    try t.expectEqual(@as(u8, 1), state.browse_depth);
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, source));
+    try t.expectEqual(@as(u8, 0), state.browse_depth);
+    try t.expectEqual(Screen.browse, state.screen);
+    try t.expectEqual(Outcome.none, press(&state, cancel_encoder, source));
     try t.expectEqual(Screen.actions, state.screen);
-    try t.expectEqual(Outcome.leave, press(&state, cancel_encoder));
+    try t.expectEqual(Outcome.leave, press(&state, cancel_encoder, source));
+}
+
+test "a module button in the browser asks for the list of that module, from the top" {
+    const t = std.testing;
+    var state = FxSelState{};
+    _ = press(&state, list_encoder, null);
+    state.browse_depth = 1;
+    state.browse_cursors[1] = 4;
+    try t.expectEqual(Outcome.fill_browser, press(&state, 11, null));
+    try t.expectEqual(@as(u8, 0), state.browse_depth);
+    try t.expectEqual(@as(u16, 0), state.cursor());
+    try t.expectEqual(MappableModule.COMP, state.module);
+}
+
+test "without the data of the plugins, the browser is empty and a press loads nothing" {
+    const t = std.testing;
+    var state = FxSelState{};
+    _ = press(&state, list_encoder, null);
+    try t.expectEqual(@as(usize, 0), listCount(&state, null));
+    try t.expectEqual(Outcome.none, press(&state, list_encoder, null));
 }
 
 test "the shortcuts of the top row run their action, and the actions without a screen say so" {
     const t = std.testing;
     var state = FxSelState{};
-    try t.expectEqual(Outcome{ .not_done = .select_preset }, press(&state, 1));
-    try t.expectEqual(Outcome{ .not_done = .create_mapping }, press(&state, 3));
-    try t.expectEqual(Outcome.none, press(&state, 4));
-    try t.expectEqual(Outcome.fill_browser, press(&state, 0));
+    try t.expectEqual(Outcome{ .not_done = .select_preset }, press(&state, 1, null));
+    try t.expectEqual(Outcome{ .not_done = .create_mapping }, press(&state, 3, null));
+    try t.expectEqual(Outcome.none, press(&state, 4, null));
+    try t.expectEqual(Outcome.fill_browser, press(&state, 0, null));
     // In the browser the top row has no shortcut.
-    try t.expectEqual(Outcome.none, press(&state, 1));
+    try t.expectEqual(Outcome.none, press(&state, 1, null));
 }
 
 test "BrowserList: names are kept, cut to their size, sorted without regard to the case, and dropped when the list is full" {

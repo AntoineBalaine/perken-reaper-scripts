@@ -14,6 +14,7 @@ const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
 const mft_auto = @import("../mft_auto.zig");
 const mft_fxsel = @import("../mft_fxsel.zig");
+const browser_source = @import("../mft_browser_source.zig");
 const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const mft_feedback = @import("../mft_feedback.zig");
@@ -89,24 +90,25 @@ fn onFxSelEvent(state: *mft_fxsel.FxSelState, chan: u8, cc: u8, val: u8, globals
     const io = mft_globals.hostIo();
     state.setNote("");
     var outcome: mft_fxsel.Outcome = .none;
+    // The browser's levels come from the plugins that REAPER has, which are read the first time that the browser is open.
+    const source = if (state.screen == .browse) browser_source.get(globals, state.browser.count) else null;
     if (chan == mft.ENCODER_ROT_CHANNEL) {
-        outcome = mft_fxsel.turn(state, cc, mft.decodeRelative(val));
+        outcome = mft_fxsel.turn(state, cc, mft.decodeRelative(val), source);
     } else {
         const pressed = val == 127;
         if (cc < 8) globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
         if (!pressed) return;
-        outcome = mft_fxsel.press(state, cc);
+        outcome = mft_fxsel.press(state, cc, source);
     }
     switch (outcome) {
         .none => {},
         .leave => closeFxSel(globals, state.return_page),
         .fill_browser => globals.map_store.listFx(io, state.module, &state.browser),
-        .load_plugin => |entry| {
+        .load_plugin => |name| {
             const track = globals.current_track orelse {
                 state.setNote("There is no track to load the plugin on.");
                 return;
             };
-            const name = state.browser.get(entry);
             if (mft_fx.loadPlugin(track, state.module, name)) {
                 // The controller goes to the page of the module that got the plugin.
                 closeFxSel(globals, pageOf(state.module));
