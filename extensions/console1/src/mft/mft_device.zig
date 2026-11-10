@@ -17,6 +17,7 @@ const mft_state = @import("mft_state.zig");
 const MftActiveModule = mft_state.MftActiveModule;
 const page_count = mft_state.page_count;
 const pageForEncoder = mft_state.pageForEncoder;
+const mft_auto = @import("mft_auto.zig");
 const knob_count = @import("mft_mappings.zig").knob_count;
 const push_count = @import("mft_mappings.zig").push_count;
 
@@ -564,6 +565,13 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = 0.5, .color = mode_color, .pressed = pressed, .icon = icons.transport[idx] });
             drawDualLabel(kit, dl, cell.cx, cell.label_y, mft_transport.rotationLabel(idx), mft_transport.pressLabel(idx), mode_color, 1, view.turn_lit & bit != 0, pressed, theme.text_dim);
         },
+        .AUTO => {
+            // The AUTO page is for the user, so the rings show nothing, and the windows say the suggested push or a dash.
+            const bit = @as(u8, 1) << @intCast(idx);
+            const pressed = held or view.press_lit & bit != 0;
+            drawEncoder(dl, cell.cx, cell.cy, .{ .color = mode_color, .pressed = pressed });
+            drawDualLabel(kit, dl, cell.cx, cell.label_y, "-", mft_auto.pushLabel(idx), mode_color, 1, false, pressed, theme.text_dim);
+        },
         .SETTINGS => {
             // The settings mode: the encoders move the form, so the ring shows nothing and the LED is off.
             drawEncoder(dl, cell.cx, cell.cy, .{ .color = mode_color, .pressed = held });
@@ -620,7 +628,8 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = color, .pressed = held or active });
     var name_buf: [16:0]u8 = undefined;
     var value_buf: [16:0]u8 = undefined;
-    var turn: ?[:0]const u8 = null;
+    // On the transport page the turns of the bottom row have their own functions, which have no ring.
+    var turn: ?[:0]const u8 = if (view.active == .TRANSPORT) mft_transport.bottomLabel(idx - 8) else null;
     if (mapped) {
         const text = knobText(info, idx, &name_buf, &value_buf);
         turn = text.name;

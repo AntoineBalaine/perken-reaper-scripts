@@ -12,6 +12,7 @@ const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
+const mft_auto = @import("../mft_auto.zig");
 const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const mft_feedback = @import("../mft_feedback.zig");
@@ -51,8 +52,11 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
         .TRANSPORT => {
-            // Only the eight top encoders have a transport function; the bottom row is for the pages.
-            if (slot >= 8) return;
+            // The bottom row has its own functions: the loop, the volume and the pan.
+            if (slot >= 8) {
+                mft_transport.onBottomRotate(slot - 8, delta, globals.current_track);
+                return;
+            }
             globals.mft.activity.markTurn(slot, std.Io.Timestamp.now(io, .awake).toMilliseconds());
             // Knob 3 held + turned does vertical zoom instead of horizontal.
             if (slot == 2 and globals.mft.isHeld(2)) {
@@ -64,6 +68,8 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
             return;
         },
         .SETTINGS => return settingsRotate(globals, slot, delta),
+        // The AUTO page has no knob that does anything yet.
+        .AUTO => return,
         else => {},
     }
 
@@ -173,6 +179,10 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
                 transportButton(globals, @intCast(cc), pressed);
             },
             .SETTINGS => {},
+            .AUTO => {
+                globals.mft.activity.markPress(cc, pressed, std.Io.Timestamp.now(io, .awake).toMilliseconds());
+                if (pressed) if (globals.current_track) |track| mft_auto.onPress(track, cc);
+            },
             // On a page, a turn with the push down is a fine adjustment, and a push that is released without a turn is a click.
             else => if (pressed) globals.mft.setHeld(cc) else if (globals.mft.releaseIsClick(cc)) pushClick(globals, @intCast(cc)),
         }
