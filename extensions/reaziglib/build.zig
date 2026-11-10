@@ -86,7 +86,14 @@ pub fn build(b: *std.Build) void {
     const fuzzy_mod = b.addModule("fuzzy", .{
         .root_source_file = b.path("src/fuzzy.zig"),
     });
-    _ = fuzzy_mod;
+
+    // fx_browser: the levels of the browser of plugins, which the window of the Console 1 and the controllers share. It depends on
+    // fx_parser_types and fuzzy.
+    const fx_browser_mod = b.addModule("fx_browser", .{
+        .root_source_file = b.path("src/fx_browser.zig"),
+    });
+    fx_browser_mod.addImport("fx_parser_types", fx_parser_types_mod);
+    fx_browser_mod.addImport("fuzzy", fuzzy_mod);
 
     // The hardware-style panel kit. panel_theme depends on reaper_imgui and ui_palette
     const panel_theme_mod = b.addModule("panel_theme", .{
@@ -219,6 +226,7 @@ pub fn build(b: *std.Build) void {
         "src/midi_device_names.zig",
         "src/midi_device_config.zig",
         "src/fuzzy.zig",
+        "src/fx_browser.zig",
         "src/panel/theme.zig",
         "src/panel/fonts.zig",
         "src/panel/widgets.zig",
@@ -240,6 +248,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "ui_palette", .mod = ui_palette_mod },
         .{ .name = "panel_theme", .mod = panel_theme_mod },
         .{ .name = "panel_fonts", .mod = panel_fonts_mod },
+        .{ .name = "fx_parser_types", .mod = fx_parser_types_mod },
+        .{ .name = "fuzzy", .mod = fuzzy_mod },
     };
     for (test_files) |file| {
         const t = b.addTest(.{ .root_module = b.createModule(.{
@@ -496,6 +506,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "preset_file_reader",
         "knob",
         "fuzzy",
+        "fx_browser",
         "panel_theme",
         "panel_fonts",
         "panel_widgets",

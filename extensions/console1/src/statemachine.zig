@@ -6,7 +6,7 @@
 //    - Update debug overlay to show new structures
 
 const std = @import("std");
-const fx_browser = @import("fx_browser.zig");
+const fx_browser = @import("fx_browser");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
