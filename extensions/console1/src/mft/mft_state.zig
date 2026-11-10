@@ -1,6 +1,27 @@
 const std = @import("std");
 
-pub const MftActiveModule = enum { IO, GATE, EQ, COMP, SETTINGS, TRANSPORT };
+/// The pages of the controller, in the order of the eight encoders of its bottom row: the encoder 9 is the first page, and the encoder 16
+/// the last. Because the order is the order of the encoders, the page of an encoder is its position minus 8.
+pub const MftActiveModule = enum { INPUT, GATE, EQ, COMP, SETTINGS, TRANSPORT, AUTO, OUTPUT };
+
+/// How many pages the controller has, which is how many encoders its bottom row has.
+pub const page_count = @typeInfo(MftActiveModule).@"enum".field_names.len;
+
+/// The page that a bottom-row encoder (the position 8 to 15 of the grid) selects, or null for a position of the top rows.
+pub fn pageForEncoder(position: usize) ?MftActiveModule {
+    if (position < 8 or position >= 8 + page_count) return null;
+    return @fromBackingInt(@intCast(position - 8));
+}
+
+test "pageForEncoder: the bottom row selects the pages in order, and the top rows select none" {
+    const t = std.testing;
+    try t.expectEqual(@as(?MftActiveModule, .INPUT), pageForEncoder(8));
+    try t.expectEqual(@as(?MftActiveModule, .TRANSPORT), pageForEncoder(13));
+    try t.expectEqual(@as(?MftActiveModule, .AUTO), pageForEncoder(14));
+    try t.expectEqual(@as(?MftActiveModule, .OUTPUT), pageForEncoder(15));
+    try t.expectEqual(@as(?MftActiveModule, null), pageForEncoder(7));
+    try t.expectEqual(@as(?MftActiveModule, null), pageForEncoder(16));
+}
 
 // The full MFT color palette (hue values on channel 3), used by the LED test.
 pub const LED_TEST_COLORS = [_]u8{ 0x02, 0x0F, 0x19, 0x2E, 0x3C, 0x40, 0x49, 0x56, 0x5A, 0x6B, 0x71 };

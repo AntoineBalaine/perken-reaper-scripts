@@ -30,8 +30,7 @@ pub const SlotRouting = struct {
 
 // The five physical Console One module slots, in track order. The MFT reuses
 // the Console One (C1-X) suffix scheme so a track set up by either extension is
-// recognized by the other. IO occupies two slots (input first, output last),
-// bracketing the dynamics and EQ.
+// recognized by the other. The input is the first slot and the output the last, bracketing the dynamics and EQ.
 pub const ModuleSlot = enum {
     input,
     gate,
@@ -66,14 +65,14 @@ fn defaultPluginFor(globals: *MftGlobals, slot: ModuleSlot) [:0]const u8 {
     };
 }
 
-// The track slots a module drives. IO spans input and output; the others are a
-// single slot.
+// The track slot that a module drives.
 fn slotsFor(module: MappableModule) []const ModuleSlot {
     return switch (module) {
-        .IO => &.{ .input, .output },
+        .INPUT => &.{.input},
         .GATE => &.{.gate},
         .EQ => &.{.eq},
         .COMP => &.{.comp},
+        .OUTPUT => &.{.output},
     };
 }
 
@@ -238,10 +237,9 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
     }
 }
 
-// Build the eight-slot routing for a module from the suffixed FX on the track.
-// Every FX whose suffix names one of the module's slots contributes the knob
-// slots its map defines; the first FX to define a knob wins. For IO the input
-// plugin (knobs 1-4) and the output plugin (knobs 5-8) merge onto one surface.
+// Build the routing of a module's sixteen encoders from the suffixed FX on the track.
+// Every FX whose suffix names the module's slot contributes the knob
+// slots its map defines; the first FX to define a knob wins.
 pub fn resolveModule(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) SlotRouting {
     const io = mft_globals.hostIo();
     var routing = SlotRouting{};
@@ -276,10 +274,9 @@ test "ModuleSlot: canonical rank order" {
     try t.expect(ModuleSlot.comp.rank() < ModuleSlot.output.rank());
 }
 
-test "SlotRouting.merge: input and output plugins combine without collision" {
+test "SlotRouting.merge: two plugins on one page combine without collision" {
     const t = std.testing;
-    // An input plugin on knobs 1-3 and an output plugin on knobs 5-6, as the
-    // IO module lays them out.
+    // Two plugins of one page, one on knobs 1-3 and the other on knobs 5-6.
     var input = mappings.MftModuleMapping{};
     input.setSlot(0, 1);
     input.setSlot(1, 0);

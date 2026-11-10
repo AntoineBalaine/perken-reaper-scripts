@@ -3,31 +3,33 @@ const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 
 pub const MFT_MAPPING_FORMAT_VERSION: u8 = 2;
 
-// A mappable module routes the eight top-row encoders to FX parameters. Only
-// IO, GATE, EQ and COMP carry FX mappings; SETTINGS and TRANSPORT are control
-// modes with no parameter mapping.
+// A mappable module routes the encoders of its page to FX parameters. Only INPUT, GATE, EQ, COMP and OUTPUT carry FX mappings; SETTINGS,
+// TRANSPORT and AUTO are control pages with no FX of their own.
 pub const MappableModule = enum {
-    IO,
+    INPUT,
     GATE,
     EQ,
     COMP,
+    OUTPUT,
 
     pub fn fromActive(module: MftActiveModule) ?MappableModule {
         return switch (module) {
-            .IO => .IO,
+            .INPUT => .INPUT,
             .GATE => .GATE,
             .EQ => .EQ,
             .COMP => .COMP,
-            .SETTINGS, .TRANSPORT => null,
+            .OUTPUT => .OUTPUT,
+            .SETTINGS, .TRANSPORT, .AUTO => null,
         };
     }
 
     pub fn dirName(self: MappableModule) [:0]const u8 {
         return switch (self) {
-            .IO => "IO",
+            .INPUT => "INPUT",
             .GATE => "GATE",
             .EQ => "EQ",
             .COMP => "COMP",
+            .OUTPUT => "OUTPUT",
         };
     }
 };
@@ -85,4 +87,6 @@ test "MappableModule: only FX modules map" {
     try t.expectEqual(@as(?MappableModule, .EQ), MappableModule.fromActive(.EQ));
     try t.expectEqual(@as(?MappableModule, null), MappableModule.fromActive(.SETTINGS));
     try t.expectEqual(@as(?MappableModule, null), MappableModule.fromActive(.TRANSPORT));
+    try t.expectEqual(@as(?MappableModule, null), MappableModule.fromActive(.AUTO));
+    try t.expectEqual(@as(?MappableModule, .OUTPUT), MappableModule.fromActive(.OUTPUT));
 }

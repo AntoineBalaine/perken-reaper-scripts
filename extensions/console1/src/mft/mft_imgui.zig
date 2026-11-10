@@ -4,7 +4,8 @@ const builtin = @import("builtin");
 const imgui = @import("reaper_imgui");
 const reaper = @import("reaper").reaper;
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
-const MftActiveModule = @import("mft_state.zig").MftActiveModule;
+const mft_state = @import("mft_state.zig");
+const MftActiveModule = mft_state.MftActiveModule;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
@@ -269,7 +270,7 @@ fn draw(globals: *MftGlobals) !void {
 /// What the device shows this frame: the colors of the modules, the parameters of the active module, the encoders that
 /// are held, and the state of the track's mute, solo and phase.
 fn readView(globals: *MftGlobals) device.View {
-    var module_colors: [6]c_int = undefined;
+    var module_colors: [mft_state.page_count]c_int = undefined;
     inline for (@typeInfo(MftActiveModule).@"enum".field_values, 0..) |field_value, i| {
         module_colors[i] = moduleColor(globals, @fromBackingInt(@intCast(field_value)));
     }
@@ -391,10 +392,10 @@ fn assertPanelBalanced(module: MftActiveModule, calibrating: bool) !void {
 }
 
 test "panel balanced across modes" {
-    try assertPanelBalanced(.IO, false);
+    try assertPanelBalanced(.INPUT, false);
     try assertPanelBalanced(.TRANSPORT, false);
     try assertPanelBalanced(.SETTINGS, false);
-    try assertPanelBalanced(.IO, true);
+    try assertPanelBalanced(.INPUT, true);
     try assertPanelBalanced(.SETTINGS, true);
 }
 
@@ -458,20 +459,20 @@ test "a value shows in its pop-up while the knob is turned, hovered or held, and
     const linger = value_linger_ms;
 
     // The first frame of a module only learns the values, because nobody turned anything.
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 1000));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 1016));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 1000));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 1016));
     // The first encoder turns, and its pop-up stays for the linger time.
     info.vals[0] = 0.3;
-    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 2000));
-    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 2000 + linger - 1));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 2000 + linger));
+    try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 2000));
+    try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 2000 + linger - 1));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 2000 + linger));
     // The mouse hovers over the first encoder: the pop-up stays as long as the mouse is there, then lingers.
-    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, first, 5000));
-    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, first, 9000));
-    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 9000 + linger - 1));
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 9000 + linger));
+    try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, first, 5000));
+    try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, first, 9000));
+    try std.testing.expectEqual(first, tracker.update(.INPUT, null, &info, 0, 9000 + linger - 1));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0, 9000 + linger));
     // An encoder with nothing mapped never shows a value, and a change of module brings values nobody turned.
-    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0b100, 12000));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.INPUT, null, &info, 0b100, 12000));
     info.vals[1] = 0.9;
     try std.testing.expectEqual(@as(u8, 0), tracker.update(.GATE, null, &info, 0, 13000));
 }
@@ -483,7 +484,7 @@ test "the mouse over a knob is found, and a folded device has no knob to hover" 
     defer mock.restore();
 
     var panel = widgets.Panel{};
-    var view = device.View{ .active = .IO, .colors = @splat(0x11) };
+    var view = device.View{ .active = .INPUT, .colors = @splat(0x11) };
     // The mock's cursor is at the origin, so that the second knob of the first row is at this place.
     const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h, view.value_mode);
     mock.mouse_x = cell.cx;

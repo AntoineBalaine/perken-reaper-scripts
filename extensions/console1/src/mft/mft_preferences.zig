@@ -16,33 +16,39 @@ pub const MftPreferences = struct {
     // Multiplier on the base per-click step, 0.1 to 4.0.
     sensitivity: f32 = 1.0,
     // Hue positions on the MFT color wheel (channel 2).
-    color_io: u8 = 0x0F,
+    color_input: u8 = 0x0F,
     // Pinker than the comp's red, which 0x5A (90) and 0x5E (94) were too close to.
     color_gate: u8 = 0x62,
     color_eq: u8 = 0x3C,
     color_comp: u8 = 0x56,
     color_settings: u8 = 0x49,
     color_transport: u8 = 0x6B,
+    color_auto: u8 = 0x19,
+    color_output: u8 = 0x2E,
 
     pub fn colorForModule(self: *const MftPreferences, module: MftActiveModule) u8 {
         return switch (module) {
-            .IO => self.color_io,
+            .INPUT => self.color_input,
             .GATE => self.color_gate,
             .EQ => self.color_eq,
             .COMP => self.color_comp,
             .SETTINGS => self.color_settings,
             .TRANSPORT => self.color_transport,
+            .AUTO => self.color_auto,
+            .OUTPUT => self.color_output,
         };
     }
 
     pub fn setColorForModule(self: *MftPreferences, module: MftActiveModule, hue: u8) void {
         switch (module) {
-            .IO => self.color_io = hue,
+            .INPUT => self.color_input = hue,
             .GATE => self.color_gate = hue,
             .EQ => self.color_eq = hue,
             .COMP => self.color_comp = hue,
             .SETTINGS => self.color_settings = hue,
             .TRANSPORT => self.color_transport = hue,
+            .AUTO => self.color_auto = hue,
+            .OUTPUT => self.color_output = hue,
         }
     }
 
@@ -81,12 +87,14 @@ pub const MftPreferences = struct {
 
         try w.writeAll("; MFT preferences\n");
         try w.print("sensitivity = {d:.2}\n", .{self.sensitivity});
-        try w.print("color_io = {d}\n", .{self.color_io});
+        try w.print("color_input = {d}\n", .{self.color_input});
         try w.print("color_gate = {d}\n", .{self.color_gate});
         try w.print("color_eq = {d}\n", .{self.color_eq});
         try w.print("color_comp = {d}\n", .{self.color_comp});
         try w.print("color_settings = {d}\n", .{self.color_settings});
-        try w.print("color_transport = {d}\n\n", .{self.color_transport});
+        try w.print("color_transport = {d}\n", .{self.color_transport});
+        try w.print("color_auto = {d}\n", .{self.color_auto});
+        try w.print("color_output = {d}\n\n", .{self.color_output});
         try w.print("[input]\n{s}\n\n", .{self.default_input});
         try w.print("[gate]\n{s}\n\n", .{self.default_gate});
         try w.print("[eq]\n{s}\n\n", .{self.default_eq});
@@ -109,7 +117,15 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
                 if (std.mem.eql(u8, kv.key, "sensitivity")) {
                     self.sensitivity = std.fmt.parseFloat(f32, kv.value) catch self.sensitivity;
                 } else if (std.mem.eql(u8, kv.key, "color_io")) {
-                    self.color_io = std.fmt.parseInt(u8, kv.value, 10) catch self.color_io;
+                    // Because the input and the output were one page in the older files, their color is the color of both.
+                    self.color_input = std.fmt.parseInt(u8, kv.value, 10) catch self.color_input;
+                    self.color_output = self.color_input;
+                } else if (std.mem.eql(u8, kv.key, "color_input")) {
+                    self.color_input = std.fmt.parseInt(u8, kv.value, 10) catch self.color_input;
+                } else if (std.mem.eql(u8, kv.key, "color_output")) {
+                    self.color_output = std.fmt.parseInt(u8, kv.value, 10) catch self.color_output;
+                } else if (std.mem.eql(u8, kv.key, "color_auto")) {
+                    self.color_auto = std.fmt.parseInt(u8, kv.value, 10) catch self.color_auto;
                 } else if (std.mem.eql(u8, kv.key, "color_gate")) {
                     self.color_gate = std.fmt.parseInt(u8, kv.value, 10) catch self.color_gate;
                 } else if (std.mem.eql(u8, kv.key, "color_eq")) {
@@ -164,7 +180,9 @@ test "MftPreferences: parse round-trip fields" {
     }
 
     try t.expectApproxEqAbs(@as(f32, 2.5), prefs.sensitivity, 0.001);
-    try t.expectEqual(@as(u8, 20), prefs.color_io);
+    // The color of the one page of the older files is the color of the input and of the output.
+    try t.expectEqual(@as(u8, 20), prefs.color_input);
+    try t.expectEqual(@as(u8, 20), prefs.color_output);
     try t.expectEqual(@as(u8, 60), prefs.color_eq);
     try t.expectEqualStrings("JS: My Input", prefs.default_input);
     try t.expectEqualStrings("VST: My EQ", prefs.default_eq);

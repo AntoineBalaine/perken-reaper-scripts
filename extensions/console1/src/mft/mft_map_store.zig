@@ -10,10 +10,11 @@ const log = std.log.scoped(.mft_maps);
 // <controller_dir>/maps/factory/<MODULE>/<fx_name>/default.ini. Each module
 // keeps its own cache keyed by FX name.
 pub const MftMapStore = struct {
-    IO: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
+    INPUT: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     GATE: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     EQ: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     COMP: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
+    OUTPUT: std.StringArrayHashMapUnmanaged(?MftModuleMapping) = .{},
     controller_dir: [:0]const u8,
     allocator: std.mem.Allocator,
 
@@ -23,10 +24,11 @@ pub const MftMapStore = struct {
 
     fn cacheFor(self: *MftMapStore, module: MappableModule) *std.StringArrayHashMapUnmanaged(?MftModuleMapping) {
         return switch (module) {
-            .IO => &self.IO,
+            .INPUT => &self.INPUT,
             .GATE => &self.GATE,
             .EQ => &self.EQ,
             .COMP => &self.COMP,
+            .OUTPUT => &self.OUTPUT,
         };
     }
 
@@ -73,7 +75,7 @@ pub const MftMapStore = struct {
     }
 
     pub fn deinit(self: *MftMapStore) void {
-        inline for (.{ &self.IO, &self.GATE, &self.EQ, &self.COMP }) |cache| {
+        inline for (.{ &self.INPUT, &self.GATE, &self.EQ, &self.COMP, &self.OUTPUT }) |cache| {
             cache.deinit(self.allocator);
         }
     }

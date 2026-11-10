@@ -6,7 +6,8 @@ const c = @import("c");
 const reaper = @import("reaper").reaper;
 const mft = @import("../mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
-const MftActiveModule = @import("../mft_state.zig").MftActiveModule;
+const mft_state = @import("../mft_state.zig");
+const MftActiveModule = mft_state.MftActiveModule;
 const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
@@ -107,13 +108,13 @@ fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
 
 fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
     const cursor = globals.mft.settings_cursor;
-    // The six colors come first, in the order of the modules, then the sensitivity; the rest are plugin-name rows,
+    // The colors come first, in the order of the pages, then the sensitivity; the rest are plugin-name rows,
     // which only the keyboard edits. The mouse of the panel changes the same values through the same functions.
-    if (cursor < 6) {
+    if (cursor < mft_state.page_count) {
         const module: MftActiveModule = @fromBackingInt(@intCast(cursor));
         const hue = wrapHue(globals.preferences.colorForModule(module), delta);
         mft_settings.setHue(globals, module, hue);
-    } else if (cursor == 6) {
+    } else if (cursor == mft_settings.SENSITIVITY_ROW) {
         const next = globals.preferences.sensitivity + @as(f32, @floatFromInt(delta)) * mft_settings.SENSITIVITY_STEP;
         mft_settings.setSensitivity(globals, next);
     }
@@ -164,15 +165,7 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
         return;
     }
     if (!pressed) return;
-    const module: MftActiveModule = switch (cc) {
-        8 => .IO,
-        9 => .GATE,
-        10 => .EQ,
-        11 => .COMP,
-        12 => .SETTINGS,
-        13 => .TRANSPORT,
-        else => return,
-    };
+    const module = mft_state.pageForEncoder(cc) orelse return;
     globals.mft.active_module = module;
 
     // Switching to a mappable module auto-inserts its default plugins onto the

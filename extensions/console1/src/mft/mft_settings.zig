@@ -8,6 +8,7 @@ const plugin_list = @import("mft_plugin_list.zig");
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
+const page_count = @import("mft_state.zig").page_count;
 const colors = @import("mft_colors.zig");
 const rgba = @import("ui_palette").rgba;
 const log = std.log.scoped(.mft_settings);
@@ -23,8 +24,11 @@ const NAME_LEN = 256;
 var buffers: [5][NAME_LEN:0]u8 = undefined;
 var synced = false;
 
-// The number of selectable rows: six colors, sensitivity, five plugin names.
-pub const ITEM_COUNT: i16 = 12;
+// The rows that can be selected: a color for each page, then the sensitivity, then the five plugin names. The first row of each group
+// follows from the number of pages.
+pub const SENSITIVITY_ROW: i16 = page_count;
+pub const PLUGIN_ROW: i16 = page_count + 1;
+pub const ITEM_COUNT: i16 = PLUGIN_ROW + 5;
 
 const SLOT_LABELS = [5][:0]const u8{ "Input", "Gate", "EQ", "Comp", "Output" };
 const NAME_IDS = [5][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out" };
@@ -229,7 +233,7 @@ pub fn drawForm(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void 
         imgui.api.SameLine(ctx, null, null);
         imgui.api.TextColored(ctx, colors.hueToRgb(p.colorForModule(module)), std.mem.printSentinel(&buf, "{d:>3}", .{p.colorForModule(module)}, 0) catch "");
     }
-    row(kit, cursor == 6, "Sensitivity");
+    row(kit, cursor == SENSITIVITY_ROW, "Sensitivity");
     imgui.api.SameLine(ctx, null, null);
     if (bar(kit, "sensitivity", (p.sensitivity - SENSITIVITY_MIN) / (SENSITIVITY_MAX - SENSITIVITY_MIN), accent)) |moved| {
         const next = sensitivityAtFraction(moved);
@@ -241,7 +245,7 @@ pub fn drawForm(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void 
     imgui.api.Spacing(ctx);
     imgui.api.TextColored(ctx, theme.grey, "Default plugin per slot (keyboard):");
     for (0..5) |i| {
-        row(kit, cursor == 7 + i, SLOT_LABELS[i]);
+        row(kit, cursor == PLUGIN_ROW + @as(i16, @intCast(i)), SLOT_LABELS[i]);
         imgui.api.SameLine(ctx, null, null);
         try pluginPicker(kit, i);
     }

@@ -13,7 +13,10 @@ const widgets = @import("panel_widgets");
 const palette = @import("ui_palette");
 const icons = @import("mft_icons.zig");
 const mft_transport = @import("mft_transport.zig");
-const MftActiveModule = @import("mft_state.zig").MftActiveModule;
+const mft_state = @import("mft_state.zig");
+const MftActiveModule = mft_state.MftActiveModule;
+const page_count = mft_state.page_count;
+const pageForEncoder = mft_state.pageForEncoder;
 
 const rgba = palette.rgba;
 const Dl = imgui.DrawListPtr;
@@ -113,7 +116,7 @@ pub const KnobInfo = struct {
 pub const View = struct {
     active: MftActiveModule,
     /// The color of each module, in the order of `MftActiveModule`.
-    colors: [6]c_int,
+    colors: [page_count]c_int,
     knobs: KnobInfo = .{},
     /// The encoders that are held down, one bit each, as `MftState.held_encoders` has them.
     held: u16 = 0,
@@ -560,21 +563,12 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
     }
 }
 
-/// The module that a bottom-row encoder selects, or null for the two reserved cells.
+/// The page that a bottom-row encoder selects, or null for a cell of the top rows.
 pub fn moduleForCell(idx: usize) ?MftActiveModule {
-    return switch (idx) {
-        8 => .IO,
-        9 => .GATE,
-        10 => .EQ,
-        11 => .COMP,
-        12 => .SETTINGS,
-        13 => .TRANSPORT,
-        else => null,
-    };
+    return pageForEncoder(idx);
 }
 
-/// One of the bottom eight encoders: the first six select a module, and light their LED in its color, brighter for the
-/// module in use. The last two are reserved.
+/// One of the bottom eight encoders, which select a page and light their LED in its color, brighter for the page in use.
 fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell: Cell) void {
     const module = moduleForCell(idx) orelse {
         drawEncoder(dl, cell.cx, cell.cy, .{ .color = theme.text_dim, .pressed = isHeld(view, idx) });
@@ -711,7 +705,7 @@ pub fn draw(kit: *widgets.Panel, view: *const View) Response {
 }
 
 fn testView(module: MftActiveModule, value_mode: ValueMode) View {
-    var colors: [6]c_int = undefined;
+    var colors: [page_count]c_int = undefined;
     for (&colors, 0..) |*each, i| each.* = rgba(0x4FD68AFF) + @as(c_int, @intCast(i)) * 0x100;
     var view = View{ .active = module, .colors = colors, .value_mode = value_mode };
     // The first encoder has a parameter mapped, with a name, the second one without a name, and the others nothing.
@@ -740,7 +734,7 @@ test "the device leaves the stacks balanced in every module, in every way of sho
     defer mock.restore();
 
     var kit = widgets.Panel{};
-    for ([_]MftActiveModule{ .IO, .TRANSPORT, .SETTINGS }) |module| {
+    for ([_]MftActiveModule{ .INPUT, .TRANSPORT, .SETTINGS, .AUTO, .OUTPUT }) |module| {
         for ([_]ValueMode{ .label, .above, .popup }) |value_mode| {
             var view = testView(module, value_mode);
             _ = draw(&kit, &view);
@@ -760,7 +754,7 @@ test "a folded device is shorter than an open one, and an open one with its valu
     defer mock.restore();
 
     var kit = widgets.Panel{};
-    var view = testView(.IO, .popup);
+    var view = testView(.INPUT, .popup);
     const open = draw(&kit, &view);
     view.collapsed = true;
     const folded = draw(&kit, &view);
@@ -771,9 +765,10 @@ test "a folded device is shorter than an open one, and an open one with its valu
     try std.testing.expect(above.bottom < open.bottom);
 }
 
-test "only the six first bottom cells select a module" {
-    try std.testing.expectEqual(@as(?MftActiveModule, .IO), moduleForCell(8));
+test "every bottom cell selects a page, and the cells of the top rows select none" {
+    try std.testing.expectEqual(@as(?MftActiveModule, .INPUT), moduleForCell(8));
     try std.testing.expectEqual(@as(?MftActiveModule, .TRANSPORT), moduleForCell(13));
-    try std.testing.expectEqual(@as(?MftActiveModule, null), moduleForCell(14));
+    try std.testing.expectEqual(@as(?MftActiveModule, .AUTO), moduleForCell(14));
+    try std.testing.expectEqual(@as(?MftActiveModule, .OUTPUT), moduleForCell(15));
     try std.testing.expectEqual(@as(?MftActiveModule, null), moduleForCell(0));
 }

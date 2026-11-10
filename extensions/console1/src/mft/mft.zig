@@ -12,12 +12,14 @@ pub const BASE_SENSITIVITY: f32 = 1.0 / 127.0;
 pub const FINE_SENSITIVITY_MULTIPLIER: f32 = 0.1;
 
 pub const ModuleBtnCC = enum(u8) {
-    IO = 8,
+    INPUT = 8,
     GATE = 9,
     EQ = 10,
     COMP = 11,
     SETTINGS = 12,
     TRANSPORT = 13,
+    AUTO = 14,
+    OUTPUT = 15,
 };
 
 // The six side buttons, discovered on hardware: channel 4, CCs 8-13.
