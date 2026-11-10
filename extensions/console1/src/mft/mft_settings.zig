@@ -32,7 +32,10 @@ const NAME_IDS = [6][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out", "##st
 /// the keyboard on the next frame.
 var edit_row: ?usize = null;
 var edit_buf: [16:0]u8 = @splat(0);
-var edit_focus = false;
+/// How many more frames the field asks for the keyboard. It asks until it has it, for a few frames at most, so that it never keeps the keyboard
+/// from the rest of the window.
+var edit_focus: u8 = 0;
+const edit_focus_frames = 6;
 
 /// What the last key of the panel did, which the panel says under its plates.
 var status: [96:0]u8 = @splat(0);
@@ -45,7 +48,7 @@ pub fn statusText() [:0]const u8 {
 /// Starts the typing of the value of a row, as a double click on the value does. The tests use it, since the mock does not double click.
 pub fn startTyping(index: usize) void {
     edit_row = index;
-    edit_focus = true;
+    edit_focus = edit_focus_frames;
 }
 
 fn setStatus(text: []const u8) void {
@@ -356,29 +359,46 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
             }
             imgui.api.SameLine(ctx, null, null);
             const value: f32 = if (r.setting == .sensitivity) p.sensitivity else p.fine;
+            // What is left of the card after the bar, which the value and the field that types it fit in.
+            var room_w: f64 = 0;
+            var room_h: f64 = 0;
+            imgui.api.GetContentRegionAvail(ctx, &room_w, &room_h);
+            const value_w = @max(@min(room_w - 4, 70), 30);
             if (edit_row == index) {
-                // The value is typed in a field over it: Enter sets it, and Escape or a click elsewhere leaves it as it was.
-                if (edit_focus) {
+                // The value is typed in a field over it: Enter sets it, and Escape or a click elsewhere leaves it as it was. The field asks for the
+                // keyboard until it has it, since the click that opened it may still be held on the first frame.
+                if (edit_focus > 0) {
                     try imgui.SetKeyboardFocusHere(.{ctx});
-                    edit_focus = false;
+                    edit_focus -= 1;
                 }
-                try imgui.SetNextItemWidth(.{ ctx, 70 });
+                try imgui.SetNextItemWidth(.{ ctx, value_w });
                 var flags: c_int = imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll | imgui.InputTextFlags_CharsDecimal;
-                if (imgui.api.InputText(ctx, "##stedit", &edit_buf, edit_buf.len, &flags, null)) {
+                const entered = imgui.api.InputText(ctx, "##stedit", &edit_buf, edit_buf.len, &flags, null);
+                if (imgui.api.IsItemActive(ctx)) edit_focus = 0;
+                if (entered) {
                     if (rows_mod.parseTyped(std.mem.sliceTo(&edit_buf, 0))) |typed| rows_mod.setNumber(p, r.setting, typed);
                     edit_row = null;
-                } else if (imgui.api.IsItemDeactivated(ctx)) {
+                } else if (edit_focus == 0 and imgui.api.IsItemDeactivated(ctx)) {
                     edit_row = null;
                 }
             } else {
-                imgui.api.TextColored(ctx, widgets.accent(kit), std.mem.printSentinel(&buf, "{d:.2}", .{value}, 0) catch "");
+                // The value is an item of its own, so that a double click on it is its own and does not move the window.
+                var value_buf: [40:0]u8 = undefined;
+                const value_label = std.mem.printSentinel(&value_buf, "{d:.2}##stval{d}", .{ value, index }, 0) catch "?";
+                var select_w = value_w;
+                var select_h: f64 = 0;
+                var select_flags: c_int = imgui.SelectableFlags_AllowDoubleClick;
+                imgui.api.PushStyleColor(ctx, imgui.Col_Text, widgets.accent(kit));
+                _ = imgui.api.Selectable(ctx, value_label, null, &select_flags, &select_w, &select_h);
+                var value_colors: c_int = 1;
+                imgui.api.PopStyleColor(ctx, &value_colors);
                 if (imgui.api.IsItemHovered(ctx, null)) {
                     widgets.tooltip(kit, "Double-click to type the value");
                     if (imgui.api.IsMouseDoubleClicked(ctx, 0)) {
                         globals.mft.settings_cursor = @intCast(index);
                         edit_row = index;
                         _ = std.mem.printSentinel(&edit_buf, "{d:.2}", .{value}, 0) catch {};
-                        edit_focus = true;
+                        edit_focus = edit_focus_frames;
                     }
                 }
             }
