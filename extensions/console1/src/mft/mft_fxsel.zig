@@ -117,6 +117,13 @@ pub const BrowserList = struct {
         self.count += 1;
     }
 
+    pub fn contains(self: *const BrowserList, name: []const u8) bool {
+        for (0..self.count) |i| {
+            if (std.mem.eql(u8, std.mem.sliceTo(&self.names[i], 0), name)) return true;
+        }
+        return false;
+    }
+
     pub fn get(self: *const BrowserList, index: usize) [:0]const u8 {
         std.debug.assert(index < self.count);
         return std.mem.sliceTo(&self.names[index], 0);

@@ -170,15 +170,17 @@ fn writePage(w: *std.Io.Writer, page: *const MftModuleMapping) std.Io.Writer.Err
     }
 }
 
+/// Writes the map of one module: the headers, then its knobs and pushes. A map that the user made is written with this too.
+pub fn writeModuleMap(w: *std.Io.Writer, module: MappableModule, fx_name: []const u8, page: *const MftModuleMapping) std.Io.Writer.Error!void {
+    try w.print("version = {d}\nmodule = {s}\nfx_name = {s}\n", .{ mappings.MFT_MAPPING_FORMAT_VERSION, module.dirName(), fx_name });
+    try writePage(w, page);
+}
+
 /// Writes a converted map as a map file of the controller: the headers, then the page of a module map, or a section for each page that has
 /// controls for a strip.
 pub fn write(converted: *const Converted, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    if (converted.module) |module| return writeModuleMap(w, module, converted.fx_name, &converted.pages[@backingInt(module)]);
     try w.print("version = {d}\n", .{mappings.MFT_MAPPING_FORMAT_VERSION});
-    if (converted.module) |module| {
-        try w.print("module = {s}\nfx_name = {s}\n", .{ module.dirName(), converted.fx_name });
-        try writePage(w, &converted.pages[@backingInt(module)]);
-        return;
-    }
     try w.print("module = STRIP\nfx_name = {s}\n", .{converted.fx_name});
     inline for (@typeInfo(MappableModule).@"enum".field_names, 0..) |name, i| {
         const page = &converted.pages[i];

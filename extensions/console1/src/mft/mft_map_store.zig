@@ -5,6 +5,7 @@ const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const MftModuleMapping = mappings.MftModuleMapping;
 const BrowserList = @import("mft_fxsel.zig").BrowserList;
+const mft_port = @import("mft_port.zig");
 const log = std.log.scoped(.mft_maps);
 
 // Lazily loads and caches per-module FX mappings from
@@ -56,11 +57,34 @@ pub const MftMapStore = struct {
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
         var file_buffer: [4096]u8 = undefined;
-        var opened = try self.openMap(io, module.dirName(), fx_name, &file_buffer);
+        // The maps that the user made come before the factory ones, so that a map of the user replaces the factory map of the same plugin.
+        var opened = self.openMap(io, "user", module.dirName(), fx_name, &file_buffer) catch |err| switch (err) {
+            error.FileNotFound => try self.openMap(io, "factory", module.dirName(), fx_name, &file_buffer),
+            else => return err,
+        };
         defer opened.file.close(io);
         var parser = ini.parse(temp_arena.allocator(), &opened.reader.interface, ";#");
         defer parser.deinit();
         return try parseMapping(&parser);
+    }
+
+    /// Saves a map that the user made, as `maps/user/<MODULE>/<plugin>/default.ini`, which the loader reads before the factory map of the plugin. The
+    /// map that was kept in memory for the plugin is dropped, so that the next turn of an encoder reads the new one.
+    pub fn saveUser(self: *MftMapStore, io: std.Io, module: MappableModule, fx_name: [:0]const u8, mapping: *const MftModuleMapping) !void {
+        var name_buf: [512:0]u8 = undefined;
+        const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+        var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const dir_path = fs_helpers.joinStrings(&dir_buf, &.{
+            self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, "user", std.fs.path.sep_str, module.dirName(), std.fs.path.sep_str, sanitized,
+        });
+        try std.Io.Dir.cwd().createDirPath(io, dir_path);
+        var aw: std.Io.Writer.Allocating = .init(self.allocator);
+        defer aw.deinit();
+        try mft_port.writeModuleMap(&aw.writer, module, fx_name, mapping);
+        var file_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const file_path = fs_helpers.joinStrings(&file_buf, &.{ dir_path, std.fs.path.sep_str, "default.ini" });
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = file_path, .data = aw.written() });
+        _ = self.cacheFor(module).swapRemove(fx_name);
     }
 
     /// Returns the map of a channel strip plugin, loading it from `maps/factory/STRIP/<fx name>/default.ini` the first time. As for the other maps,
@@ -82,7 +106,7 @@ pub const MftMapStore = struct {
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
         var file_buffer: [4096]u8 = undefined;
-        var opened = try self.openMap(io, "STRIP", fx_name, &file_buffer);
+        var opened = try self.openMap(io, "factory", "STRIP", fx_name, &file_buffer);
         defer opened.file.close(io);
         var parser = ini.parse(temp_arena.allocator(), &opened.reader.interface, ";#");
         defer parser.deinit();
@@ -91,14 +115,14 @@ pub const MftMapStore = struct {
 
     const OpenedMap = struct { file: std.Io.File, reader: std.Io.File.Reader };
 
-    /// Opens `maps/factory/<dir>/<sanitized fx name>/default.ini`. The reader reads into `buffer`, which the caller keeps alive.
-    fn openMap(self: *MftMapStore, io: std.Io, dir: []const u8, fx_name: [:0]const u8, buffer: []u8) !OpenedMap {
+    /// Opens `maps/<root>/<dir>/<sanitized fx name>/default.ini`, where the root is `user` or `factory`. The reader reads into `buffer`, which the caller keeps alive.
+    fn openMap(self: *MftMapStore, io: std.Io, root: []const u8, dir: []const u8, fx_name: [:0]const u8, buffer: []u8) !OpenedMap {
         var name_buf: [512:0]u8 = undefined;
         const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = fs_helpers.joinStrings(&path_buf, &.{
             self.controller_dir, std.fs.path.sep_str, "maps",        std.fs.path.sep_str,
-            "factory",           std.fs.path.sep_str, dir,           std.fs.path.sep_str,
+            root,                std.fs.path.sep_str, dir,           std.fs.path.sep_str,
             sanitized,           std.fs.path.sep_str, "default.ini",
         });
         const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
@@ -109,18 +133,23 @@ pub const MftMapStore = struct {
     /// the one in the header of its map, because the name of its folder has lost the characters that a file name cannot have.
     pub fn listFx(self: *MftMapStore, io: std.Io, module: MappableModule, list: *BrowserList) void {
         list.clear();
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, "factory", std.fs.path.sep_str, module.dirName() });
-        var dir = std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true }) catch return;
-        defer dir.close(io);
-        var iter = dir.iterate();
-        while (iter.next(io) catch null) |entry| {
-            if (entry.kind != .directory) continue;
-            var file_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const file_path = std.fmt.bufPrint(&file_path_buf, "{s}/default.ini", .{entry.name}) catch continue;
-            var text_buf: [1024]u8 = undefined;
-            const text = dir.readFile(io, file_path, &text_buf) catch continue;
-            if (fxNameFromHeader(text)) |name| list.add(name);
+        // The maps of the user and the factory maps of the module, a plugin that has both being listed once.
+        for ([_][]const u8{ "user", "factory" }) |root| {
+            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const path = fs_helpers.joinStrings(&path_buf, &.{ self.controller_dir, std.fs.path.sep_str, "maps", std.fs.path.sep_str, root, std.fs.path.sep_str, module.dirName() });
+            var dir = std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true }) catch continue;
+            defer dir.close(io);
+            var iter = dir.iterate();
+            while (iter.next(io) catch null) |entry| {
+                if (entry.kind != .directory) continue;
+                var file_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+                const file_path = std.fmt.bufPrint(&file_path_buf, "{s}/default.ini", .{entry.name}) catch continue;
+                var text_buf: [1024]u8 = undefined;
+                const text = dir.readFile(io, file_path, &text_buf) catch continue;
+                if (fxNameFromHeader(text)) |name| {
+                    if (!list.contains(name)) list.add(name);
+                }
+            }
         }
         list.sort();
     }
@@ -387,4 +416,57 @@ test "parseStripMapping: each section is a page, and keys outside a page are ign
     try t.expectEqual(@as(?mappings.PushAction, .{ .param = 10 }), strip.pageFor(.EQ).pushAt(3));
     try t.expect(strip.pageFor(.GATE).isEmpty());
     try t.expect(strip.pageFor(.COMP).isEmpty());
+}
+
+test "a map that is written as the user's map reads back the same, with its pushes, its dry/wet and its bands" {
+    const t = std.testing;
+    var mapping = MftModuleMapping{};
+    mapping.setSlot(0, 9);
+    mapping.setSlot(15, mappings.wet_param);
+    mapping.setPush(0, .{ .band = 2 });
+    mapping.setPush(7, .{ .param = 4 });
+    var aw: std.Io.Writer.Allocating = .init(t.allocator);
+    defer aw.deinit();
+    try mft_port.writeModuleMap(&aw.writer, .EQ, "VST: ReaEQ (Cockos)", &mapping);
+    var fbs: std.Io.Reader = .fixed(aw.written());
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+    const read = try parseMapping(&parser);
+    try t.expectEqual(mapping.knobs, read.knobs);
+    try t.expectEqual(mapping.pushes, read.pushes);
+    try t.expectEqualStrings("VST: ReaEQ (Cockos)", fxNameFromHeader(aw.written()).?);
+}
+
+test "saveUser writes the map of the user, the loader reads it before the factory map, and the plugin is listed once" {
+    const t = std.testing;
+    const io = t.io;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realPathFileAlloc(io, ".", t.allocator);
+    defer t.allocator.free(root);
+
+    // The store keeps the names it caches in the allocator that it is given, which in the extension is an arena.
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var store = MftMapStore.init(arena.allocator(), root);
+
+    // A factory map of the plugin, with the knob 1 on the parameter 5.
+    const factory_dir = try std.fmt.allocPrint(t.allocator, "{s}/maps/factory/EQ/VST_ ReaEQ (Cockos)", .{root});
+    defer t.allocator.free(factory_dir);
+    try std.Io.Dir.cwd().createDirPath(io, factory_dir);
+    const factory_file = try std.fmt.allocPrint(t.allocator, "{s}/default.ini", .{factory_dir});
+    defer t.allocator.free(factory_file);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = factory_file, .data = "version = 2\nmodule = EQ\nfx_name = VST: ReaEQ (Cockos)\nknob_1 = 5\n" });
+    try t.expectEqual(@as(?u16, 5), store.get(io, .EQ, "VST: ReaEQ (Cockos)").?.slotToParam(0));
+
+    // The user's map replaces it at once, even though the factory map was kept in memory.
+    var mine = MftModuleMapping{};
+    mine.setSlot(0, 9);
+    try store.saveUser(io, .EQ, "VST: ReaEQ (Cockos)", &mine);
+    try t.expectEqual(@as(?u16, 9), store.get(io, .EQ, "VST: ReaEQ (Cockos)").?.slotToParam(0));
+
+    var list = BrowserList{};
+    store.listFx(io, .EQ, &list);
+    try t.expectEqual(@as(usize, 1), list.count);
+    try t.expectEqualStrings("VST: ReaEQ (Cockos)", list.get(0));
 }
