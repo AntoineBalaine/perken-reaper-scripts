@@ -298,6 +298,17 @@ fn readSideLit(globals: *MftGlobals) [3]bool {
     };
 }
 
+/// The word under a push: the name of the parameter that a click steps, or "Shape" for the shape of an EQ band.
+fn pushName(track: reaper.MediaTrack, route: mft_fx.PushRoute, buf: *[32:0]u8) void {
+    buf[0] = 0;
+    switch (route.action) {
+        .param => |param| {
+            if (!reaper.TrackFX_GetParamName(track, route.fx_index, @intCast(param), @ptrCast(buf), 32)) _ = std.mem.printSentinel(buf, "Push", .{}, 0) catch {};
+        },
+        .band => _ = std.mem.printSentinel(buf, "Shape", .{}, 0) catch {},
+    }
+}
+
 // Reads the parameter values and names of the sixteen encoders for the active page.
 fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
     var info = KnobInfo{};
@@ -313,6 +324,11 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
         if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
             info.has_name[slot] = true;
         }
+    }
+    for (routing.pushes, 0..) |maybe_route, push| {
+        const route = maybe_route orelse continue;
+        info.push_mapped[push] = true;
+        pushName(track, route, &info.push_name_bufs[push]);
     }
     return info;
 }

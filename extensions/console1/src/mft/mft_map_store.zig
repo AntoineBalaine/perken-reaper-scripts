@@ -99,11 +99,11 @@ fn parseMapping(parser: anytype) !MftModuleMapping {
                     continue;
                 }
                 if (parsePositionKey(kv.key, "knob_", mappings.knob_count)) |position| {
-                    const val = std.fmt.parseInt(u16, kv.value, 10) catch continue;
+                    const val = parseKnobValue(kv.value) orelse continue;
                     mapping.setSlot(@intCast(position), val);
                 } else if (parsePositionKey(kv.key, "push_", mappings.push_count)) |position| {
-                    const val = std.fmt.parseInt(u16, kv.value, 10) catch continue;
-                    mapping.setPush(@intCast(position), val);
+                    const action = parsePushValue(kv.value) orelse continue;
+                    mapping.setPush(@intCast(position), action);
                 }
             },
             .section, .enumeration => {},
@@ -120,6 +120,33 @@ fn parsePositionKey(key: []const u8, prefix: []const u8, count: usize) ?usize {
     const n = std.fmt.parseInt(usize, key[prefix.len..], 10) catch return null;
     if (n < 1 or n > count) return null;
     return n - 1;
+}
+
+/// The value of a knob: a parameter number, or `wet`.
+fn parseKnobValue(text: []const u8) ?u16 {
+    if (std.mem.eql(u8, text, "wet")) return mappings.wet_param;
+    return std.fmt.parseInt(u16, text, 10) catch null;
+}
+
+/// The value of a push: a parameter number, `wet`, or `band:N` for the shape of the band N of the EQ, counted from 0.
+fn parsePushValue(text: []const u8) ?mappings.PushAction {
+    const band_prefix = "band:";
+    if (std.mem.startsWith(u8, text, band_prefix)) {
+        const band = std.fmt.parseInt(u2, text[band_prefix.len..], 10) catch return null;
+        return .{ .band = band };
+    }
+    return .{ .param = parseKnobValue(text) orelse return null };
+}
+
+test "parseKnobValue and parsePushValue: numbers, the dry/wet marker, the shape of a band, and what is not a value" {
+    const t = std.testing;
+    try t.expectEqual(@as(?u16, 12), parseKnobValue("12"));
+    try t.expectEqual(@as(?u16, mappings.wet_param), parseKnobValue("wet"));
+    try t.expectEqual(@as(?u16, null), parseKnobValue("loud"));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 3 }), parsePushValue("3"));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .band = 3 }), parsePushValue("band:3"));
+    try t.expectEqual(@as(?mappings.PushAction, null), parsePushValue("band:4"));
+    try t.expectEqual(@as(?mappings.PushAction, null), parsePushValue("band:"));
 }
 
 test "parsePositionKey: the ends of the knobs and of the pushes, and what is outside them" {
@@ -145,7 +172,7 @@ test "parseMapping: a version 2 map has knobs up to 16 and pushes, and a version
     defer parser2.deinit();
     const m2 = try parseMapping(&parser2);
     try t.expectEqual(@as(?u16, 7), m2.slotToParam(15));
-    try t.expectEqual(@as(?u16, 3), m2.pushToParam(0));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .param = 3 }), m2.pushAt(0));
 
     const v1 =
         \\version = 1
@@ -210,4 +237,20 @@ test "parseMapping: shipped EQ factory map matches expected slots" {
     try t.expectEqual(@as(?u16, 9), m.slotToParam(3));
     try t.expectEqual(@as(?u16, 1), m.slotToParam(4));
     try t.expectEqual(@as(?u16, 10), m.slotToParam(7));
+}
+
+test "parseMapping: the shipped EQ map has the bandwidths on the third row, the shapes on the pushes, and the dry/wet on the last knob" {
+    const t = std.testing;
+    const content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini");
+    var fbs: std.Io.Reader = .fixed(content);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+
+    const m = try parseMapping(&parser);
+    try t.expectEqual(@as(?u16, 2), m.slotToParam(8));
+    try t.expectEqual(@as(?u16, 11), m.slotToParam(11));
+    try t.expectEqual(@as(?u16, mappings.wet_param), m.slotToParam(15));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .band = 0 }), m.pushAt(0));
+    try t.expectEqual(@as(?mappings.PushAction, .{ .band = 3 }), m.pushAt(3));
+    try t.expectEqual(@as(?mappings.PushAction, null), m.pushAt(4));
 }

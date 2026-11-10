@@ -4,16 +4,25 @@ const reaper = @import("reaper").reaper;
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
+const mft_push = @import("mft_push.zig");
 
 pub const SlotTarget = struct {
     fx_index: c_int,
     param: u16,
 };
 
+/// What a click on the push of an encoder does, and in which FX.
+pub const PushRoute = struct {
+    fx_index: c_int,
+    action: mappings.PushAction,
+};
+
 // Per-encoder routing for the active module. Each of the sixteen encoders
-// either points at an (fx, param) pair or is unmapped.
+// either points at an (fx, param) pair or is unmapped, and each of the eight
+// pushes either has an action or has none.
 pub const SlotRouting = struct {
     targets: [mappings.knob_count]?SlotTarget = @splat(null),
+    pushes: [mappings.push_count]?PushRoute = @splat(null),
 
     // Fill this routing's empty slots from a mapping belonging to one FX.
     // Slots already claimed by an earlier FX are left untouched, so the first
@@ -23,6 +32,12 @@ pub const SlotRouting = struct {
             if (target.* != null) continue;
             if (mapping.slotToParam(@intCast(slot))) |param| {
                 target.* = .{ .fx_index = fx_index, .param = param };
+            }
+        }
+        for (&self.pushes, 0..) |*push, index| {
+            if (push.* != null) continue;
+            if (mapping.pushAt(@intCast(index))) |action| {
+                push.* = .{ .fx_index = fx_index, .action = action };
             }
         }
     }
@@ -252,9 +267,60 @@ pub fn resolveModule(globals: *MftGlobals, track: reaper.MediaTrack, module: Map
         var name_buf: [512:0]u8 = undefined;
         const base = fxBaseName(track, i, &name_buf) orelse continue;
         const mapping = globals.map_store.get(io, module, base) orelse continue;
-        routing.merge(i, mapping);
+        // The dry/wet parameter has a different number in each FX, so REAPER is asked for the one of this FX.
+        const wet = reaper.TrackFX_GetParamFromIdent(track, i, ":wet");
+        routing.merge(i, mapping.withWet(if (wet >= 0) @intCast(wet) else null));
     }
     return routing;
+}
+
+// The number that ReaEQ stores for a band is named BANDTYPE followed by the band, counted from 0.
+fn bandTypeKey(buf: *[16:0]u8, band: u2) [:0]const u8 {
+    return std.mem.printSentinel(buf, "BANDTYPE{d}", .{band}, 0) catch unreachable;
+}
+
+/// Does what a click on a push asks: steps a parameter, or the shape of a band of the EQ.
+pub fn runPush(track: reaper.MediaTrack, route: PushRoute) void {
+    switch (route.action) {
+        .param => |param| {
+            var stepping = mft_push.Stepping{};
+            var step: f64 = 0;
+            var small: f64 = 0;
+            var large: f64 = 0;
+            var toggle = false;
+            if (reaper.TrackFX_GetParameterStepSizes(track, route.fx_index, param, &step, &small, &large, &toggle)) {
+                stepping = .{ .step = step, .toggle = toggle };
+            }
+            const current = reaper.TrackFX_GetParamNormalized(track, route.fx_index, param);
+            if (std.math.isNan(current) or current < 0) return;
+            _ = reaper.TrackFX_SetParamNormalized(track, route.fx_index, param, mft_push.nextParamValue(current, stepping));
+        },
+        .band => |band| {
+            var key_buf: [16:0]u8 = undefined;
+            const key = bandTypeKey(&key_buf, band);
+            var value_buf: [16:0]u8 = undefined;
+            if (!reaper.TrackFX_GetNamedConfigParm(track, route.fx_index, key, &value_buf, value_buf.len)) return;
+            const current = std.fmt.parseInt(u8, std.mem.sliceTo(&value_buf, 0), 10) catch return;
+            var next_buf: [16:0]u8 = undefined;
+            const next = std.mem.printSentinel(&next_buf, "{d}", .{mft_push.nextBandType(current)}, 0) catch return;
+            _ = reaper.TrackFX_SetNamedConfigParm(track, route.fx_index, key, next);
+        },
+    }
+}
+
+test "SlotRouting.merge: the pushes of the first FX that claims them win" {
+    const t = std.testing;
+    var first = mappings.MftModuleMapping{};
+    first.setPush(0, .{ .band = 1 });
+    var second = mappings.MftModuleMapping{};
+    second.setPush(0, .{ .param = 3 });
+    second.setPush(2, .{ .param = 4 });
+    var routing = SlotRouting{};
+    routing.merge(1, first);
+    routing.merge(2, second);
+    try t.expectEqual(@as(?PushRoute, .{ .fx_index = 1, .action = .{ .band = 1 } }), routing.pushes[0]);
+    try t.expectEqual(@as(?PushRoute, .{ .fx_index = 2, .action = .{ .param = 4 } }), routing.pushes[2]);
+    try t.expectEqual(@as(?PushRoute, null), routing.pushes[1]);
 }
 
 test "parseSlot: reads the C1 suffix char" {

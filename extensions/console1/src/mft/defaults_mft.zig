@@ -29,6 +29,23 @@ const factory_maps = [_]FactoryMap{
     .{ .module_dir = "OUTPUT", .fx_name = "JS: Saturation", .content = @embedFile("resources/maps/factory/OUTPUT/saturation/default.ini") },
 };
 
+/// Writes a factory map. A factory map is the default that ships with the extension, so when the file on disk is not the shipped one it is
+/// an older default, or a copy that someone edited. Because the shipped layout has to take effect, the file is replaced, and because the
+/// edit must not be lost, the file that was there is kept next to it as `default.ini.old`, replacing an older `.old`.
+fn refreshFactoryFile(io: std.Io, fs_ops: FileSystemOps, path: []const u8, contents: []const u8) !void {
+    var existing_buf: [4096]u8 = undefined;
+    if (std.Io.Dir.cwd().readFile(io, path, &existing_buf)) |existing| {
+        if (std.mem.eql(u8, existing, contents)) return;
+        var old_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const old_path = joinStrings(&old_buf, &.{ path, ".old" });
+        try std.Io.Dir.renameAbsolute(path, old_path, io);
+    } else |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    }
+    try ensureFile(fs_ops, path, contents);
+}
+
 pub fn ensureConfigPath(io: std.Io, fs_ops: FileSystemOps) !void {
     const reaper_path = reaper.GetResourcePath();
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
@@ -80,6 +97,6 @@ pub fn ensureConfigPath(io: std.Io, fs_ops: FileSystemOps) !void {
         try ensureDir(fs_ops, fx_dir);
 
         const file_path = joinStrings(&file_buf, &.{ fx_dir, std.fs.path.sep_str, "default.ini" });
-        try ensureFile(fs_ops, file_path, m.content);
+        try refreshFactoryFile(io, fs_ops, file_path, m.content);
     }
 }

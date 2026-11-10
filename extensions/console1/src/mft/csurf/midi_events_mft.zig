@@ -67,6 +67,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
         else => {},
     }
 
+    globals.mft.markTurnedIfHeld(cc);
     const fine: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * fine * globals.preferences.sensitivity;
 
@@ -150,6 +151,16 @@ fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
     if (pressed) mft_transport.onPress(idx);
 }
 
+// A click on the push of an encoder: it does what the map of the page gives that push.
+fn pushClick(globals: *MftGlobals, push: u3) void {
+    const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
+    const track = globals.current_track orelse return;
+    const routing = mft_fx.resolveModule(globals, track, module);
+    const route = routing.pushes[push] orelse return;
+    globals.mft.last_fx_index = route.fx_index;
+    mft_fx.runPush(track, route);
+}
+
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     const io = mft_globals.hostIo();
     const pressed = val == 127;
@@ -162,7 +173,8 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
                 transportButton(globals, @intCast(cc), pressed);
             },
             .SETTINGS => {},
-            else => if (pressed) globals.mft.setHeld(cc) else globals.mft.clearHeld(cc),
+            // On a page, a turn with the push down is a fine adjustment, and a push that is released without a turn is a click.
+            else => if (pressed) globals.mft.setHeld(cc) else if (globals.mft.releaseIsClick(cc)) pushClick(globals, @intCast(cc)),
         }
         return;
     }

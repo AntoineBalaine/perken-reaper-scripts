@@ -18,6 +18,7 @@ const MftActiveModule = mft_state.MftActiveModule;
 const page_count = mft_state.page_count;
 const pageForEncoder = mft_state.pageForEncoder;
 const knob_count = @import("mft_mappings.zig").knob_count;
+const push_count = @import("mft_mappings.zig").push_count;
 
 const rgba = palette.rgba;
 const Dl = imgui.DrawListPtr;
@@ -103,9 +104,16 @@ pub const KnobInfo = struct {
     /// the percentage.
     formatted_bufs: [knob_count][formatted_len:0]u8 = undefined,
     has_formatted: [knob_count]bool = @splat(false),
+    /// The pushes that have an action, and the word for it, which is the name of the parameter or of what the click changes.
+    push_mapped: [push_count]bool = @splat(false),
+    push_name_bufs: [push_count][32:0]u8 = undefined,
 
     pub fn formatted(self: *const KnobInfo, slot: usize) [:0]const u8 {
         return std.mem.sliceTo(&self.formatted_bufs[slot], 0);
+    }
+
+    pub fn pushName(self: *const KnobInfo, push: usize) [:0]const u8 {
+        return std.mem.sliceTo(&self.push_name_bufs[push], 0);
     }
 
     pub fn name(self: *const KnobInfo, slot: usize) [:0]const u8 {
@@ -566,8 +574,14 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             const mapped = info.mapped[idx];
             const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = mode_color, .pressed = held });
-            if (!mapped) {
+            const push_mapped = idx < push_count and info.push_mapped[idx];
+            if (!mapped and !push_mapped) {
                 drawLedLabel(kit, dl, cell.cx, cell.label_y, null, null, mode_color, 0);
+                return;
+            }
+            if (!mapped) {
+                // A push that has an action while its knob has none: the window has the press line alone.
+                drawDualLabel(kit, dl, cell.cx, cell.label_y, null, info.pushName(idx), mode_color, 1, false, held, theme.text_dim);
                 return;
             }
             var name_buf: [16:0]u8 = undefined;
@@ -576,7 +590,13 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             // The value is shown over the ring or in a bubble while the knob is held or has just been turned, and in the label otherwise.
             const show = (view.show_value >> @intCast(idx)) & 1 == 1 or held;
             showValue(kit, dl, view, cell, text.value_text, mode_color, show, bubbles);
-            drawLedLabel(kit, dl, cell.cx, cell.label_y, text.name, if (view.value_mode == .label) text.value_text else null, mode_color, 1);
+            if (push_mapped) {
+                // The window says what the turn does on the top line and what a click does under it. The value of the knob is in its ring and
+                // its pop-up, since the window has no line left for it.
+                drawDualLabel(kit, dl, cell.cx, cell.label_y, text.name, info.pushName(idx), mode_color, 1, false, held, theme.text_dim);
+            } else {
+                drawLedLabel(kit, dl, cell.cx, cell.label_y, text.name, if (view.value_mode == .label) text.value_text else null, mode_color, 1);
+            }
         },
     }
 }

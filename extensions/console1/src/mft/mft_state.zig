@@ -82,6 +82,9 @@ pub const MftState = struct {
     activity: InputActivity = .{},
     active_module: MftActiveModule = .TRANSPORT,
     held_encoders: u16 = 0,
+    /// The held encoders that were turned while they were held, one bit each. Because a turn with the push down is a fine adjustment, the
+    /// release of such an encoder is not a click.
+    turned_while_held: u16 = 0,
     // The FX index of the most recently tweaked parameter, so the side button
     // can toggle that plugin's floating window.
     last_fx_index: ?c_int = null,
@@ -104,6 +107,22 @@ pub const MftState = struct {
         self.held_encoders &= ~(@as(u16, 1) << @intCast(encoder_idx));
     }
 
+    /// Notes that an encoder was turned. When it is held, the turn is a fine adjustment, which takes away the click of its release.
+    pub fn markTurnedIfHeld(self: *MftState, encoder_idx: u8) void {
+        std.debug.assert(encoder_idx < 16);
+        if (self.isHeld(encoder_idx)) self.turned_while_held |= (@as(u16, 1) << @intCast(encoder_idx));
+    }
+
+    /// Releases an encoder, and says whether the release is a click: the encoder was held and was not turned meanwhile.
+    pub fn releaseIsClick(self: *MftState, encoder_idx: u8) bool {
+        std.debug.assert(encoder_idx < 16);
+        const bit = @as(u16, 1) << @intCast(encoder_idx);
+        const click = self.isHeld(encoder_idx) and self.turned_while_held & bit == 0;
+        self.clearHeld(encoder_idx);
+        self.turned_while_held &= ~bit;
+        return click;
+    }
+
     pub fn isHeld(self: *const MftState, encoder_idx: u8) bool {
         std.debug.assert(encoder_idx < 16);
         return (self.held_encoders >> @intCast(encoder_idx)) & 1 == 1;
@@ -124,6 +143,25 @@ test "MftState: held encoder bitfield" {
     s.clearHeld(0);
     try t.expect(!s.isHeld(0));
     try t.expect(s.isHeld(15));
+}
+
+test "a release is a click unless the encoder was turned while it was held" {
+    const t = std.testing;
+    var s = MftState{};
+    s.setHeld(3);
+    try t.expect(s.releaseIsClick(3));
+    try t.expect(!s.isHeld(3));
+    // A release of an encoder that was not held is not a click.
+    try t.expect(!s.releaseIsClick(3));
+    s.setHeld(3);
+    s.markTurnedIfHeld(3);
+    try t.expect(!s.releaseIsClick(3));
+    // The next press starts again, and a turn without the push down marks nothing.
+    s.setHeld(3);
+    try t.expect(s.releaseIsClick(3));
+    s.markTurnedIfHeld(4);
+    s.setHeld(4);
+    try t.expect(s.releaseIsClick(4));
 }
 
 test "a turn and a press stay lit for the linger time, and a held press stays lit as long as it is held" {
