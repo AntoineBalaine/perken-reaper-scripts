@@ -18,9 +18,6 @@ const device = @import("mft_device.zig");
 const mft_fxsel = @import("mft_fxsel.zig");
 const browser_source = @import("mft_browser_source.zig");
 const fx_browser = @import("fx_browser");
-const c1 = @import("c1_components");
-const card_kit = c1.panel_card;
-const c1_theme = c1.c1_theme;
 const colors = @import("mft_colors.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -33,6 +30,8 @@ var ready = false;
 // in it, so both are made and dropped with the context.
 var fonts: panel_fonts.Fonts = .{};
 var kit: widgets.Panel = .{};
+// The window of the FX Selection has its own kit state: the heights that the cards of a window measured belong to that window.
+var fxsel_kit: widgets.Panel = .{};
 // Whether the device is folded to its header row. Because the player folds the panel for the whole session, the state
 // is kept when the context is dropped.
 var folded = false;
@@ -202,6 +201,7 @@ fn dropContext() void {
     ctx = null;
     fonts = .{};
     kit = .{};
+    fxsel_kit = .{};
 }
 
 /// Where the window opens the first time, in pixels from the top left of the screen.
@@ -295,10 +295,13 @@ const fxsel_window_x: f64 = window_x + 640;
 const fxsel_window_w: f64 = 460;
 const fxsel_window_h: f64 = 480;
 
+/// How many rows of a list show at a time. The cursor stays in the middle when the list is longer.
+const fxsel_rows: usize = 12;
+
 /// The heading of the window, engraved as the names of the modules are, but in the color of the module that the mode works on.
 fn drawFxSelHeading(text: [:0]const u8, color: c_int) !void {
-    try imgui.PushFont(.{ ctx, c1_theme.fonts.TAB });
-    defer imgui.PopFont(.{ctx}) catch {};
+    if (fonts.tab != null) imgui.api.PushFont(ctx, fonts.tab);
+    defer if (fonts.tab != null) imgui.api.PopFont(ctx);
     var x: f64 = undefined;
     var y: f64 = undefined;
     try imgui.GetCursorScreenPos(.{ ctx, &x, &y });
@@ -355,7 +358,8 @@ fn drawFxSelSearch(state: *mft_fxsel.FxSelState) !void {
 
 /// What the keys of the computer do in the window, as the controller does: the arrows move the cursor by one entry and the page keys by a page,
 /// Enter chooses the entry, and Escape steps back.
-fn fxSelKeys(state: *mft_fxsel.FxSelState, source: ?fx_browser.Source, page: i32) !mft_fxsel.Outcome {
+fn fxSelKeys(state: *mft_fxsel.FxSelState, source: ?fx_browser.Source) !mft_fxsel.Outcome {
+    const page: i32 = @intCast(fxsel_rows - 1);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_DownArrow })) mft_fxsel.moveCursor(state, 1, source);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_UpArrow })) mft_fxsel.moveCursor(state, -1, source);
     if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_PageDown })) mft_fxsel.moveCursor(state, page, source);
@@ -365,120 +369,117 @@ fn fxSelKeys(state: *mft_fxsel.FxSelState, source: ?fx_browser.Source, page: i32
     return .none;
 }
 
-/// The rows of the first screen, which are the actions that can be done to the module.
-fn drawFxSelActions(state: *mft_fxsel.FxSelState, room: f64, overhead: f64, row_height: f64) !mft_fxsel.Outcome {
+/// The rows of a list that show: the window of `fxsel_rows` entries that has the cursor in the middle, or the start of the list when the cursor is
+/// not in it.
+const RowRange = struct { first: usize, last: usize };
+
+fn rowRange(cursor: ?usize, count: usize, rows: usize) RowRange {
+    const middle = cursor orelse 0;
+    const first = if (cursor == null or middle < rows / 2) 0 else @min(middle - rows / 2, count -| rows);
+    return .{ .first = first, .last = @min(count, first + rows) };
+}
+
+/// One row of a list: the entry that the cursor is on has the color of the module and an arrow before it, the others are in the bright of the text, and a
+/// menu has an arrow after it. It returns whether the row was clicked.
+fn drawFxSelRow(label: [:0]const u8, index: usize, is_menu: bool, is_cursor: bool, accent: c_int) !bool {
+    var buf: [220:0]u8 = undefined;
+    const text = std.mem.printSentinel(&buf, "{s} {s}{s}##row{d}", .{ if (is_cursor) ">" else " ", label, if (is_menu) "  >" else "", index }, 0) catch return false;
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, if (is_cursor) accent else theme.text });
+    defer imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+    return try imgui.Selectable(.{ ctx, text });
+}
+
+/// The card of the first screen, which has the actions that can be done to the module.
+fn drawFxSelActions(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
-    const card = try card_kit.beginCard(ctx, "##fxsel_actions", "Actions", @max(room - overhead, row_height * 3));
-    if (card.visible) {
-        inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
-            const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
-            if (try card_kit.row(ctx, action.label(), false, state.action_cursor == i, &state.scroll_dirty)) {
-                state.action_cursor = @intCast(i);
-                outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
-            }
+    if (!widgets.beginCard(k, "Actions", null, null, accent)) return outcome;
+    defer widgets.endCard(k);
+    inline for (@typeInfo(mft_fxsel.Action).@"enum".field_names, 0..) |_, i| {
+        const action: mft_fxsel.Action = @fromBackingInt(@intCast(i));
+        if (try drawFxSelRow(action.label(), i, false, state.action_cursor == i, accent)) {
+            state.action_cursor = @intCast(i);
+            outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
         }
     }
-    try card_kit.endCard(ctx, card.plate);
     return outcome;
 }
 
-/// The rows of the plugins that have a map, which are the first rows of the first level.
-fn drawFxSelMapped(state: *mft_fxsel.FxSelState, source: fx_browser.Source, outcome: *mft_fxsel.Outcome) !void {
-    const on_first_level = state.browse_depth == 0;
-    for (0..state.browser.count) |i| {
-        if (try card_kit.row(ctx, state.browser.get(i), false, on_first_level and state.cursor() == i, &state.scroll_dirty)) {
-            outcome.* = mft_fxsel.clickEntry(state, i, source);
-        }
-    }
-}
-
-/// The rows of a level that is not the first one. Because a list of plugins can have thousands of them, its rows are walked once.
-fn drawFxSelLevel(state: *mft_fxsel.FxSelState, source: fx_browser.Source, level: fx_browser.Level, outcome: *mft_fxsel.Outcome) !void {
-    switch (level) {
-        .root => {},
-        .fx_list => |plugins| {
-            var index: usize = 0;
-            for (plugins.keys()) |listed_name| {
-                if (!fx_browser.isListed(listed_name)) continue;
-                if (try card_kit.row(ctx, @as([:0]const u8, @ptrCast(listed_name)), false, state.cursor() == index, &state.scroll_dirty)) {
-                    outcome.* = mft_fxsel.clickEntry(state, index, source);
-                }
-                index += 1;
-            }
-        },
-        else => {
-            const menus_end = fx_browser.leafStart(level);
-            const count = fx_browser.entryCount(source, level);
-            for (0..count) |index| {
-                const label = fx_browser.entryName(source, level, index) orelse continue;
-                if (try card_kit.row(ctx, label, index < menus_end, state.cursor() == index, &state.scroll_dirty)) {
-                    outcome.* = mft_fxsel.clickEntry(state, index, source);
-                }
-            }
-        },
-    }
-}
-
-/// The contents of the browser: the search, the line of the menus that are open, and the cards of the level or of the results.
-fn drawFxSelBrowser(state: *mft_fxsel.FxSelState, source: fx_browser.Source, room: f64, overhead: f64, row_height: f64) !mft_fxsel.Outcome {
+/// The contents of the browser: the cards of the level that is open, or the results of the search.
+fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_browser.Source, accent: c_int) !mft_fxsel.Outcome {
     var outcome: mft_fxsel.Outcome = .none;
-    const level = state.level(source);
     if (state.searching()) {
+        // The results take the place of the cards: the plugins of every type that match what was typed, the best first.
         var hits: [fx_browser.search_capacity]@import("fuzzy").Ranked = undefined;
         const count = fx_browser.search(source, state.searchText(), &hits);
         state.search_cursor = @min(state.search_cursor, @as(u16, @intCast(count -| 1)));
-        const card = try card_kit.beginCard(ctx, "##fxsel_results", "Results", @max(room - overhead, row_height * 3));
-        if (card.visible) {
-            for (hits[0..count], 0..) |hit, i| {
-                const name = fx_browser.pluginAt(source, hit.index) orelse continue;
-                if (try card_kit.row(ctx, name, false, i == state.search_cursor, &state.scroll_dirty)) outcome = mft_fxsel.clickEntry(state, i, source);
-            }
+        if (!widgets.beginCard(k, "Results", null, null, accent)) return outcome;
+        defer widgets.endCard(k);
+        if (count == 0) try imgui.Text(.{ ctx, "No plugin matches." });
+        const range = rowRange(state.search_cursor, count, fxsel_rows);
+        for (range.first..range.last) |i| {
+            const name = fx_browser.pluginAt(source, hits[i].index) orelse continue;
+            if (try drawFxSelRow(name, i, false, i == state.search_cursor, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
         }
-        try card_kit.endCard(ctx, card.plate);
         return outcome;
     }
+    const level = state.level(source);
     switch (level) {
         .root => {
             // The plugins that have a map are in one card, and the menus of the browser in another.
-            const menus_height = row_height * @as(f64, @floatFromInt(fx_browser.rootMenuCount(source))) + 4;
-            const mapped_height = @max(room - menus_height - overhead * 2, row_height * 3);
-            const mapped_card = try card_kit.beginCard(ctx, "##fxsel_mapped", "Mapped plugins", mapped_height);
-            if (mapped_card.visible) try drawFxSelMapped(state, source, &outcome);
-            try card_kit.endCard(ctx, mapped_card.plate);
-
-            const menus_card = try card_kit.beginCard(ctx, "##fxsel_menus", "Browse", menus_height);
-            if (menus_card.visible) {
+            const menu_count = fx_browser.rootMenuCount(source);
+            const cursor: usize = state.cursor();
+            if (state.browser.count > 0) {
+                if (widgets.beginCard(k, "Mapped plugins", null, null, accent)) {
+                    defer widgets.endCard(k);
+                    const rows = fxsel_rows -| menu_count;
+                    const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, @max(rows, 3));
+                    for (range.first..range.last) |i| {
+                        if (try drawFxSelRow(state.browser.get(i), i, false, cursor == i, accent)) outcome = mft_fxsel.clickEntry(state, i, source);
+                    }
+                }
+            }
+            if (widgets.beginCard(k, "Browse", null, null, accent)) {
+                defer widgets.endCard(k);
                 var listed: usize = 0;
                 for (std.enums.values(fx_browser.RootMenu)) |menu| {
                     if (source.hidden_menus.contains(menu)) continue;
                     const index = source.mapped_count + listed;
                     listed += 1;
-                    if (try card_kit.row(ctx, mft_fxsel.rootMenuName(menu), fx_browser.isMenu(source, level, index), state.browse_depth == 0 and state.cursor() == index, &state.scroll_dirty)) {
+                    if (try drawFxSelRow(mft_fxsel.rootMenuName(menu), index, fx_browser.isMenu(source, level, index), cursor == index, accent)) {
                         outcome = mft_fxsel.clickEntry(state, index, source);
                     }
                 }
             }
-            try card_kit.endCard(ctx, menus_card.plate);
         },
         else => {
+            // The card is named after the menu that is open, which is the last name of the line of menus.
+            var crumb_buf: [512:0]u8 = undefined;
+            const crumb = fxSelBreadcrumb(&crumb_buf, state, source);
             var title_buf: [128:0]u8 = undefined;
-            const crumb = fxSelBreadcrumb(&title_buf, state, source);
-            // The card is named after the menu that is open, which is the last name of the line.
-            const title: [:0]const u8 = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
-            const card = try card_kit.beginCard(ctx, "##fxsel_level", @ptrCast(title), @max(room - overhead, row_height * 3));
-            if (card.visible) try drawFxSelLevel(state, source, level, &outcome);
-            try card_kit.endCard(ctx, card.plate);
+            const last = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
+            const title = std.mem.printSentinel(&title_buf, "{s}", .{last}, 0) catch "Plugins";
+            if (!widgets.beginCard(k, title, null, null, accent)) return outcome;
+            defer widgets.endCard(k);
+            const count = fx_browser.entryCount(source, level);
+            if (count == 0) try imgui.Text(.{ ctx, "Nothing in this list." });
+            const cursor: usize = state.cursor();
+            const menus_end = fx_browser.leafStart(level);
+            const range = rowRange(cursor, count, fxsel_rows);
+            for (range.first..range.last) |index| {
+                const label = fx_browser.entryName(source, level, index) orelse continue;
+                if (try drawFxSelRow(label, index, index < menus_end, cursor == index, accent)) outcome = mft_fxsel.clickEntry(state, index, source);
+            }
         },
     }
     return outcome;
 }
 
-/// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It is
-/// drawn with the components of the Console 1: the cards and the rows, and the heading in the color of the module.
+/// The window of the FX Selection mode, which is a window of its own, as the one of the Console 1 is, and is shown only while the mode is open. It
+/// has the look of the panel: cards of the panel kit with the rows of the lists, and the heading in the color of the module.
 fn drawFxSelWindow(globals: *MftGlobals) !void {
     const state = &(globals.mft.fxsel orelse return);
-    // The cards of the Console 1 draw in its fonts, which are the ones of this panel here.
-    c1_theme.fonts.TAB = fonts.tab;
+    fxsel_kit.ctx = ctx;
+    fxsel_kit.fonts = fonts;
     theme.push(ctx);
     defer theme.pop(ctx);
     if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
@@ -486,7 +487,7 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
 
     imgui.api.SetNextWindowPos(ctx, fxsel_window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
     imgui.api.SetNextWindowSize(ctx, fxsel_window_w, fxsel_window_h, &imgui.Cond_FirstUseEver);
-    // The window has no title bar, since the heading says what it is, and its padding is the one of the cards, which have their own.
+    // The window has no title bar, since the heading says what it is.
     theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 6, 6);
     const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar;
     const visible = try imgui.Begin(.{ ctx, "MFT FX Selection", null, flags });
@@ -513,26 +514,16 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
         }
     }
 
-    // What the cards share: the height under the heading, less the line under them for the note.
-    var available_w: f64 = undefined;
-    var available_h: f64 = undefined;
-    try imgui.GetContentRegionAvail(.{ ctx, &available_w, &available_h });
-    const overhead = try card_kit.cardOverhead(ctx);
-    const row_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
-    const note_room: f64 = if (state.noteText().len > 0) row_height else 0;
-    const room = @max(available_h - note_room, 120);
-    const page: i32 = @intCast(@max(1, @as(usize, @intFromFloat(@max(room - overhead, 0) / @max(row_height, 1))) -| 1));
-
     var outcome: mft_fxsel.Outcome = .none;
     switch (state.screen) {
-        .actions => outcome = try drawFxSelActions(state, room, overhead, row_height),
+        .actions => outcome = try drawFxSelActions(&fxsel_kit, state, accent),
         .browse => if (source) |data| {
-            outcome = try drawFxSelBrowser(state, data, room, overhead, row_height);
+            outcome = try drawFxSelBrowser(&fxsel_kit, state, data, accent);
         } else {
             try imgui.Text(.{ ctx, "The list of plugins could not be read." });
         },
     }
-    if (outcome == .none) outcome = try fxSelKeys(state, source, page);
+    if (outcome == .none) outcome = try fxSelKeys(state, source);
     if (state.noteText().len > 0) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
         try imgui.Text(.{ ctx, state.noteText() });
