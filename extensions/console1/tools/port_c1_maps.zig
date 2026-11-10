@@ -1,14 +1,13 @@
 //! Development tool: ports the maps of the Console 1 to maps of the MIDI Fighter Twister.
 //!
-//!     zig build port-maps -- <maps folder of the Console 1> <output folder> [--overwrite] [--only <source>] [--index <file>]
+//!     zig build port-maps -- <maps folder of the Console 1> <output folder> [--overwrite] [--only <source>]
 //!
 //! The maps of the Console 1 are in `<maps folder>/<source>/<MODULE>/<fx folder>/<name>.ini`, where the source is `factory` or the name of a pack. Each
 //! one is converted with `mft_port.convert` and written to `<output>/<MODULE>/<fx folder>/<file>.ini`, where MODULE is INPUT, GATE, EQ, COMP, OUTPUT or
 //! STRIP, and the file is `default.ini` for the factory maps and `<source>.ini` for those of a pack. Because a map that was ported by hand is better
 //! than one that is generated, a file that exists is left as it is unless `--overwrite` is given. The controls that have no place on the
-//! controller are printed, so that the table of `mft_port.zig` can be completed. With `--only factory` the maps of the packs are not ported. With
-//! `--index <file>` the tool also writes a Zig file that lists the default maps of the output folder, each one embedded in the binary: because Zig
-//! cannot embed a folder, `defaults_mft.zig` reads that list to know which maps to write to disk.
+//! controller are printed, so that the table of `mft_port.zig` can be completed. With `--only factory` the maps of the packs are not ported. The factory
+//! maps of the repository are installed apart from the binary, by `extensions/install-maps.sh`.
 const std = @import("std");
 const port = @import("mft_port");
 
@@ -23,7 +22,6 @@ pub fn main(init: std.process.Init) !void {
 
     var overwrite = false;
     var only: ?[]const u8 = null;
-    var index_path: ?[]const u8 = null;
     var folders: [2][]const u8 = undefined;
     var folder_count: usize = 0;
     var i: usize = 1;
@@ -34,9 +32,6 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, arg, "--only") and i + 1 < args.len) {
             i += 1;
             only = args[i];
-        } else if (std.mem.eql(u8, arg, "--index") and i + 1 < args.len) {
-            i += 1;
-            index_path = args[i];
         } else if (folder_count < 2) {
             folders[folder_count] = arg;
             folder_count += 1;
@@ -112,56 +107,4 @@ pub fn main(init: std.process.Init) !void {
         written += 1;
     }
     try out.print("{d} maps written, {d} kept because they exist, {d} skipped\n", .{ written, kept, skipped });
-    if (index_path) |path| try writeIndex(alloc, io, folders[1], path, out);
-}
-
-const IndexEntry = struct { module_dir: []const u8, fx_dir: []const u8, fx_name: []const u8 };
-
-fn lessThan(_: void, a: IndexEntry, b: IndexEntry) bool {
-    const by_module = std.mem.order(u8, a.module_dir, b.module_dir);
-    if (by_module != .eq) return by_module == .lt;
-    return std.mem.order(u8, a.fx_dir, b.fx_dir) == .lt;
-}
-
-/// Writes the Zig file that lists the default maps of `folder`, in an order that does not depend on the disk, so that running the tool again gives
-/// the same file.
-fn writeIndex(alloc: std.mem.Allocator, io: std.Io, folder: []const u8, index_path: []const u8, out: *std.Io.Writer) !void {
-    var arena_state = std.heap.ArenaAllocator.init(alloc);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    var root = try std.Io.Dir.cwd().openDir(io, folder, .{ .iterate = true });
-    defer root.close(io);
-    var entries: std.ArrayList(IndexEntry) = .empty;
-    var walker = try root.walk(alloc);
-    defer walker.deinit();
-    while (try walker.next(io)) |entry| {
-        if (entry.kind != .file or !std.mem.eql(u8, entry.basename, "default.ini")) continue;
-        var parts = std.mem.splitScalar(u8, entry.path, std.fs.path.sep);
-        const module_dir = parts.next() orelse continue;
-        const fx_dir = parts.next() orelse continue;
-        if (!std.mem.eql(u8, parts.next() orelse continue, "default.ini")) continue;
-        const text = try entry.dir.readFileAlloc(io, entry.basename, arena, .limited(1 << 20));
-        var fx_name: ?[]const u8 = null;
-        var lines = std.mem.splitScalar(u8, text, '\n');
-        while (lines.next()) |line| {
-            if (std.mem.startsWith(u8, line, "fx_name")) {
-                const eq = std.mem.indexOfScalar(u8, line, '=') orelse continue;
-                fx_name = std.mem.trim(u8, line[eq + 1 ..], " \t\r");
-            }
-        }
-        try entries.append(arena, .{ .module_dir = try arena.dupe(u8, module_dir), .fx_dir = try arena.dupe(u8, fx_dir), .fx_name = fx_name orelse continue });
-    }
-    std.mem.sort(IndexEntry, entries.items, {}, lessThan);
-
-    var aw: std.Io.Writer.Allocating = .init(alloc);
-    defer aw.deinit();
-    const w = &aw.writer;
-    try w.writeAll("//! The default maps of the controller, which are embedded in the binary and written to disk on the first run. This file is generated by\n//! `zig build port-maps -- <console1 maps> src/mft/resources/maps/factory --only factory --index src/mft/factory_maps.zig`, so it is not edited by hand.\n");
-    try w.writeAll("pub const FactoryMap = struct {\n    module_dir: []const u8,\n    fx_name: []const u8,\n    content: []const u8,\n};\n\npub const all = [_]FactoryMap{\n");
-    for (entries.items) |entry| {
-        try w.print("    .{{ .module_dir = \"{s}\", .fx_name = \"{s}\", .content = @embedFile(\"resources/maps/factory/{s}/{s}/default.ini\") }},\n", .{ entry.module_dir, entry.fx_name, entry.module_dir, entry.fx_dir });
-    }
-    try w.writeAll("};\n");
-    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = index_path, .data = aw.written() });
-    try out.print("{d} default maps listed in {s}\n", .{ entries.items.len, index_path });
 }
