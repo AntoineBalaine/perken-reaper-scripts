@@ -3,8 +3,8 @@ const reaper = @import("reaper").reaper;
 const fs_helpers = @import("fs_helpers");
 const MftState = @import("mft_state.zig").MftState;
 const MftMapStore = @import("mft_map_store.zig").MftMapStore;
-const WizardState = @import("mft_wizard.zig").WizardState;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
+const mft_feedback = @import("mft_feedback.zig");
 
 /// The std.Io that the MFT extension does its file work with. Because REAPER loads the extension as a
 /// library, there is no main() to receive one from, so the extension owns it here. The extension's init
@@ -27,11 +27,14 @@ pub const MftGlobals = struct {
 
     arena: std.heap.ArenaAllocator = undefined,
     resource_path: [:0]const u8 = "",
-    map_store: MftMapStore = undefined,
+    /// The maps, which `init` points at the folder of the controller. Until then the store has no folder, so that a read finds nothing (the tests
+    /// draw the windows with it) instead of reading a path that was never set.
+    map_store: MftMapStore = MftMapStore.init(std.heap.page_allocator, ""),
     // The track whose FX the encoders currently drive. Follows REAPER's
     // last-touched track (see the SETLASTTOUCHEDTRACK csurf callback).
     current_track: reaper.MediaTrack = null,
-    wizard: WizardState = .{},
+    /// What the rings of the controller show, which the surface keeps in step with REAPER.
+    feedback: mft_feedback.Feedback = .{},
     preferences: MftPreferences = .{},
 
     pub var instance: MftGlobals = .{};

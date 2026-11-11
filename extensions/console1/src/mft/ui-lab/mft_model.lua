@@ -56,9 +56,6 @@ function M.new()
     -- defaults of the modes.
     hues = {},
     sensitivity = 1.0,
-    led_test = false,
-    calibrating = false,
-    calibration_step = 1,
   }
   for m = 1, #M.modes do
     state.hues[m] = M.modes[m].hue

@@ -1,9 +1,27 @@
 const std = @import("std");
 
-pub const MftActiveModule = enum { IO, GATE, EQ, COMP, SETTINGS, TRANSPORT };
+/// The pages of the controller, in the order of the eight encoders of its bottom row: the encoder 9 is the first page, and the encoder 16
+/// the last. Because the order is the order of the encoders, the page of an encoder is its position minus 8.
+pub const MftActiveModule = enum { INPUT, GATE, EQ, COMP, SETTINGS, TRANSPORT, AUTO, OUTPUT };
 
-// The full MFT color palette (hue values on channel 3), used by the LED test.
-pub const LED_TEST_COLORS = [_]u8{ 0x02, 0x0F, 0x19, 0x2E, 0x3C, 0x40, 0x49, 0x56, 0x5A, 0x6B, 0x71 };
+/// How many pages the controller has, which is how many encoders its bottom row has.
+pub const page_count = @typeInfo(MftActiveModule).@"enum".field_names.len;
+
+/// The page that a bottom-row encoder (the position 8 to 15 of the grid) selects, or null for a position of the top rows.
+pub fn pageForEncoder(position: usize) ?MftActiveModule {
+    if (position < 8 or position >= 8 + page_count) return null;
+    return @fromBackingInt(@intCast(position - 8));
+}
+
+test "pageForEncoder: the bottom row selects the pages in order, and the top rows select none" {
+    const t = std.testing;
+    try t.expectEqual(@as(?MftActiveModule, .INPUT), pageForEncoder(8));
+    try t.expectEqual(@as(?MftActiveModule, .TRANSPORT), pageForEncoder(13));
+    try t.expectEqual(@as(?MftActiveModule, .AUTO), pageForEncoder(14));
+    try t.expectEqual(@as(?MftActiveModule, .OUTPUT), pageForEncoder(15));
+    try t.expectEqual(@as(?MftActiveModule, null), pageForEncoder(7));
+    try t.expectEqual(@as(?MftActiveModule, null), pageForEncoder(16));
+}
 
 /// How long a control of the panel stays lit after the controller stopped using it, in milliseconds. Because the
 /// controller gives no state for a turn, and a press can be shorter than a frame, the light lingers so that it can be
@@ -56,16 +74,54 @@ pub const InputActivity = struct {
     }
 };
 
+/// What the last click on a push changed, which the panel shows in a pop-up on the encoder for a moment: the new shape of an EQ band, or the new
+/// value of a parameter as the plugin writes it.
+pub const PushNote = struct {
+    encoder: u8 = 0,
+    text: [32:0]u8 = @splat(0),
+    at_ms: i64 = std.math.minInt(i64) / 2,
+
+    pub fn set(self: *PushNote, encoder: u8, text: []const u8, now_ms: i64) void {
+        const n = @min(text.len, self.text.len);
+        @memcpy(self.text[0..n], text[0..n]);
+        self.text[n] = 0;
+        self.encoder = encoder;
+        self.at_ms = now_ms;
+    }
+
+    /// Whether the note is still shown at `now_ms`.
+    pub fn lit(self: *const PushNote, now_ms: i64) bool {
+        return now_ms - self.at_ms < linger_ms;
+    }
+};
+
 pub const MftState = struct {
+    /// The FX SEL mode, which takes over the controller while it is not null.
+    fxsel: ?@import("mft_fxsel.zig").FxSelState = null,
+    /// What the last click on a push changed.
+    push_note: PushNote = .{},
     /// What the player did with the controls lately.
     activity: InputActivity = .{},
     active_module: MftActiveModule = .TRANSPORT,
     held_encoders: u16 = 0,
+    /// The held encoders that were turned while they were held, one bit each. Because a turn with the push down is a fine adjustment, the
+    /// release of such an encoder is not a click.
+    turned_while_held: u16 = 0,
     // The FX index of the most recently tweaked parameter, so the side button
     // can toggle that plugin's floating window.
     last_fx_index: ?c_int = null,
-    // The highlighted row in settings mode (0..SETTINGS_ITEM_COUNT-1).
+    // The highlighted row of the settings (see mft_settings_rows.rows).
     settings_cursor: u8 = 0,
+    /// The ticks of the first encoder of the SETTINGS page that have not moved the highlight yet, which keep the sign of the turn.
+    settings_ticks: i16 = 0,
+    /// The page that the controller was on before the SETTINGS page, which Save and Cancel go back to, and whether they asked for it: the panel draws in the
+    /// timer of the window, so the run of the surface does the going back.
+    settings_return: MftActiveModule = .TRANSPORT,
+    settings_leave: bool = false,
+    /// The ticks of the Order knob of the transport page that have not changed the order yet, which keep the sign of the turn.
+    order_ticks: i16 = 0,
+    /// The ticks of each knob that turns a stepped parameter, which have not made a step yet.
+    step_ticks: [16]i16 = @splat(0),
     // Whether the on-screen panel is shown (toggled by side button L2).
     panel_visible: bool = true,
     // Whether an encoder was turned while held in transport mode, so a press was
@@ -81,6 +137,22 @@ pub const MftState = struct {
     pub fn clearHeld(self: *MftState, encoder_idx: u8) void {
         std.debug.assert(encoder_idx < 16);
         self.held_encoders &= ~(@as(u16, 1) << @intCast(encoder_idx));
+    }
+
+    /// Notes that an encoder was turned. When it is held, the turn is a fine adjustment, which takes away the click of its release.
+    pub fn markTurnedIfHeld(self: *MftState, encoder_idx: u8) void {
+        std.debug.assert(encoder_idx < 16);
+        if (self.isHeld(encoder_idx)) self.turned_while_held |= (@as(u16, 1) << @intCast(encoder_idx));
+    }
+
+    /// Releases an encoder, and says whether the release is a click: the encoder was held and was not turned meanwhile.
+    pub fn releaseIsClick(self: *MftState, encoder_idx: u8) bool {
+        std.debug.assert(encoder_idx < 16);
+        const bit = @as(u16, 1) << @intCast(encoder_idx);
+        const click = self.isHeld(encoder_idx) and self.turned_while_held & bit == 0;
+        self.clearHeld(encoder_idx);
+        self.turned_while_held &= ~bit;
+        return click;
     }
 
     pub fn isHeld(self: *const MftState, encoder_idx: u8) bool {
@@ -103,6 +175,38 @@ test "MftState: held encoder bitfield" {
     s.clearHeld(0);
     try t.expect(!s.isHeld(0));
     try t.expect(s.isHeld(15));
+}
+
+test "a push note keeps its text cut to its size, and is lit for the linger time" {
+    const t = std.testing;
+    var note = PushNote{};
+    try t.expect(!note.lit(0));
+    note.set(1, "Low Shelf", 1000);
+    try t.expectEqualStrings("Low Shelf", std.mem.sliceTo(&note.text, 0));
+    try t.expect(note.lit(1000 + linger_ms - 1));
+    try t.expect(!note.lit(1000 + linger_ms));
+    const long: [40]u8 = @splat('x');
+    note.set(2, &long, 5000);
+    try t.expectEqual(@as(usize, 32), std.mem.sliceTo(&note.text, 0).len);
+}
+
+test "a release is a click unless the encoder was turned while it was held" {
+    const t = std.testing;
+    var s = MftState{};
+    s.setHeld(3);
+    try t.expect(s.releaseIsClick(3));
+    try t.expect(!s.isHeld(3));
+    // A release of an encoder that was not held is not a click.
+    try t.expect(!s.releaseIsClick(3));
+    s.setHeld(3);
+    s.markTurnedIfHeld(3);
+    try t.expect(!s.releaseIsClick(3));
+    // The next press starts again, and a turn without the push down marks nothing.
+    s.setHeld(3);
+    try t.expect(s.releaseIsClick(3));
+    s.markTurnedIfHeld(4);
+    s.setHeld(4);
+    try t.expect(s.releaseIsClick(4));
 }
 
 test "a turn and a press stay lit for the linger time, and a held press stays lit as long as it is held" {

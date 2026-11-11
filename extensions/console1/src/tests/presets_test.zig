@@ -7,7 +7,7 @@ const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("../csurf/midi_events.zig");
-const preset_store = @import("../preset_store.zig");
+const preset_store = @import("preset_store");
 
 const chunk_with_vst =
     \\<TRACK

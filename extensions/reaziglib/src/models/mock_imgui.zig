@@ -157,6 +157,7 @@ const ImguiMocks = struct {
     EndMenu: @TypeOf(imgui.api.EndMenu),
     BeginPopup: @TypeOf(imgui.api.BeginPopup),
     EndPopup: @TypeOf(imgui.api.EndPopup),
+    CloseCurrentPopup: @TypeOf(imgui.api.CloseCurrentPopup),
     OpenPopup: @TypeOf(imgui.api.OpenPopup),
     BeginDisabled: @TypeOf(imgui.api.BeginDisabled),
     EndDisabled: @TypeOf(imgui.api.EndDisabled),
@@ -212,6 +213,7 @@ const ImguiMocks = struct {
     IsMouseClicked: @TypeOf(imgui.api.IsMouseClicked),
     IsMouseHoveringRect: @TypeOf(imgui.api.IsMouseHoveringRect),
     IsWindowHovered: @TypeOf(imgui.api.IsWindowHovered),
+    IsWindowFocused: @TypeOf(imgui.api.IsWindowFocused),
     IsKeyDown: @TypeOf(imgui.api.IsKeyDown),
     GetMouseDragDelta: @TypeOf(imgui.api.GetMouseDragDelta),
     ResetMouseDragDelta: @TypeOf(imgui.api.ResetMouseDragDelta),
@@ -556,6 +558,7 @@ pub const MockImGui = struct {
     const EndMenu = &mockEndMenu;
     const BeginPopup = &mockBeginPopup;
     const EndPopup = &mockEndPopup;
+    const CloseCurrentPopup = &mockVoidCtx;
     const OpenPopup = &mockOpenPopup;
     const BeginDisabled = &mockBeginDisabled;
     const EndDisabled = &mockEndDisabled;
@@ -621,6 +624,7 @@ pub const MockImGui = struct {
     const IsMouseClicked = &mockIsMouseClicked;
     const IsMouseHoveringRect = &mockIsMouseHoveringRect;
     const IsWindowHovered = &mockIsWindowHovered;
+    const IsWindowFocused = &mockIsWindowFocused;
     const IsKeyDown = &mockIsKeyDown;
     const GetMouseDragDelta = &mockGetMouseDragDelta;
     const ResetMouseDragDelta = &mockResetMouseDragDelta;
@@ -745,6 +749,11 @@ fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.c) void {
 fn mockIsMouseHoveringRect(_: imgui.ContextPtr, x1: f64, y1: f64, x2: f64, y2: f64, _: ?*bool) callconv(.c) bool {
     const m = g_mock orelse return false;
     return m.mouse_x >= x1 and m.mouse_x <= x2 and m.mouse_y >= y1 and m.mouse_y <= y2;
+}
+
+/// The mock's windows have the focus, since a window that is drawn is the one that the player works in.
+fn mockIsWindowFocused(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {
+    return true;
 }
 
 fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.c) bool {

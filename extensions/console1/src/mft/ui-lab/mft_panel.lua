@@ -2,7 +2,7 @@
 -- The MFT panel: a MIDI Fighter Twister drawn as an object. A dark metal body with a recessed faceplate, sixteen
 -- push encoders in four rows of four, each with a ring of eleven LEDs around a metal cap, and three keys on each
 -- side. The top eight encoders show the parameters of the mode, or the transport functions, and the bottom eight
--- select the mode. Under the device are the settings form and the calibration card, which the settings mode shows.
+-- select the mode. Under the device is the settings form, which the settings mode shows.
 -- Saving this file redraws the window at once.
 --
 -- A module reads what it needs from `env` when it runs, not when it loads, so that a reloaded `theme` takes effect
@@ -626,35 +626,6 @@ local function draw_settings(ctx, S)
   w.end_card(ctx)
 end
 
--- The calibration card: the LED test, and the steps of the calibration with their result.
-local function draw_calibration(ctx, S)
-  local th = env.theme
-  local w = env.widgets
-  local m = S.mft
-  if not w.begin_card(ctx, "Calibration", nil, nil, th.amber) then return end
-  local _, led_test = w.toggle(ctx, "LED test", m.led_test)
-  m.led_test = led_test
-  if not m.calibrating then
-    if w.push_button(ctx, "Start calibration", 0) then m.calibrating, m.calibration_step = true, 1 end
-  else
-    w.display(ctx, ("Calibration %d/38"):format(m.calibration_step), th.amber, 200)
-    ImGui.Text(ctx, "Turn encoder 1 to the right")
-    ImGui.TextColored(ctx, th.grey, "expects: CC 0 on channel 1, value 1 to 63")
-    ImGui.Text(ctx, "observed: nothing yet")
-    w.lamp(ctx, th.grey, false)
-    ImGui.SameLine(ctx)
-    w.display(ctx, "pending", th.grey, 90)
-    if w.push_button(ctx, "Retry", 0) then m.calibration_step = m.calibration_step end
-    ImGui.SameLine(ctx)
-    if w.push_button(ctx, "Skip", 0) then m.calibration_step = m.calibration_step % 38 + 1 end
-    ImGui.SameLine(ctx)
-    if w.push_button(ctx, "Next", 0) then m.calibration_step = m.calibration_step % 38 + 1 end
-    ImGui.SameLine(ctx)
-    if w.push_button(ctx, "Stop", 0) then m.calibrating = false end
-  end
-  w.end_card(ctx)
-end
-
 -- ---- the whole panel ----
 
 function M.draw(ctx, S)
@@ -692,13 +663,12 @@ function M.draw(ctx, S)
   draw_side_keys(ctx, dl, S, x + PAD, x + body_w - PAD - SIDE_W, gy)
   draw_cells(ctx, dl, S, gx, gy)
 
-  -- The settings form and the calibration card belong to the settings mode, and are not shown in the others. They start a
+  -- The settings form belongs to the settings mode, and is not shown in the others. It starts a
   -- little under the device. In the other modes nothing follows the device, so that the window ends where it ends.
   if mode.id == "SETTINGS" then
     ImGui.SetCursorScreenPos(ctx, x, y + body_h + 10)
     ImGui.Dummy(ctx, 1, 1)
     draw_settings(ctx, S)
-    draw_calibration(ctx, S)
   end
 end
 

@@ -12,7 +12,8 @@ set -euo pipefail
 # reavim-ext and perken-utilities are installed.
 #
 # reavim-ext also installs its default keymap, through install-bindings.sh,
-# which keeps a keymap you have edited.
+# which keeps a keymap you have edited. mft installs its factory maps in the
+# same way, through install-maps.sh.
 #
 # vr09 also copies the Registration dumps of the roland-vr09 project (folder
 # VR09_REGISTRATIONS, default ~/projects/roland-vr09/dumps) into
@@ -141,6 +142,8 @@ for name in "$@"; do
       ;;
     mft)
       "$ZIG" build mft --prefix "$PREFIX"
+      # The factory maps are files of the repository, installed apart from the binary, and the ones that were edited are kept.
+      "$SCRIPT_DIR/install-maps.sh" src/mft/resources/maps/factory "$RESOURCE/Data/Perken/MFT/maps/factory"
       ;;
     vr09)
       # A CLAP plugin: a bundle on macOS, a file elsewhere. The old copy goes

@@ -97,7 +97,7 @@ test {
     _ = @import("tests/scroll_by_test.zig");
     _ = @import("tests/relative_knob_test.zig");
     _ = @import("unit/protocol.zig");
-    _ = @import("preset_store.zig");
+    _ = @import("preset_store");
     _ = @import("unit/ids.zig");
     _ = @import("unit/led_state.zig");
     _ = @import("unit/input.zig");
@@ -105,7 +105,7 @@ test {
     _ = @import("unit/step.zig");
     _ = @import("unit/accel.zig");
     _ = @import("param_text.zig");
-    _ = @import("fx_browser.zig");
+    _ = @import("fx_browser");
     _ = @import("default_maps.zig");
     _ = @import("components/led_meter.zig");
     _ = @import("components/panel_card.zig");

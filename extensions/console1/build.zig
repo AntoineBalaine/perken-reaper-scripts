@@ -311,6 +311,21 @@ fn addMftTarget(
     lib.root_module.addImport("ini", ini.module("ini"));
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
 
+    // Development tool: ports the maps of the Console 1 to maps of the MFT (`zig build port-maps -- <console1 maps> <output>`).
+    const port_maps = b.addExecutable(.{
+        .name = "port_c1_maps",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/port_c1_maps.zig"),
+            .target = target,
+            .optimize = .safe,
+        }),
+    });
+    port_maps.root_module.addImport("mft_port", b.createModule(.{ .root_source_file = b.path("src/mft/mft_port.zig") }));
+    const run_port_maps = b.addRunArtifact(port_maps);
+    run_port_maps.addPassthruArgs();
+    const port_maps_step = b.step("port-maps", "Port the maps of the Console 1 to the MFT: zig build port-maps -- <console1 maps> <output folder> [--overwrite]");
+    port_maps_step.dependOn(&run_port_maps.step);
+
     const mft_step = b.step("mft", "Build reaper_mft extension");
     mft_step.dependOn(&client_install.step);
 

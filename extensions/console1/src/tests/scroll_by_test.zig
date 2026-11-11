@@ -45,7 +45,7 @@ test "Volume ticks move the module of the mapping browser" {
 
 test "the controller scrolls through the plugins of the browser and then through its menus, enters one and leaves it" {
     const fxp = @import("fx_parser");
-    const fx_browser = @import("../fx_browser.zig");
+    const fx_browser = @import("fx_browser");
     Globals.instance = try .defaults(testing.allocator);
     defer Globals.instance.deinit();
     const globals = &Globals.instance;
