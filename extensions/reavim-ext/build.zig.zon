@@ -1,0 +1,21 @@
+.{
+    .name = .reavim_ext,
+    .fingerprint = 0xb79e01860ff88336,
+    .version = "0.0.0",
+    .dependencies = .{
+        // reaziglib lives in the same monorepo, so that a change to it and
+        // the extension code using it can land in one commit.
+        .reaziglib = .{ .path = "../reaziglib" },
+        .ini = .{
+            .url = "https://github.com/AntoineBalaine/ini/archive/626b556a189d734ce59f6d0b71b8fab80282d1a8.tar.gz",
+            .hash = "ini-0.1.0-YCQ9YgKxAAB2BkUapcIR0EpePH6eEt4tLwa-ZHn7fAaL",
+        },
+        .WDL = .{
+            .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
+            .hash = "N-V-__8AABIRpgAm7jiz75y7RKLPjxc1ul267ymXVWCtPi94",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}

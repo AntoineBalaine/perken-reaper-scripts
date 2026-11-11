@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Paste Rhythm To Pitches
 -- @version 0.0.1
 -- @author Perken

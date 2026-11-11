@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Runs Lua inside the running REAPER through reaper_bridge.lua.
+
+  reaper-eval 'reaper.GetNumTracks()'
+  echo 'return reaper.GetAppVersion()' | reaper-eval
+"""
+import os, socket, sys
+
+# REAPER_RESOURCE_PATH and BRIDGE_PORT select a scratch REAPER instead of the
+# user's own.
+PORT = int(os.environ.get("BRIDGE_PORT", 9876))
+resource = os.environ.get("REAPER_RESOURCE_PATH") or os.path.expanduser("~/.config/REAPER")
+token_path = os.path.join(resource, "Data/Perken/bridge.token")
+with open(token_path) as f:
+    token = f.read().strip()
+code = (sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read()).encode()
+try:
+    s = socket.create_connection(("127.0.0.1", PORT), timeout=10)
+except OSError:
+    sys.exit("cannot connect: is reaper_bridge.lua running in REAPER?")
+s.sendall(f"{token} {len(code)}\n".encode() + code)
+data = b""
+while b"\n" not in data:
+    chunk = s.recv(4096)
+    if not chunk:
+        sys.exit("refused or closed (wrong token?)")
+    data += chunk
+head, rest = data.split(b"\n", 1)
+n = int(head)
+while len(rest) < n:
+    chunk = s.recv(65536)
+    if not chunk:
+        break
+    rest += chunk
+print(rest.decode(errors="replace"))

@@ -1,0 +1,109 @@
+Console1 parameter maps for the JSFX ports by chmaha, from two repositories.
+
+Source: https://github.com/chmaha/airwindows-JSFX-ports
+Source: https://github.com/chmaha/DSP-Ports-JSFX
+
+The DSP-Ports maps are the four named "... port) by chmaha": Compressor
+(x42-darc), Gate (ZamGateX2), EQ (x42-fil4) and Lumina Channel Strip. Those
+plugins shipped with REAPER 7.83 and were removed again in 7.84, so users now
+need them from ReaPack.
+
+
+NEEDS CHECKING: parameter indices of the DSP-Ports maps
+-------------------------------------------------------
+
+The four DSP-Ports maps were written by reading the slider declarations in the
+JSFX sources rather than by reading parameter indices out of REAPER, on the
+assumption that a JSFX slider N is parameter index N-1. The Lumina map is
+verified: its indices were read from a running REAPER, and agree with that rule,
+Comp GR (slider 48) included. The Compressor, Gate and EQ maps are not.
+
+To check: open any one of the four, look at what the mapping panel reports for
+a control, and compare with the index listing in the comments at the bottom of
+that map's .ini. If the assumption is wrong it is wrong by a constant offset,
+so all four are wrong in the same way and each is a one-line-per-entry fix.
+
+Two judgement calls in those maps are also worth a second opinion, and both are
+commented where they occur:
+
+- EQ (x42-fil4): Eq_hp_shape and Eq_lp_shape are on the High Shelf Enable and
+  Low Shelf Enable, in that order, rather than on the filter resonances, because
+  on the hardware those buttons switch the HF and LF bands between shelf and bell.
+- Gate (ZamGateX2): Shp_sustain is on Max Gate Close, as the nearest
+  continuous analogue to how far the gate closes, and Shp_hard_gate is on the
+  Gate/Duck mode switch because it is a button on the hardware.
+
+
+Dry/wet and bypass
+------------------
+
+REAPER appends three parameters to every FX, after the plugin's own: Bypass,
+Wet and Delta, in that order. So for a plugin with N parameters of its own,
+Bypass is N, Wet is N+1 and Delta is N+2, and they can be written into these
+files as plain indices like any other parameter.
+
+Confirmed against three maps in this collection: port-and-lemon has 4 of its
+own and uses 4 for Bypass and 5 for Wet; 6-7 EQ has 5 and uses 5 for Bypass;
+Mad Hatter 2 has 8 and uses 8 for Bypass.
+
+This is why the index listings in these files stop at the plugin's own
+parameters — the appended three are not part of the plugin. The DSP-Ports maps
+list them anyway, marked "(REAPER)", since knowing where they fall saves
+counting.
+
+Prefer REAPER's Bypass and Wet for single-purpose plugins, which is what the
+Compressor, Gate and EQ maps do. Prefer the plugin's own per-section controls
+on a channel strip, which is what the Lumina map does: there, each Console 1
+section button should toggle its own section, and REAPER's Bypass would
+silence the whole strip.
+
+
+To do
+-----
+
+- Polarity of "On" switches. Lumina's EQ On, Comp On and Gate On are mapped to
+  Eq_eq, Comp_comp and Shp_shape, which Console 1 treats as bypass buttons, so
+  their lights and presses come out inverted. The map format needs a way to say
+  that a parameter is inverted. Not a priority.
+
+
+
+Custom names
+------------
+
+The label of a knob is the name that the plugin gives its parameter, and a map
+can replace it with a section "[labels]" at the end of the file, with one line
+for each control, as in
+
+    [labels]
+    Inpt_LoCut=HPF
+    Inpt_HiCut=LPF
+
+A name is at most 31 bytes, and a map can rename every control. Lumina uses it to
+shorten "HPF Freq (Hz)" and "LPF Freq (Hz)", which are too long for the knobs, and
+to name the encoders and buttons that carry a control that has no place of its own
+(Air Type, Air, Analog, Keep Gain). Evolution shortens its frequency and speed names.
+
+In the mapping panel, a right click on a control opens a popup above it, titled
+"Custom name", with a field. Enter confirms the name, and so does a click
+elsewhere; Escape gives it up. An empty name takes the custom name away, and the
+control has the name of its parameter again. The name goes into the map file
+when the mapping is saved.
+
+
+Gain reduction
+--------------
+
+The meter of the compressor reads the gain reduction of the plugin. A plugin that
+reports it to the host (ReaComp does) is asked for "GainReduction_dB", and a JS
+plugin cannot be asked that, so a map can say in which parameter the plugin keeps
+the reduction, in dB:
+
+    Comp_GR=47
+
+The gate of a plugin that has a module for each section has Shp_GR in the same way.
+They are no controls: they only tell the meter where to read. A map that has none
+leaves the question to the plugin, and so does an index that the plugin has no
+parameter for, which is the case of an older version of it. Lumina Channel Strip
+has the parameter, Comp GR (dB), from version 1.1.
+

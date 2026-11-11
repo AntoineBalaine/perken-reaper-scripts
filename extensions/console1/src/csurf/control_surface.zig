@@ -1,0 +1,705 @@
+const std = @import("std");
+const Globals = @import("../globals.zig");
+const Reaper = @import("reaper");
+const reaper = Reaper.reaper;
+const utils = @import("utils");
+const MediaTrack = Reaper.reaper.MediaTrack;
+const c_void = anyopaque;
+const c1 = @import("../c1.zig");
+const builtin = @import("builtin");
+// The C declarations, translated by the build from src/csurf/c_bindings.h.
+const c = @import("c");
+const getGlobals = @import("../console1_extension.zig").getGlobals;
+const constants = @import("../constants.zig");
+const actions = @import("../actions.zig");
+const midi_events = @import("midi_events.zig");
+const device_names = @import("midi_device_names");
+const config = @import("midi_device_config");
+const devices = config.MidiDeviceConfig(.csurf);
+const reaper_helpers = @import("reaper_helpers");
+const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
+const log = std.log.scoped(.csurf);
+
+pub var ignore_notifications = false;
+
+pub var my_csurf: c.C_ControlSurface = undefined;
+
+/// What stands for the surface when the extension has none, which is the case of the tests: the functions of REAPER that take
+/// a surface to leave out of their notifications get a valid pointer, and the mock of REAPER does not look at it.
+var stand_in_surface: u8 = 0;
+
+/// The control surface of the extension, as the functions of REAPER that take a surface to ignore want it.
+pub fn surface() reaper.IReaperControlSurface {
+    const pointer: *anyopaque = my_csurf orelse @ptrCast(&stand_in_surface);
+    return @ptrCast(pointer);
+}
+
+/// The surface that holds the MIDI devices that the globals have. Because REAPER makes the surface of new settings before it deletes the
+/// one of the old, the one that is deleted must not let go of the devices of the next.
+var midi_owner: ?*anyopaque = null;
+
+/// The surface that holds the MIDI devices, for the tests.
+pub fn testMidiOwner() ?*anyopaque {
+    return midi_owner;
+}
+
+/// Lets go of the MIDI devices, and of the unit that sent through them. Calling it with none is fine.
+fn closeMidi() void {
+    var globals = getGlobals();
+    if (globals.m_midi_out) |_| {
+        globals.unit.shutdown(); // lights off
+    }
+    if (globals.m_midi_out) |midi_out| {
+        c.MidiOut_Destroy(midi_out);
+        globals.m_midi_out = null;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_Destroy(midi_in);
+        globals.m_midi_in = null;
+    }
+    // Because the output is gone, the unit has nothing to send through until it is started again.
+    globals.unit.sender = null;
+}
+
+/// The name that REAPER gives a MIDI device, for the log, which says which device each surface opened.
+fn deviceName(buf: *[128:0]u8, input: bool, dev: c_int) []const u8 {
+    if (builtin.is_test) return "";
+    return reaper_helpers.deviceName(buf[0..], input, dev, false) orelse "?";
+}
+
+pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
+    var globals = getGlobals();
+    // Because the devices of the surface that this one replaces are still open when REAPER makes it, they are let go of first.
+    closeMidi();
+    midi_owner = null;
+    var name_buf: [128:0]u8 = undefined;
+    if (indev >= 0) log.info("midi in {d}: {s}", .{ indev, deviceName(&name_buf, true, indev) });
+    if (outdev >= 0) log.info("midi out {d}: {s}", .{ outdev, deviceName(&name_buf, false, outdev) });
+    globals.m_midi_in_dev = indev;
+    globals.m_midi_out_dev = outdev;
+    globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
+    globals.m_midi_out = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
+    if (errStats) |errstats| {
+        if (indev >= 0 and globals.m_midi_in == null) errstats.* |= 1;
+        if (outdev >= 0 and globals.m_midi_out == null) errstats.* |= 2;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        log.debug("created midi in", .{});
+        c.MidiIn_start(midi_in);
+    } else if (indev >= 0) {
+        log.err("couldn’t create midi in", .{});
+    } else {
+        log.debug("no midi in is configured", .{});
+    }
+    // Because the unit keeps its state between two initializations of the surface, it starts again from nothing.
+    globals.unit = .{};
+    if (globals.m_midi_out) |midi_out| {
+        log.debug("created midi out", .{});
+        // The unit is in the legacy mode until the handshake is answered, and falls back to it if it never is.
+        if (globals.m_midi_in != null) globals.unit.start(.reaper(midi_out), nowMs());
+        actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
+    } else if (outdev >= 0) {
+        log.err("couldn’t create midi out", .{});
+    } else {
+        log.debug("no midi out is configured", .{});
+    }
+
+    // If MIDI devices are successfully created, switch to fx_ctrl mode.
+    // In headless/test builds, we allow entering fx_ctrl without MIDI
+    // so that track validation and FX insertion codepaths can be exercised.
+    const debugconfig = @import("config");
+    if (globals.m_midi_in != null and globals.m_midi_out != null) {
+        log.debug("MIDI devices connected", .{});
+        if (globals.state.current_mode == .suspended) {
+            actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+        }
+    } else if (debugconfig.headless) {
+        log.warn("MIDI not available, entering fx_ctrl anyway (headless mode)", .{});
+        if (globals.state.current_mode == .suspended) {
+            actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+        }
+    } else {
+        // Because the surface that the extension makes for itself has no device, only a surface whose devices were asked for says it.
+        if (indev >= 0 or outdev >= 0) log.err("MIDI devices not available", .{}) else log.debug("no MIDI device is configured", .{});
+        if (globals.state.current_mode != .suspended) {
+            actions.dispatch(globals, .{ .change_mode = .suspended });
+        }
+    }
+    const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
+    my_csurf = myCsurf;
+    midi_owner = myCsurf;
+    return myCsurf;
+}
+
+/// Deletes a surface that this extension made for itself, whose destructor lets go of the devices that it holds. The surfaces that
+/// REAPER made are deleted by REAPER, which must not be done twice.
+pub fn deinit(csurf: c.C_ControlSurface) void {
+    c.ControlSurface_Destroy(csurf);
+}
+
+/// REAPER closes a surface without resetting it, which it does before it deletes it. The devices are let go of if this surface
+/// holds them; the surface itself is REAPER's, and is not deleted here.
+pub export fn zCloseNoReset(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) closeMidi();
+}
+
+/// The destructor of a surface, which REAPER calls when the settings change and when it closes.
+pub export fn zSurfaceDestroyed(self: ?*anyopaque) callconv(.c) void {
+    if (self != null and self == midi_owner) {
+        closeMidi();
+        midi_owner = null;
+    }
+    if (self != null and self == my_csurf) my_csurf = null;
+}
+
+export fn zGetTypeString() callconv(.c) [*]const u8 {
+    return "Console1";
+}
+
+export fn zGetDescString() callconv(.c) [*]const u8 {
+    return reaper.LocalizeString("Perken C1", "csurf", 1);
+}
+
+var config_buf: [1024:0]u8 = undefined;
+export fn zGetConfigString() callconv(.c) [*]const u8 {
+    var globals = getGlobals();
+    _ = &globals;
+    // Because REAPER numbers the devices of Linux differently from one session to the next, the config string has the keys of the
+    // devices after their numbers, which are what the surface looks for the next time.
+    var in_word_buf: [3 * device_names.max_key]u8 = undefined;
+    var out_word_buf: [3 * device_names.max_key]u8 = undefined;
+    _ = std.mem.printSentinel(&config_buf, "0 0 {d} {d} {s} {s}", .{
+        globals.m_midi_in_dev orelse -1,
+        globals.m_midi_out_dev orelse -1,
+        device_names.encode(&in_word_buf, devices.surface.in.get()),
+        device_names.encode(&out_word_buf, devices.surface.out.get()),
+    }, 0) catch {
+        log.err("csurf console1 config string format", .{});
+        return "0 0 0 0";
+    };
+    return &config_buf;
+}
+
+/// The tick count of the host, in milliseconds. It is not available before REAPER has given its functions.
+pub fn nowMs() u64 {
+    return if (c.GetTickCount) |getTickCount| getTickCount() else 0;
+}
+
+/// Whether the Shift key of the computer's keyboard is held right now, whichever window has the focus. Because a modifier
+/// that is pressed on its own sends no key message, it is polled through SWELL, as the whichkey window of ReaVim does. It
+/// is false before REAPER has given its functions.
+pub fn keyboardShiftHeld() bool {
+    const vk_shift = 0x10;
+    const key_down_bit = 0x8000;
+    const getAsyncKeyState = c.GetAsyncKeyState orelse return false;
+    return (getAsyncKeyState(vk_shift) & key_down_bit) != 0;
+}
+
+/// Whether the Alt key of the computer's keyboard is held right now, whichever window has the focus. It is polled as the Shift key is.
+pub fn keyboardAltHeld() bool {
+    const vk_menu = 0x12;
+    const key_down_bit = 0x8000;
+    const getAsyncKeyState = c.GetAsyncKeyState orelse return false;
+    return (getAsyncKeyState(vk_menu) & key_down_bit) != 0;
+}
+
+export fn zRun() callconv(.c) void {
+    if (ignore_notifications) return;
+    var globals = getGlobals();
+    midi_events.applyAltModifier(globals, keyboardAltHeld());
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
+        const list = c.MidiIn_GetReadBuf(midi_in);
+        var l: c_int = 0;
+        const now = nowMs();
+        while (c.MDEvtLs_EnumItems(list, &l)) |evts| {
+            // Because the host once reported a negative size, which crashed REAPER on the cast, an event that is
+            // not at least one byte long is skipped and logged.
+            const raw_size = c.MIDI_event_size(evts);
+            if (raw_size < 1) {
+                log.err("MIDI event skipped, its size is {d}", .{raw_size});
+                continue;
+            }
+            const size: usize = @intCast(raw_size);
+            const message = c.MIDI_event_message(evts);
+            // Because a surface that never gets an event is not told apart from one that never opened its device, the first ones are
+            // logged: what arrives, and how big it is.
+            if (globals.midi_events_logged < 12) {
+                globals.midi_events_logged += 1;
+                log.info("midi in event of {d} bytes, status {x}", .{ size, message[0] });
+            }
+            if (size > 3 and message[0] == 0xF0) {
+                globals.unit.onSysex(message[0..size], now);
+            } else if (globals.unit.onCc(now)) {
+                midi_events.OnMidiEvent(evts, globals);
+            }
+        }
+        globals.unit.tick(now);
+        while (globals.unit.popEvent()) |event| midi_events.onUnitEvent(globals, event);
+    }
+
+    if (globals.state.current_mode == .fx_ctrl) {
+        const several_selected = globals.state.selectedTracks.count() > 1;
+        if (several_selected) actions.dispatch(globals, .{ .midi_out = .blink });
+        // Because the legacy mode only ever read the meters here while several tracks were selected, which looks like
+        // an indentation slip, the meters of the sysex mode are read whenever the transport plays.
+        if ((several_selected or globals.unit.isReady()) and globals.playState and !globals.pauseState) {
+            actions.dispatch(globals, .{ .midi_out = .queryMeters });
+        }
+    }
+}
+
+export fn zSetTrackListChange() callconv(.c) void {
+    if (ignore_notifications) return;
+    actions.dispatch(getGlobals(), .{ .track_list = .refresh });
+}
+
+pub export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
+    if (ignore_notifications) return;
+    var globals = getGlobals();
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    // Because the panel says the volume in dB from this position, and a move of the volume that is smaller than a step of the unit
+    // must show too, the position is kept for every notification, and only the feedback to the unit goes by steps.
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .set_volume = utils.volToNormalized(volume) } });
+    const volint = utils.volToU8(volume);
+    if (globals.state.fx_ctrl.vol_lastpos != volint) {
+        globals.state.fx_ctrl.vol_lastpos = volint;
+        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = volint } } });
+    }
+}
+
+// pan is btw -1.0 and 1.0
+export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.c) void {
+    if (ignore_notifications) return;
+    const globals = getGlobals();
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .set_pan = pan } });
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
+}
+export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
+    if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_mute, mute);
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
+}
+export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.c) void {
+    if (ignore_notifications) return;
+    log.debug("set surface selected", .{});
+    var globals = getGlobals();
+    _ = &globals;
+    actions.dispatch(globals, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
+}
+export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.c) void {
+    if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+    MidiEvtsFxCtrl.setTrackToggle(globals, .Out_solo, solo);
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
+}
+
+export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.c) void {
+    _ = trackid; // autofix
+    if (ignore_notifications) return;
+    _ = recarm;
+}
+
+export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.c) void {
+    if (ignore_notifications) return;
+    _ = rec;
+    var globals = getGlobals();
+    _ = &globals;
+    globals.playState = play;
+    globals.pauseState = pause;
+    if (!globals.playState or globals.pauseState) {
+        actions.dispatch(globals, .{ .midi_out = .reset_meters });
+    }
+}
+export fn zSetRepeatState(rep: bool) callconv(.c) void {
+    if (ignore_notifications) return;
+    _ = rep;
+}
+export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.c) void {
+    _ = trackid; // autofix
+    if (ignore_notifications) return;
+    _ = title;
+}
+export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.c) bool {
+    if (ignore_notifications) return false;
+    _ = trackid;
+    _ = isPan;
+    return false;
+}
+export fn zSetAutoMode(mode: c_int) callconv(.c) void {
+    if (ignore_notifications) return;
+    _ = mode;
+}
+
+export fn zResetCachedVolPanStates() callconv(.c) void {
+    if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
+    globals.state.fx_ctrl.vol_lastpos = 0;
+}
+
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.c) void {
+    if (ignore_notifications) return;
+    // FIXME: should we be using this ?
+    actions.dispatch(getGlobals(), .{ .fx_ctrl = .{ .on_track_entry = trackid } });
+}
+export fn zIsKeyDown(key: c_int) callconv(.c) bool {
+    if (ignore_notifications) return false;
+    _ = key;
+    return false;
+}
+
+const Extended = enum(c_int) {
+    MIDI_DEVICE_REMAP = 0x00010099,
+    RESET = 0x0001FFFF,
+    SETAUTORECARM = 0x00010003,
+    SETBPMANDPLAYRATE = 0x00010009,
+    SETFOCUSEDFX = 0x0001000B,
+    SETFXCHANGE = 0x00010013,
+    SETFXENABLED = 0x00010007,
+    SETFXOPEN = 0x00010012,
+    SETFXPARAM = 0x00010008,
+    SETFXPARAM_RECFX = 0x00010018,
+    SETINPUTMONITOR = 0x00010001,
+    SETLASTTOUCHEDFX = 0x0001000A,
+    SETLASTTOUCHEDTRACK = 0x0001000C,
+    SETMETRONOME = 0x00010002,
+    SETMIXERSCROLL = 0x0001000D,
+    SETPAN_EX = 0x0001000E,
+    SETPROJECTMARKERCHANGE = 0x00010014,
+    SETRECMODE = 0x00010004,
+    SETRECVPAN = 0x00010011,
+    SETRECVVOLUME = 0x00010010,
+    SETSENDPAN = 0x00010006,
+    SETSENDVOLUME = 0x00010005,
+    SUPPORTS_EXTENDED_TOUCH = 0x00080001,
+    TRACKFX_PRESET_CHANGED = 0x00010015,
+    unknown,
+};
+
+export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.c) c_int {
+    if (ignore_notifications) return 1;
+    switch (call) {
+
+        // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
+        .SETFOCUSEDFX => {
+            if (parm2 != null) return 1; // ignore media items' FXchains
+            const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null;
+            if (trId == null) return 1; // all-null means focus was cleared
+            if (parm3) |ptr| {
+                const fxIdx = @as(*u8, @ptrCast(ptr));
+                var globals = getGlobals();
+                globals.state.fx_ctrl.display = fxIdx.*;
+                log.debug("display: {d}", .{globals.state.fx_ctrl.display.?});
+            }
+        },
+        // TODO: sync with controller and state
+
+        // #define CSURF_EXT_SETFXOPEN 0x00010012 // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
+        .SETFXOPEN => {
+            // const mediaTrack =  @as(MediaTrack, @ptrCast(parm1.?));
+            if (parm3) |ptr| {
+                const isOpen = @intFromPtr(ptr);
+                // const isOpen = @as(*u8, @ptrCast(ptr));
+                if (isOpen == 0) { // UI closed
+                    getGlobals().state.fx_ctrl.display = null;
+                }
+            } else {
+                getGlobals().state.fx_ctrl.display = null;
+            }
+        },
+
+        .SETLASTTOUCHEDTRACK => {
+            log.debug("set last touched track", .{});
+            if (parm1) |mediaTrack| {
+                const track: reaper.MediaTrack = @ptrCast(mediaTrack);
+                actions.dispatch(getGlobals(), .{ .Csurf = .{ .last_touched_track = track } });
+            }
+        },
+        .SETPAN_EX => {
+            // csurf doesn't have means of checking if fx get re-ordered.
+            // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
+            // if (parm1) |mediaTrack| {
+            //     _ = globals.state.fx_ctrl.validateTrack(
+            //         null,
+            //         @as(MediaTrack, @ptrCast(mediaTrack)),
+            //         null,
+            //     ) catch {};
+            // }
+        },
+        .SETFXPARAM => {
+            const track: reaper.MediaTrack = @ptrCast(parm1);
+            const id = reaper.CSurf_TrackToID(track, constants.g_csurf_mcpmode);
+            var globals = getGlobals();
+            _ = &globals;
+
+            const f: c_int = @as(*c_int, @ptrCast(@alignCast(parm2))).*;
+            const fxidx: c_int = (f >> 16) & 0xFFFF;
+            const prmidx: c_int = f & 0xFFFF;
+            const value = @as(*f64, @ptrCast(@alignCast(parm3))).*;
+
+            // Diagnostic: cb_value is the value REAPER reported, live_value is the
+            // parameter read back immediately, pt0_value is the envelope's first
+            // point. .err level so it survives the -Dtest build's log_level=.err.
+            {
+                const live_value = reaper.TrackFX_GetParamNormalized(track, fxidx, prmidx);
+                var pt0_value: f64 = -1.0;
+                const env_raw = reaper.GetFXEnvelope(track, fxidx, prmidx, false);
+                if (@intFromPtr(env_raw) != 0) {
+                    var t: f64 = 0;
+                    var v: f64 = 0;
+                    var shape: c_int = 0;
+                    var tension: f64 = 0;
+                    var selected: bool = false;
+                    if (reaper.GetEnvelopePoint(env_raw, 0, &t, &v, &shape, &tension, &selected)) {
+                        pt0_value = v;
+                    }
+                }
+                log.err("SETFXPARAM diag: tr_id={d} cur_tr_id={?d} fx={d} prm={d} cb_value={d:.4} live_value={d:.4} pt0_value={d:.4}", .{
+                    id, globals.state.current_tr_id, fxidx, prmidx, value, live_value, pt0_value,
+                });
+            }
+
+            if (globals.state.current_tr_id == id) {
+                actions.dispatch(globals, .{ .Csurf = .{ .fx_param_changed = .{
+                    .track = track,
+                    .fx_index = @intCast(fxidx),
+                    .param_index = @intCast(prmidx),
+                    .value = value,
+                } } });
+            }
+        },
+        .SETFXCHANGE => {},
+        .SETFXENABLED => {},
+        .MIDI_DEVICE_REMAP => {},
+        .RESET => {
+            actions.dispatch(getGlobals(), .{ .Csurf = .project_reset });
+        },
+        .SETAUTORECARM => {},
+        .SETBPMANDPLAYRATE => {},
+        .SETMETRONOME => {},
+        .SETMIXERSCROLL => {},
+        .SETFXPARAM_RECFX => {},
+        .SETINPUTMONITOR => {},
+        .SETLASTTOUCHEDFX => {},
+        .SETPROJECTMARKERCHANGE => {},
+        .SETRECMODE => {},
+        .SETRECVPAN => {},
+        .SETRECVVOLUME => {},
+        .SETSENDPAN => {},
+        .SETSENDVOLUME => {},
+        .SUPPORTS_EXTENDED_TOUCH => {},
+        .TRACKFX_PRESET_CHANGED => {},
+        else => {},
+    }
+    return 1;
+}
+
+fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
+    return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
+}
+
+fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.c) c.WDL_DLGRET {
+    switch (uMsg) {
+        c.WM_INITDIALOG => {
+            var parms: [4]i32 = undefined;
+            parseParms(@ptrFromInt(@as(usize, @intCast(lParam))), &parms);
+            // Because the numbers of the config are of the session that saved it, the devices that are selected are the ones that its
+            // keys find now.
+            var keys: device_names.Keys = .{};
+            config.parseDeviceKeys(@ptrFromInt(@as(usize, @intCast(lParam))), &keys);
+            parms[2] = devices.resolveDevice(true, parms[2], keys.in);
+            parms[3] = devices.resolveDevice(false, parms[3], keys.out);
+            devices.dialog.in.set(if (parms[2] < 0) keys.in orelse "" else "");
+            devices.dialog.out.set(if (parms[3] < 0) keys.out orelse "" else "");
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1_LBL), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2_LBL), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2_LBL2), c.SW_HIDE);
+
+            // zig’s translateC can’t convert the type of WDL_UTF8_HookComboBox.
+            // That function’s a compat define when utf8 is disabled.
+            // fingers crossed, and hope that doesn’t happen.
+            // c.WDL_UTF8_HookComboBox.?(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO2));
+            // WDL_UTF8_HookComboBox(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO3));
+            var n = reaper.GetNumMIDIInputs();
+            const loc = reaper.LocalizeString("None", "csurf", 0);
+            var x = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
+            _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            x = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
+            _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            var cur: c_int = 0;
+            while (cur < n) : (cur += 1) {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIInputName(cur, &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, @as(c.WPARAM, 0), @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, a, cur);
+
+                    if (cur == parms[2]) {
+                        _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETCURSEL, a, 0);
+                    }
+                }
+            }
+
+            n = reaper.GetNumMIDIOutputs();
+            cur = 0;
+
+            while (cur < n) : (cur += 1) {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIOutputName(@intCast(cur), &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, a, @as(c.LPARAM, @intCast(cur)));
+                    if (cur == parms[3]) {
+                        _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETCURSEL, a, 0);
+                    }
+                }
+            }
+
+            _ = c.SetDlgItemInt.?(hwndDlg, c.IDC_EDIT1, @intCast(parms[0]), c.TRUE);
+            _ = c.SetDlgItemInt.?(hwndDlg, c.IDC_EDIT2, @intCast(parms[1]), c.FALSE);
+        },
+        c.WM_USER + 1024 => {
+            if (wParam > 1 and lParam != 0) {
+                var indev: isize = -1;
+                var outdev: isize = -1;
+                var offs: isize = 0;
+                var size: isize = 9;
+
+                // Get MIDI device selections
+                var r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) indev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
+
+                r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) outdev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
+
+                // Get edit control values
+                var t: c_int = undefined;
+                r = c.GetDlgItemInt.?(hwndDlg, c.IDC_EDIT1, @ptrCast(&t), c.TRUE);
+                if (t != 0) offs = r;
+
+                r = c.GetDlgItemInt.?(hwndDlg, c.IDC_EDIT2, @ptrCast(&t), c.FALSE);
+                if (t != 0) {
+                    if (r < 1) {
+                        r = 1;
+                    } else if (r > 256) {
+                        r = 256;
+                    }
+                    size = r;
+                }
+
+                // Format config string
+                // The keys of the devices follow their numbers, which are what the surface finds them by the next time.
+                var tmp: [1024:0]u8 = undefined;
+                var name_buf: [512]u8 = undefined;
+                var in_word_buf: [3 * device_names.max_key]u8 = undefined;
+                var out_word_buf: [3 * device_names.max_key]u8 = undefined;
+                const in_key = config.keyOfDevice(true, @intCast(indev), &name_buf) orelse (if (indev < 0) devices.dialog.in.get() else "");
+                const in_word = device_names.encode(&in_word_buf, in_key);
+                const out_key = config.keyOfDevice(false, @intCast(outdev), &name_buf) orelse (if (outdev < 0) devices.dialog.out.get() else "");
+                const out_word = device_names.encode(&out_word_buf, out_key);
+                _ = std.mem.printSentinel(&tmp, "{d} {d} {d} {d} {s} {s}", .{ offs, size, indev, outdev, in_word, out_word }, 0) catch return 0;
+
+                _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
+            }
+        },
+        else => {},
+    }
+    return 0;
+}
+
+fn makeIntResource(x: anytype) [*c]const u8 {
+    return @ptrFromInt(@as(u32, @intCast(x)));
+}
+
+pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND {
+    _ = type_string;
+    const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
+    // const cast: c.LPARAM = @intCast(initConfigString);
+
+    return c.SWELL_CreateDialog.?(c.SWELL_curmodule_dialogresource_head, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, &dlgProc, cast);
+}
+
+fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
+    parms[0] = 0;
+    parms[1] = 9;
+    parms[2] = -1;
+    parms[3] = -1;
+
+    var iterator = std.mem.splitScalar(u8, std.mem.span(@as([*:0]const u8, @ptrCast(str))), ' ');
+    var x: u8 = 0;
+    while (iterator.next()) |val| {
+        if (!std.mem.eql(u8, "", val) and x < 4) {
+            const parsed = std.fmt.parseInt(i32, val, 10) catch -1;
+            parms[x] = parsed;
+            // tb determined, is this correct? It looks like the cpp version starts at 1
+            x += 1;
+        }
+    }
+}
+
+fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface {
+    _ = type_string;
+    var parms: [4]i32 = undefined;
+    parseParms(configString, &parms);
+    var keys: device_names.Keys = .{};
+    config.parseDeviceKeys(configString, &keys);
+    // Because the numbers of the devices are not the same from one session to the next, the surface looks for the devices that its
+    // config names, and takes the numbers of the config only when it names none.
+    const in_dev = devices.resolveDevice(true, parms[2], keys.in);
+    const out_dev = devices.resolveDevice(false, parms[3], keys.out);
+    const myCsurf: c.C_ControlSurface = init(in_dev, out_dev, errStats);
+    // The surface keeps the key of each device that it has now, and of the others the key that its config named, so that a device that
+    // is not plugged in today is found when it is.
+    devices.rememberKeys(in_dev, out_dev, keys);
+    return myCsurf;
+}
+
+/// reaper_plugin.reaper_csurf_reg_t
+const reaper_csurf_reg_t = extern struct {
+    //
+    type_string: [*:0]const u8,
+    desc_string: [*:0]const u8,
+    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface,
+    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND,
+};
+
+pub const c1_reg = reaper_csurf_reg_t{
+    .type_string = "Console1",
+    .desc_string = "Perken Console1",
+    .IReaperControlSurface = &createFunc,
+    .ShowConfig = &configFunc,
+};
+
+test "the numbers of a config that has keys are read as they always were" {
+    var in_word_buf: [3 * device_names.max_key]u8 = undefined;
+    var config_buf_local: [512:0]u8 = undefined;
+    const config_string = std.mem.printSentinel(&config_buf_local, "0 0 87 91 {s} -", .{device_names.encode(&in_word_buf, "(capture_0) Console 1 MIDI 1")}, 0) catch unreachable;
+    var parms: [4]i32 = undefined;
+    parseParms(@ptrCast(config_string.ptr), &parms);
+    try std.testing.expectEqual(@as(i32, 87), parms[2]);
+    try std.testing.expectEqual(@as(i32, 91), parms[3]);
+}
+
+test parseParms {
+    const expect = std.testing.expect;
+
+    var parms: [4]c_int = undefined;
+    // Create a string that matches the expected format
+    var my_arr = [_]u8{ '1', ' ', '2', ' ', '3', 0 }; // Note: added null terminator
+    const str: [*c]const c_char = @ptrCast(&my_arr);
+    parseParms(str, &parms);
+
+    // Test against actual implementation behavior
+    try expect(parms[0] == 1); // First number
+    try expect(parms[1] == 2); // Second number
+    try expect(parms[2] == 3); // Third number
+    try expect(parms[3] == -1); // Should remain -1 as default
+}

@@ -1,0 +1,419 @@
+const std = @import("std");
+const reaper = @import("reaper").reaper;
+pub fn volToU8(vol: f64) u8 {
+    const d = std.math.clamp(volToNormalized(vol) * 127.0, 0.0, 127.0);
+    return @intFromFloat(d + 0.5);
+}
+
+/// The lowest and the highest level that the volume knob reaches, besides the silence at its very bottom.
+pub const volume_knob_min_db = -60.0;
+pub const volume_knob_max_db = 12.0;
+/// What REAPER takes for the silence, in dB.
+pub const silence_db = -150.0;
+
+/// The volume in dB for a position of the volume knob, from 0 to 1. Because the knob must be at noon for 0 dB, the lower half goes
+/// from the lowest level up to 0 dB and the upper half from 0 dB up to the highest level, each in a straight line in dB, and not
+/// in the gain. The silence is the very bottom of the knob.
+pub fn normalizedToDb(norm: f64) f64 {
+    const n = std.math.clamp(norm, 0.0, 1.0);
+    if (n <= 0.0) return silence_db;
+    if (n <= 0.5) return volume_knob_min_db * (1.0 - n / 0.5);
+    return volume_knob_max_db * (n - 0.5) / 0.5;
+}
+
+/// The position of the volume knob for a volume in dB. Because the knob does not go under its lowest level except at its bottom,
+/// the levels under it are at the bottom, and the levels over its highest one are at the top.
+pub fn dbToNormalized(db: f64) f64 {
+    if (db <= volume_knob_min_db) return 0.0;
+    if (db <= 0.0) return 0.5 * (1.0 - db / volume_knob_min_db);
+    return 0.5 + 0.5 * @min(db, volume_knob_max_db) / volume_knob_max_db;
+}
+
+/// The gain of a track for a position of the volume knob.
+pub fn normalizedToVol(norm: f64) f64 {
+    const db = normalizedToDb(norm);
+    return if (db <= silence_db) 0.0 else DB2VAL(db);
+}
+
+/// The position of the volume knob for the gain of a track.
+pub fn volToNormalized(vol: f64) f64 {
+    return dbToNormalized(VAL2DB(vol));
+}
+
+pub fn panToNormalized(pan: f64) f64 {
+    return (pan + 1.0) / 2.0;
+}
+
+pub fn normalizedToPan(norm: f64) f64 {
+    return norm * 2.0 - 1.0;
+}
+
+pub inline fn DB2VAL(x: f64) f64 {
+    return std.math.exp((x) * LN10_OVER_TWENTY);
+}
+const TWENTY_OVER_LN10 = 8.6858896380650365530225783783321;
+const LN10_OVER_TWENTY = 0.11512925464970228420089957273422;
+pub inline fn VAL2DB(x: f64) f64 {
+    if (x < 0.0000000298023223876953125) return -150.0;
+    const v: f64 = @log(x) * TWENTY_OVER_LN10;
+    return if (v < -150.0) -150.0 else v;
+}
+
+pub fn getTrackIndex(track: reaper.MediaTrack) ?usize {
+    const track_number = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER");
+    if (track_number <= 0) return null; // Master track or invalid
+    return @intFromFloat(track_number - 1); // Convert 1-based to 0-based
+}
+
+pub fn calculateDelta(comptime T: type, old_pos_abs: u8, new_pos: u8) T {
+    if ((old_pos_abs == 127 or old_pos_abs == 0) and new_pos == old_pos_abs) {
+        return if (old_pos_abs == 127) 1 else -1;
+    }
+    return @as(T, @intCast(new_pos)) - @as(T, @intCast(old_pos_abs));
+}
+
+pub fn calculateNewScrollPosition(
+    comptime T: type,
+    pos_abs: *u8,
+    pos_rel: anytype,
+    new_pos: u8,
+    wrap_count: T,
+    max_increment: ?T,
+) ?T {
+    if (wrap_count == 0) return null;
+
+    const PosRelType = @typeInfo(@TypeOf(pos_rel));
+    if (PosRelType != .pointer) {
+        @compileError("pos_rel must be a pointer");
+    }
+    if (@typeInfo(PosRelType.pointer.child) != .int) {
+        @compileError("pos_rel must point to an integer type");
+    }
+
+    const old_pos_abs = pos_abs.*;
+    pos_abs.* = new_pos;
+
+    var delta = calculateDelta(T, old_pos_abs, new_pos);
+
+    if (max_increment) |max_inc| {
+        if (@abs(delta) > max_inc) {
+            delta = if (delta > 0) max_inc else -max_inc;
+        }
+    }
+
+    const new_pos_rel = @as(T, @intCast(pos_rel.*)) + @as(T, @intCast(delta));
+
+    if (new_pos_rel >= wrap_count) {
+        pos_rel.* = @intCast(@rem(new_pos_rel, wrap_count));
+    } else if (new_pos_rel < 0) {
+        const wrapped = wrap_count - @rem(@as(T, @intCast(@abs(new_pos_rel))), wrap_count);
+        pos_rel.* = @intCast(if (wrapped == wrap_count) 0 else wrapped);
+    } else {
+        pos_rel.* = @intCast(new_pos_rel);
+    }
+    return delta;
+}
+
+/// Computes a delta from absolute CC values and clamps the resulting position
+/// to [0, max-1] instead of wrapping. Returns the effective delta (which may
+/// be reduced if clamping occurred), or null if the position did not change.
+pub fn calculateClampedDelta(
+    comptime T: type,
+    pos_abs: *u8,
+    pos_rel: *u8,
+    new_pos: u8,
+    max: T,
+    max_increment: ?T,
+) ?T {
+    if (max <= 0) return null;
+
+    const old_pos_abs = pos_abs.*;
+    pos_abs.* = new_pos;
+
+    var delta = calculateDelta(T, old_pos_abs, new_pos);
+
+    if (max_increment) |max_inc| {
+        if (@abs(delta) > max_inc) {
+            delta = if (delta > 0) max_inc else -max_inc;
+        }
+    }
+
+    const current: T = @intCast(pos_rel.*);
+    const new_pos_rel = current + delta;
+
+    if (new_pos_rel >= max) {
+        const old = pos_rel.*;
+        pos_rel.* = @intCast(max - 1);
+        if (pos_rel.* == old) return null;
+        return @as(T, @intCast(pos_rel.*)) - current;
+    } else if (new_pos_rel < 0) {
+        const old = pos_rel.*;
+        pos_rel.* = 0;
+        if (pos_rel.* == old) return null;
+        return -current;
+    } else {
+        pos_rel.* = @intCast(new_pos_rel);
+        return delta;
+    }
+}
+
+test "calculateClampedDelta" {
+    const testing = std.testing;
+
+    // Normal case: delta fits within range
+    {
+        var pos_abs: u8 = 64;
+        var pos_rel: u8 = 64;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 65, 127, null);
+        try testing.expectEqual(@as(?c_int, 1), result);
+        try testing.expectEqual(@as(u8, 65), pos_rel);
+    }
+
+    // Upper clamp: pos_rel hits max-1
+    {
+        var pos_abs: u8 = 126;
+        var pos_rel: u8 = 126;
+        _ = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 127, 127, null);
+        try testing.expectEqual(@as(u8, 126), pos_rel);
+    }
+
+    // At upper clamp, repeated: returns null because position cannot change
+    {
+        var pos_abs: u8 = 127;
+        var pos_rel: u8 = 126;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 127, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 126), pos_rel);
+    }
+
+    // Lower clamp: pos_rel hits 0
+    {
+        var pos_abs: u8 = 1;
+        var pos_rel: u8 = 0;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 0, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 0), pos_rel);
+    }
+
+    // At lower clamp, repeated: returns null
+    {
+        var pos_abs: u8 = 0;
+        var pos_rel: u8 = 0;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 0, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 0), pos_rel);
+    }
+
+    // Large delta clamped by max_increment
+    {
+        var pos_abs: u8 = 50;
+        var pos_rel: u8 = 50;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 60, 127, 5);
+        try testing.expectEqual(@as(?c_int, 5), result);
+        try testing.expectEqual(@as(u8, 55), pos_rel);
+    }
+
+    // Property: pos_rel always stays within [0, max-1]
+    {
+        var pos_abs: u8 = 64;
+        var pos_rel: u8 = 64;
+        const inputs = [_]u8{ 0, 127, 0, 127, 50, 100, 0, 0, 127, 127 };
+        for (inputs) |input| {
+            _ = calculateClampedDelta(c_int, &pos_abs, &pos_rel, input, 127, null);
+            try testing.expect(pos_rel < 127);
+        }
+    }
+}
+
+/// Converts a CC value (0-127) to a normalized play rate (0.0-1.0), where
+/// CC=64 maps to normalized=0.2 (1.0x playback rate). The lower half of
+/// the knob (0-64) covers rates 0.25x-1.0x, and the upper half (64-127)
+/// covers rates 1.0x-4.0x.
+pub fn ccToNormalizedRate(cc: u8) f64 {
+    const cc_f: f64 = @floatFromInt(cc);
+    if (cc <= 64) {
+        return (cc_f / 64.0) * 0.2;
+    } else {
+        return 0.2 + ((cc_f - 64.0) / 63.0) * 0.8;
+    }
+}
+
+/// Converts a normalized play rate (0.0-1.0) back to a CC value (0-127),
+/// the inverse of ccToNormalizedRate.
+pub fn normalizedRateToCC(normalized: f64) u8 {
+    const clamped = if (normalized < 0.0) 0.0 else if (normalized > 1.0) 1.0 else normalized;
+    if (clamped <= 0.2) {
+        const val = clamped / 0.2 * 64.0;
+        return @intFromFloat(@round(val));
+    } else {
+        const val = 64.0 + (clamped - 0.2) / 0.8 * 63.0;
+        return @intFromFloat(@round(val));
+    }
+}
+
+test "ccToNormalizedRate" {
+    const testing = std.testing;
+    const tolerance = 0.001;
+    try testing.expectApproxEqAbs(@as(f64, 0.0), ccToNormalizedRate(0), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.1), ccToNormalizedRate(32), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.2), ccToNormalizedRate(64), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.606), ccToNormalizedRate(96), 0.01);
+    try testing.expectApproxEqAbs(@as(f64, 1.0), ccToNormalizedRate(127), tolerance);
+}
+
+test "normalizedRateToCC" {
+    const testing = std.testing;
+    try testing.expectEqual(@as(u8, 0), normalizedRateToCC(0.0));
+    try testing.expectEqual(@as(u8, 32), normalizedRateToCC(0.1));
+    try testing.expectEqual(@as(u8, 64), normalizedRateToCC(0.2));
+    try testing.expectEqual(@as(u8, 127), normalizedRateToCC(1.0));
+    // Clamping: values outside 0-1 are clamped
+    try testing.expectEqual(@as(u8, 0), normalizedRateToCC(-0.5));
+    try testing.expectEqual(@as(u8, 127), normalizedRateToCC(1.5));
+}
+
+test "ccToNormalizedRate round-trip" {
+    // For every CC value, converting to normalized and back should return
+    // the original CC value.
+    for (0..128) |i| {
+        const cc: u8 = @intCast(i);
+        const normalized = ccToNormalizedRate(cc);
+        std.debug.assert(normalized >= 0.0 and normalized <= 1.0);
+        const roundtrip = normalizedRateToCC(normalized);
+        try std.testing.expectEqual(cc, roundtrip);
+    }
+}
+
+pub const Guid = struct {
+    bytes: [16]u8,
+
+    pub fn fromReaperGUID(reaper_guid: *const reaper.GUID) Guid {
+        // Safe to reinterpret the opaque pointer as a pointer to 16 bytes
+        const bytes_ptr: *const [16]u8 = @ptrCast(reaper_guid);
+        return .{ .bytes = bytes_ptr.* };
+    }
+
+    pub fn fromString(str: []const u8) !Guid {
+        if (str.len != 38 or str[0] != '{' or str[37] != '}')
+            return error.InvalidGuidFormat;
+
+        var bytes: [16]u8 = undefined;
+        var byte_idx: usize = 0;
+
+        var i: usize = 1;
+        while (byte_idx < 16) : (byte_idx += 1) {
+            while (str[i] == '-') i += 1;
+
+            const high = try std.fmt.parseInt(u4, str[i..][0..1], 16);
+            const low = try std.fmt.parseInt(u4, str[i + 1 ..][0..1], 16);
+            bytes[byte_idx] = @as(u8, high) << 4 | @as(u8, low);
+            i += 2;
+        }
+
+        return Guid{ .bytes = bytes };
+    }
+
+    pub fn toString(self: Guid, buf: *[38:0]u8) void {
+        // Format: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+        buf[0] = '{';
+        buf[37] = '}';
+
+        var str_idx: usize = 1;
+        for (self.bytes, 0..) |byte, i| {
+            // Add hyphens at appropriate positions
+            if (i == 4 or i == 6 or i == 8 or i == 10) {
+                buf[str_idx] = '-';
+                str_idx += 1;
+            }
+
+            // Convert each byte to two hex digits
+            const high: u4 = @truncate(byte >> 4);
+            const low: u4 = @truncate(byte & 0x0F);
+            buf[str_idx] = std.fmt.digitToChar(@as(u8, high), .upper);
+            buf[str_idx + 1] = std.fmt.digitToChar(@as(u8, low), .upper);
+            str_idx += 2;
+        }
+        buf[38] = 0;
+    }
+};
+
+test "Guid conversion" {
+    const testing = std.testing;
+    const guid_str = "{6FE63880-278A-F842-B9E4-FE7E6A81FDA4}";
+
+    // Test string to Guid
+    const guid = try Guid.fromString(guid_str);
+
+    // Test Guid back to string
+    var buf: [38:0]u8 = undefined;
+    guid.toString(&buf);
+
+    try testing.expectEqualStrings(guid_str, &buf);
+
+    // Test another conversion round-trip
+    const guid2 = try Guid.fromString(&buf);
+    try testing.expectEqual(guid, guid2);
+}
+
+pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) [:0]const u8 {
+    return std.mem.printSentinel(buf, fmt, args, 0) catch |err| switch (err) {
+        error.NoSpaceLeft => blk: {
+            const ellipsis = "…";
+            const end = buf.len - ellipsis.len - 1;
+            @memcpy(buf[end .. end + ellipsis.len], ellipsis);
+            buf[end + ellipsis.len] = '\x00';
+            break :blk @as([:0]const u8, buf[0 .. end + ellipsis.len :0]);
+        },
+    };
+}
+
+test "safePrint" {
+    const testing = std.testing;
+    const expect = testing.expect;
+    const expectEqualStrings = testing.expectEqualStrings;
+
+    {
+        var buf: [32:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("test 42", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("test 42", result);
+    }
+
+    {
+        var buf: [7:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("tes…", result);
+    }
+
+    {
+        var buf: [4:0]u8 = undefined;
+        const result = safePrint(&buf, "test this", .{});
+        try expectEqualStrings("…", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        const result = safePrint(&buf, "", .{});
+        try expectEqualStrings("", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        _ = safePrint(&buf, "test", .{});
+        try expect(buf[4] == 0);
+    }
+}
+
+test "VAL2DB and DB2VAL are inverse of each other" {
+    for ([_]f64{ 0.001, 0.1, 0.5, 1.0, 2.0, 4.0 }) |value| {
+        try std.testing.expectApproxEqRel(value, DB2VAL(VAL2DB(value)), 1e-9);
+    }
+    try std.testing.expectApproxEqAbs(@as(f64, 0.0), VAL2DB(1.0), 1e-9);
+    try std.testing.expectApproxEqAbs(@as(f64, -6.0206), VAL2DB(0.5), 1e-3);
+    try std.testing.expectEqual(@as(f64, -150.0), VAL2DB(0.0));
+}

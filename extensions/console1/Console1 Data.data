@@ -1,0 +1,17 @@
+@description Perken Console1: plugin maps and language packs
+@author Perken
+@version 0.1.0
+@provides
+  Perken/Console1/maps/**/*.ini
+  src/resources/langPacks/en.ini > Perken/Console1/langPacks/en.ini
+  src/resources/langPacks/fr.ini > Perken/Console1/langPacks/fr.ini
+@changelog
+  First release as a ReaPack package.
+@link
+  Source repository https://github.com/AntoineBalaine/perken-reaper-scripts
+@about
+  # Perken Console1: maps and language packs
+
+  The data files that the Console1 extension reads from Data/Perken/Console1: the maps that connect the knobs of the console to the parameters of the plugins (factory, chmaha and tukan), and the language packs.
+
+  Install it with the Perken Console1 extension. The extension writes a few default maps by itself, but it does not have the other maps or the language packs.

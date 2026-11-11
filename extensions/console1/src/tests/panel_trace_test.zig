@@ -1,0 +1,952 @@
+const std = @import("std");
+const testing = std.testing;
+const imgui = @import("reaper_imgui");
+const MockImGui = @import("mock_imgui").MockImGui;
+const TestUiStateBuilder = @import("../models/test_ui_state.zig").TestUiStateBuilder;
+const fx_sel_panel = @import("../fx_sel_panel.zig");
+const gui_lib = @import("../gui_lib.zig");
+const Theme = @import("../theme/c1_theme.zig");
+
+/// Set up module-level globals that panel code accesses directly so that they
+/// are not left as undefined (which triggers safety panics in debug builds).
+fn setupGlobals() void {
+    Theme.fonts.MAIN = null;
+    Theme.fonts.ICON_FONT_SMALL = null;
+}
+
+test "gui_lib.main renders without error in fx_ctrl mode" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    const result = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.widgetCount(.begin_window) > 0);
+    // In fx_ctrl mode with no track selected and no interactions, there should be
+    // no mode action returned.
+    try testing.expect(result == null);
+}
+
+test "gui_lib.main renders without error in settings mode" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.settings);
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    // settings mode requires a SettingsPanel instance; we set it on the ui
+    const SettingsPanel = @import("../settings_panel.zig");
+    var sp = try SettingsPanel.init(&builder.preferences);
+    ui.settings_panel = &sp;
+
+    const result = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.widgetCount(.begin_window) > 0);
+    _ = result;
+}
+
+test "gui_lib.main renders without error in transport mode" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.transport);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    const result = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.widgetCount(.begin_window) > 0);
+    _ = result;
+}
+
+test "fx_ctrl panel shows disconnected text when midi not connected" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMidiConnected(false);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // When midi is not connected, the warning triangle is at the top right of the input card, as it is for the legacy mode, and the text
+    // that was after the cards is gone: the message is in its tooltip.
+    try testing.expect(mock.containsWidget(.invisible_button, "##legacy_warning"));
+    try testing.expect(!mock.containsText("Console disconnected"));
+    try testing.expect(!mock.containsWidget(.text_colored, "Console disconnected"));
+}
+
+test "a connected console has no warning triangle" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(!mock.containsWidget(.invisible_button, "##legacy_warning"));
+}
+
+test "mapping panel in strip assign mode renders the store key and param list" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+    const StringPool = @import("string_pool").StringPool;
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+
+    // Set up assign mode for STRIP with some parameters in the param store
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+
+    // Add some fake parameters to the param store
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    assign_state.param_store.addParam(1, "Threshold") catch unreachable;
+    assign_state.param_store.addParam(2, "Ratio") catch unreachable;
+
+    // Add a fake preset to make the preset section visible
+    assign_state.initPresetStrings(builder.state.mapping_panel.gpa_int.allocator());
+    const arena_alloc = assign_state.arena.allocator();
+    const ref = assign_state.preset_strings.intern(arena_alloc, "My Preset") catch unreachable;
+    const offsets = arena_alloc.alloc(StringPool.StringRef, 1) catch unreachable;
+    offsets[0] = ref;
+    assign_state.preset_name_offsets = offsets;
+
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // The module selection dropdown should be rendered
+    // Every module is open at once: there is no combo to choose one, and each plate has its key that saves its mapping.
+    try testing.expect(!mock.containsWidget(.begin_combo, "##module_selection"));
+    // A channel strip is one card, which has the keys of the strip, and not the keys of five plates.
+    try testing.expect(mock.containsWidget(.invisible_button, "##save_CHANNEL STRIP"));
+    try testing.expect(!mock.containsWidget(.invisible_button, "##save_INPUT"));
+    try testing.expect(!mock.containsWidget(.invisible_button, "##save_COMPRESSOR"));
+
+    // The state of the plugin is stored without a named preset: there is no dropdown of presets, and the key of the plate is there.
+    try testing.expect(!mock.containsWidget(.begin_combo, "##preset_selection"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##store_CHANNEL STRIP"));
+    // The keys without a label are in the bar at the left.
+    try testing.expect(mock.containsWidget(.invisible_button, "##midi_learn"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##map_close"));
+
+    // In strip assign mode, all 5 module panels should be active (not disabled),
+    // because ChannelStripMapping shares the same CC field names.
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Inpt_Gain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Attack"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Eq_HiGain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Out_Vol"));
+
+    // The two reassignable strip-only controls should be rendered
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_ext_sidechain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_order"));
+
+    // No module is disabled: the only disabled things are the two track controls of the output that cannot be mapped, which are
+    // the solo and the mute. The pan and the volume can be mapped, and the track has them while shift is held.
+    try testing.expectEqual(@as(usize, 2), mock.widgetCount(.begin_disabled));
+}
+
+test "a right click on a control of the mapping panel opens the popup of its custom name, and on no other" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    // The knob of the low cut answers to the id of the knob, and the key of the compressor to the id of its key.
+    mock.rightClick("Inpt_LoCut");
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.open_popup, "##custom_name_Inpt_LoCut"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Inpt_HiCut"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Inpt_Gain"));
+}
+
+test "a right click on a key of the mapping panel opens the popup of its custom name" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    mock.rightClick("##Comp_comp");
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.open_popup, "##custom_name_Comp_comp"));
+    try testing.expect(!mock.containsWidget(.open_popup, "##custom_name_Eq_eq"));
+}
+
+test "the store key of a plate does not need a preset to be loaded" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    // No presets populated -- preset_name_offsets stays empty
+
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // The key that stores the state of the plugin is there, and it is enabled although no preset is loaded: it only needs a plugin.
+    try testing.expect(mock.containsWidget(.invisible_button, "##store_COMPRESSOR"));
+    // The plugin has a key that opens its window, and MIDI learn is in the bar at the left.
+    try testing.expect(mock.containsWidget(.invisible_button, "##openfx_COMP"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##midi_learn"));
+}
+
+test "while the browser is open from the assignment, the window still shows the mapping panel" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    builder.state.fx_sel.return_to_mapping = true;
+
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // The save keys of the plates are the ones of the mapping panel, and the keys of the panel of the FX controls are not there.
+    try testing.expect(mock.containsWidget(.invisible_button, "##save_COMPRESSOR"));
+    try testing.expect(!mock.containsWidget(.invisible_button, "##Out_mute"));
+}
+
+test "typing in the search of the browser replaces its cards with the plugins that match" {
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    try builder.fx_plugins_by_type.getPtr(.VST).put(testing.allocator, "VST: ReaComp (Cockos)", {});
+    defer builder.fx_plugins_by_type.getPtr(.VST).deinit(testing.allocator);
+
+    // Without a search, the browser has its two cards and the input.
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.input_text, "##fx_search"));
+    try testing.expect(mock.containsWidget(.begin_child, "##fx_card_menus"));
+    try testing.expect(!mock.containsWidget(.begin_child, "##fx_card_search"));
+
+    // With letters in it, the card of the results is there instead.
+    mock.resetTrace();
+    // The first frame has just opened the browser, so the text is put in once the browser has been drawn.
+    @memcpy(fx_sel_panel.testSearchBuffer()[0..4], "comp");
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.begin_child, "##fx_card_search"));
+    try testing.expect(!mock.containsWidget(.begin_child, "##fx_card_menus"));
+    try testing.expect(!mock.containsWidget(.begin_child, "##fx_card_mapped"));
+}
+
+test "the keys move through the results of the search, and Enter inserts the one that they are on" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    // Because the mock does not give the keys numbers, each one that is used here gets its own, and they are put back after.
+    const saved_keys = [_]c_int{ imgui.Key_Enter, imgui.Key_KeypadEnter, imgui.Key_DownArrow, imgui.Key_UpArrow, imgui.Key_PageDown, imgui.Key_PageUp, imgui.Key_Escape };
+    imgui.Key_Enter = 101;
+    imgui.Key_KeypadEnter = 102;
+    imgui.Key_DownArrow = 103;
+    imgui.Key_UpArrow = 104;
+    imgui.Key_PageDown = 105;
+    imgui.Key_PageUp = 106;
+    imgui.Key_Escape = 107;
+    defer {
+        imgui.Key_Enter = saved_keys[0];
+        imgui.Key_KeypadEnter = saved_keys[1];
+        imgui.Key_DownArrow = saved_keys[2];
+        imgui.Key_UpArrow = saved_keys[3];
+        imgui.Key_PageDown = saved_keys[4];
+        imgui.Key_PageUp = saved_keys[5];
+        imgui.Key_Escape = saved_keys[6];
+    }
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    try builder.fx_plugins_by_type.getPtr(.VST).put(testing.allocator, "VST: ReaComp (Cockos)", {});
+    try builder.fx_plugins_by_type.getPtr(.JS).put(testing.allocator, "JS: Compressor Deluxe", {});
+    defer builder.fx_plugins_by_type.getPtr(.VST).deinit(testing.allocator);
+    defer builder.fx_plugins_by_type.getPtr(.JS).deinit(testing.allocator);
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    // The first frame opens the browser, and then the text is typed.
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    @memcpy(fx_sel_panel.testSearchBuffer()[0..4], "comp");
+
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    const best = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin.name;
+
+    // Down moves to the next result, and Enter inserts that one.
+    mock.pressKey(imgui.Key_DownArrow);
+    ui = builder.build();
+    const next = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin.name;
+    try testing.expect(!std.mem.eql(u8, best, next));
+
+    // Up goes back to the first.
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_UpArrow);
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    const again = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin.name;
+    try testing.expectEqualStrings(best, again);
+}
+
+test "without a search, the arrows move the cursor of the list that the browser shows, and Enter chooses its row" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    const saved_keys = [_]c_int{ imgui.Key_Enter, imgui.Key_KeypadEnter, imgui.Key_DownArrow, imgui.Key_UpArrow };
+    imgui.Key_Enter = 101;
+    imgui.Key_KeypadEnter = 102;
+    imgui.Key_DownArrow = 103;
+    imgui.Key_UpArrow = 104;
+    defer {
+        imgui.Key_Enter = saved_keys[0];
+        imgui.Key_KeypadEnter = saved_keys[1];
+        imgui.Key_DownArrow = saved_keys[2];
+        imgui.Key_UpArrow = saved_keys[3];
+    }
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    // The first frame opens the browser, and has no key.
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)) == null);
+
+    mock.pressKey(imgui.Key_DownArrow);
+    ui = builder.build();
+    const down = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expectEqual(@as(i32, 1), down.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_UpArrow);
+    ui = builder.build();
+    const up = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expectEqual(@as(i32, -1), up.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    const enter = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expect(enter.fx_sel == .confirm);
+}
+
+test "Escape closes the browser when the search does not have the keyboard" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    const saved_escape = imgui.Key_Escape;
+    imgui.Key_Escape = 107;
+    defer imgui.Key_Escape = saved_escape;
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)) == null);
+
+    mock.pressKey(imgui.Key_Escape);
+    ui = builder.build();
+    const action = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expect(action.fx_sel == .close_browser);
+
+    // Text that was typed does not keep it open when the field has not the keyboard: it is not where the key is for.
+    @memcpy(fx_sel_panel.testSearchBuffer()[0..4], "comp");
+    ui = builder.build();
+    const with_text = (try gui_lib.main(null, &ui, 0, &style_mgr)).?;
+    try testing.expect(with_text.fx_sel == .close_browser);
+}
+
+test "the popup of a button is centered over its circle, wherever the label is" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    const radius = 8.5;
+    // Because a label at the right leaves the circle at the left edge of the widget, the circle is level with the middle of it.
+    const right = fx_ctrl_panel.buttonPopupAnchor(.{ .min_x = 100, .min_y = 50, .max_x = 160, .max_y = 70 }, radius, .right);
+    try testing.expectApproxEqAbs(@as(f64, 108.5), right.x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 60 - radius - 2), right.y, 0.001);
+    // Because a label below the circle is centered on it, the circle is in the middle of the widget, at its top.
+    const below = fx_ctrl_panel.buttonPopupAnchor(.{ .min_x = 100, .min_y = 50, .max_x = 160, .max_y = 90 }, radius, .below);
+    try testing.expectApproxEqAbs(@as(f64, 130), below.x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 48), below.y, 0.001);
+}
+
+test "the keys of the computer move through the maps of a plugin, choose one with Enter and step back with Escape" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    // Because the mock does not give the keys numbers, each one that is used here gets its own, and they are put back after.
+    const saved_keys = [_]c_int{ imgui.Key_Enter, imgui.Key_KeypadEnter, imgui.Key_DownArrow, imgui.Key_UpArrow, imgui.Key_Escape };
+    imgui.Key_Enter = 101;
+    imgui.Key_KeypadEnter = 102;
+    imgui.Key_DownArrow = 103;
+    imgui.Key_UpArrow = 104;
+    imgui.Key_Escape = 107;
+    defer {
+        imgui.Key_Enter = saved_keys[0];
+        imgui.Key_KeypadEnter = saved_keys[1];
+        imgui.Key_DownArrow = saved_keys[2];
+        imgui.Key_UpArrow = saved_keys[3];
+        imgui.Key_Escape = saved_keys[4];
+    }
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    try builder.mappings_list.registerPath(.COMP, fx_name, "punchy", "/maps/COMP/reacomp/punchy.ini");
+    const found = builder.mappings_list.findFx(.COMP, fx_name).?;
+    builder.state.fx_sel.current_category = .COMP;
+    builder.state.fx_sel.sub_mode = .{ .select_mapping = .{
+        .fx_name = builder.mappings_list.strings.get(found.fx_offset),
+        .fx_string_pool_offset = found.fx_offset,
+    } };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    // Without a key, the maps are drawn and nothing is asked.
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)) == null);
+    try testing.expect(mock.containsWidget(.begin_child, "##fx_card_mappings"));
+
+    mock.pressKey(imgui.Key_DownArrow);
+    ui = builder.build();
+    try testing.expectEqual(@as(i8, 1), (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_UpArrow);
+    ui = builder.build();
+    try testing.expectEqual(@as(i8, -1), (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.scroll_by);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Enter);
+    ui = builder.build();
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .confirm);
+
+    mock.key_press_targets.clearRetainingCapacity();
+    mock.pressKey(imgui.Key_Escape);
+    ui = builder.build();
+    try testing.expect((try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel == .back);
+}
+
+test "each map of the selector has a button at its right to set it as the default" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    try builder.mappings_list.registerPath(.COMP, fx_name, "punchy", "/maps/COMP/reacomp/punchy.ini");
+    const found = builder.mappings_list.findFx(.COMP, fx_name).?;
+    builder.state.fx_sel.current_category = .COMP;
+    builder.state.fx_sel.sub_mode = .{ .select_mapping = .{
+        .fx_name = builder.mappings_list.strings.get(found.fx_offset),
+        .fx_string_pool_offset = found.fx_offset,
+    } };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    const rects_with_two_maps = countTrace(&mock, .draw_list_add_rect);
+
+    // Because each row has a button with its border, a third map adds one border to what is drawn.
+    try builder.mappings_list.registerPath(.COMP, fx_name, "gentle", "/maps/COMP/reacomp/gentle.ini");
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(rects_with_two_maps + 1, countTrace(&mock, .draw_list_add_rect));
+
+    // Because the flag of the entry says which map is the default, the button of that row is drawn active, with a check: two lines
+    // more than the buttons at rest.
+    const lines_at_rest = countTrace(&mock, .draw_list_add_line);
+    try builder.mappings_list.setDefault(.COMP, fx_name, "punchy");
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(lines_at_rest + 2, countTrace(&mock, .draw_list_add_line));
+
+    // A click on the row chooses the map.
+    mock.selectItem("punchy");
+    ui = builder.build();
+    const chosen = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin;
+    try testing.expectEqualStrings("punchy", chosen.mapping_name.?);
+
+    // A click with the mouse over the button makes it the default instead. In the mock, the rows are one point wide, and the
+    // button is the room at the left of that point.
+    mock.mouse_x = -30;
+    mock.mouse_y = 0;
+    mock.selectItem("punchy");
+    ui = builder.build();
+    const set = (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.set_default_map;
+    try testing.expectEqualStrings("punchy", set.mapping_name);
+    try testing.expectEqualStrings(fx_name, set.name);
+}
+
+fn countTrace(mock: *const MockImGui, kind: anytype) usize {
+    var count: usize = 0;
+    for (mock.trace_list.items) |entry| {
+        if (entry.kind == kind) count += 1;
+    }
+    return count;
+}
+
+test "each plugin that has a mapping has a button at its right to set it as the default of the module" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    fx_sel_panel.testSearchBuffer()[0] = 0;
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    defer builder.mappings_list.deinit();
+    _ = builder.withMode(.fx_sel);
+    builder.preferences.show_track_list = false;
+    const fx_name = "VST: ReaComp (Cockos)";
+    try builder.mappings_list.registerPath(.COMP, fx_name, "default", "/maps/COMP/reacomp/default.ini");
+    builder.state.fx_sel.current_category = .COMP;
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    const lines_at_rest = countTrace(&mock, .draw_list_add_line);
+
+    // Because the preference says which plugin is the default, the button of that row is drawn active, with a check: two lines more.
+    builder.preferences.default_fx.set(.COMP, fx_name);
+    mock.resetTrace();
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expectEqual(lines_at_rest + 2, countTrace(&mock, .draw_list_add_line));
+
+    // A click on the row chooses the plugin.
+    mock.selectItem(fx_name);
+    ui = builder.build();
+    try testing.expectEqualStrings(fx_name, (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.plugin.name);
+
+    // A click with the mouse over the button makes it the default of the module instead.
+    mock.mouse_x = -30;
+    mock.mouse_y = 0;
+    mock.selectItem(fx_name);
+    ui = builder.build();
+    try testing.expectEqualStrings(fx_name, (try gui_lib.main(null, &ui, 0, &style_mgr)).?.fx_sel.set_default_plugin);
+}
+
+test "the button of a row is placed from its right edge, and the button of the default map has the active colors" {
+    const panel_card = @import("../components/panel_card.zig");
+    // Because the button holds its text and its padding, it ends at the margin of the row and starts a padding before the text.
+    const layout = panel_card.tagLayout(200, 40, false);
+    try testing.expectApproxEqAbs(@as(f64, 192), layout.max_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 136), layout.min_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 144), layout.text_x, 0.001);
+    // Because the check comes before the text, the button that has one is wider, and the text starts after the check.
+    const with_check = panel_card.tagLayout(200, 40, true);
+    try testing.expectApproxEqAbs(@as(f64, 192), with_check.max_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 122), with_check.min_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 130), with_check.check_x, 0.001);
+    try testing.expectApproxEqAbs(@as(f64, 144), with_check.text_x, 0.001);
+
+    // Because the active button is filled with the color of its text, it differs from the one at rest and from the one that the
+    // mouse is over, and its fill is not the dark of those.
+    const accent: c_int = @bitCast(@as(u32, 0xF0A030B0));
+    const at_rest = panel_card.tagStyle(accent, false, false);
+    const hovered = panel_card.tagStyle(accent, false, true);
+    const active = panel_card.tagStyle(accent, true, false);
+    try testing.expect(active.fill != at_rest.fill);
+    try testing.expect(active.fill != hovered.fill);
+    try testing.expect(hovered.fill != at_rest.fill);
+    try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.text)));
+    try testing.expectEqual(@as(u32, 0xF0A030FF), @as(u32, @bitCast(active.border)));
+
+    // Because the card must show through the button at rest, its body is nearly clear, and it is not the black of a hole.
+    const rest_fill: u32 = @bitCast(at_rest.fill);
+    try testing.expect(rest_fill & 0xFF < 0x40);
+    try testing.expect(rest_fill >> 8 == 0xFFFFFF);
+    // Because a raised cap throws a shadow and a pressed one does not, and a pressed one sinks its text.
+    try testing.expect(@as(u32, @bitCast(at_rest.drop_shadow)) & 0xFF > 0);
+    try testing.expectEqual(@as(u32, 0), @as(u32, @bitCast(active.drop_shadow)) & 0xFF);
+    try testing.expectEqual(@as(f64, 0), at_rest.sunk);
+    try testing.expect(active.sunk > 0);
+    // Because a pressed cap is lit from below, its lit edge is at the bottom: the top edge is the dark one.
+    try testing.expect(@as(u32, @bitCast(active.top_line)) >> 8 == 0);
+    try testing.expect(@as(u32, @bitCast(at_rest.top_line)) >> 8 == 0xFFFFFF);
+}
+
+test "the volume of the track is said in dB, with one decimal, and the silence is minus infinity" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    var buf: [24:0]u8 = undefined;
+    try testing.expectEqualStrings("0.0 dB", fx_ctrl_panel.volumeText(0, &buf));
+    try testing.expectEqualStrings("-6.0 dB", fx_ctrl_panel.volumeText(-6.02, &buf));
+    try testing.expectEqualStrings("3.5 dB", fx_ctrl_panel.volumeText(3.46, &buf));
+    // Because REAPER takes a volume under -150 dB as the silence, it is not written as a number.
+    try testing.expectEqualStrings("-inf dB", fx_ctrl_panel.volumeText(-150, &buf));
+}
+
+test "the screens spell out the name of each module, and none is the abbreviation that its tag has" {
+    const ui_helpers = @import("../ui_helpers.zig");
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    try testing.expectEqualStrings("INPUT", ui_helpers.moduleName(&builder.translations, .INPUT));
+    try testing.expectEqualStrings("GATE", ui_helpers.moduleName(&builder.translations, .GATE));
+    try testing.expectEqualStrings("EQ", ui_helpers.moduleName(&builder.translations, .EQ));
+    try testing.expectEqualStrings("COMPRESSOR", ui_helpers.moduleName(&builder.translations, .COMP));
+    try testing.expectEqualStrings("OUTPUT", ui_helpers.moduleName(&builder.translations, .OUTPT));
+    try testing.expectEqualStrings("CHANNEL STRIP", ui_helpers.moduleName(&builder.translations, .STRIP));
+}
+
+test "the FX controls of a channel strip are drawn as one card, and every module is still there" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_ctrl);
+    builder.preferences.show_track_list = false;
+    builder.state.fx_ctrl.track_state.mode = .{ .channel_strip = .{
+        .fx_index = 0,
+        .mapping = .{},
+        .guid = std.mem.zeroes(@import("utils").Guid),
+    } };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    // The second frame has the card drawn with the size that it had.
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.invisible_button, "Inpt_Gain"));
+    try testing.expect(mock.containsWidget(.invisible_button, "Eq_LoFrq"));
+    try testing.expect(mock.containsWidget(.invisible_button, "Out_Vol"));
+    // The plates are not bare any more once the card is done.
+    try testing.expect(!@import("../components/module_plate.zig").sections_open);
+}
+
+test "the screen where a preset is named has its save and cancel keys inside the card, with their symbols" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.presets);
+    builder.state.presets.purpose = .save;
+    builder.state.presets.stage = .name;
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    try testing.expect(mock.containsWidget(.invisible_button, "##presets_save"));
+    try testing.expect(mock.containsWidget(.invisible_button, "##presets_cancel_name"));
+    // The key that cancels is not under the card, as it is on the other screens.
+    try testing.expect(!mock.containsWidget(.invisible_button, "##presets_cancel"));
+}
+
+test "the room that only one panel needs for a plate is not kept in the width that the other panels get" {
+    const module_plate = @import("../components/module_plate.zig");
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    const slots = [_]module_plate.Slot{.{ .kind = .knob, .col = 0, .y = 500 }};
+    const wide = try module_plate.Plate.begin(null, .{ .slots = &slots, .columns = 1, .widest_label = "Gain", .extra_width = 900 });
+    try testing.expect(wide.width >= 900);
+    const plain = try module_plate.Plate.begin(null, .{ .slots = &slots, .columns = 1, .widest_label = "Gain" });
+    try testing.expect(plain.width < 900);
+}
+
+test "the toggle of the compressor swaps its knobs for its filters, and only in the mapping panel" {
+    const mapping_panel = @import("../mapping_panel.zig");
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+    mapping_panel.testSetFiltersView(false);
+    defer mapping_panel.testSetFiltersView(false);
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    builder.state.mapping_panel.mode = .{ .assign = statemachine.AssignSet.single(assign_state) };
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    // The knobs are there, with the toggle, and the filters are not.
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.invisible_button, "##toggle"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Ratio"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Thresh"));
+    try testing.expect(!mock.containsWidget(.begin_combo, "##combo_Comp_HiCut"));
+
+    // With the toggle on, the filters take the place of the knobs. The key of the bypass stays.
+    mock.resetTrace();
+    mapping_panel.testSetFiltersView(true);
+    ui = builder.build();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_HiCut"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_LoCut"));
+    try testing.expect(!mock.containsWidget(.begin_combo, "##combo_Comp_Ratio"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_comp"));
+}
+
+test "the FX controls have no toggle for the filters of the compressor" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.fx_ctrl);
+    builder.preferences.show_track_list = false;
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+    try testing.expect(!mock.containsWidget(.invisible_button, "##toggle"));
+}
+
+test "roundButton component renders with mock imgui" {
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    const button = @import("../components/button.zig");
+    const clicked = try button.roundButton(null, "test", "##test", null, null, null, null, null, null, null, null, null, null);
+
+    try testing.expect(!clicked);
+    // roundButton should record draw operations in the trace
+    try testing.expect(mock.trace_list.items.len > 0);
+}
+
+test "a button that was pressed shows its value like a knob does: on or off for a toggle, and the text of the plugin for a mapped parameter" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    const fx_ctrl = &builder.state.fx_ctrl;
+
+    fx_ctrl.values.getPtr(.Out_mute).?.* = .{ .button = true };
+    try testing.expectEqualStrings("On", fx_ctrl_panel.buttonValueText(fx_ctrl, .Out_mute).?);
+    fx_ctrl.values.getPtr(.Out_mute).?.* = .{ .button = false };
+    try testing.expectEqualStrings("Off", fx_ctrl_panel.buttonValueText(fx_ctrl, .Out_mute).?);
+
+    // Because a button that is not mapped has no value of a plugin, it has nothing to show.
+    try testing.expect(fx_ctrl_panel.buttonValueText(fx_ctrl, .Comp_comp) == null);
+
+    try fx_ctrl.track_state.forward_map.put(testing.allocator, .Comp_comp, .{ .fx_index = 0, .param_index = 1 });
+    defer fx_ctrl.track_state.forward_map.clearAndFree(testing.allocator);
+    fx_ctrl.track_state.label_pool.setFmtValue(.Comp_comp, "Peak");
+    try testing.expectEqualStrings("Peak", fx_ctrl_panel.buttonValueText(fx_ctrl, .Comp_comp).?);
+    fx_ctrl.track_state.label_pool.setFmtValue(.Comp_comp, "-");
+    try testing.expectEqualStrings("Off", fx_ctrl_panel.buttonValueText(fx_ctrl, .Comp_comp).?);
+
+    // The pad of the button stays lit for the same time as the popup of a knob.
+    fx_ctrl.touchKnob(.Out_mute, 1000);
+    fx_ctrl.now_ms = 1000 + @import("../fx_ctrl_state.zig").value_popup_ms;
+    try testing.expect(fx_ctrl.knobPopupVisible(.Out_mute));
+}
+
+test "a knob of the FX controls that the map does not assign is not mapped, except the volume and the pan, and the cut knobs follow the filters key" {
+    const fx_ctrl_panel = @import("../fx_ctrl_panel.zig");
+    const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
+    // Because the state frees none of its maps itself, an arena owns them.
+    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    var state: FxCtrlState = .init(arena.allocator());
+
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Comp_Ratio));
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Out_Vol));
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Out_Pan));
+
+    try state.track_state.forward_map.put(arena.allocator(), .Comp_Ratio, .{ .fx_index = 0, .param_index = 1 });
+    try state.track_state.forward_map.put(arena.allocator(), .Comp_HiCut, .{ .fx_index = 0, .param_index = 17 });
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Comp_Ratio));
+
+    // Because the cut knobs of the input are the compressor's while the filters go to it, one has a parameter and the other does not.
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Inpt_HiCut));
+    state.filter_to_comp = true;
+    try testing.expect(fx_ctrl_panel.isMapped(&state, .Inpt_HiCut));
+    try testing.expect(!fx_ctrl_panel.isMapped(&state, .Inpt_LoCut));
+}

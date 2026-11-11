@@ -1,0 +1,261 @@
+const std = @import("std");
+const builtin = @import("builtin");
+// The C declarations, translated by the build from src/csurf/c_bindings.h.
+const c = @import("c");
+const c1 = @import("../c1.zig");
+const Globals = @import("../globals.zig").Globals;
+const actions = @import("../actions.zig");
+const Unit = @import("../unit/unit.zig");
+const MidiEvtsFxCtrl = @import("midi_events_fxctrl.zig");
+const statemachine = @import("../statemachine.zig");
+const ModulesList = statemachine.ModulesList;
+
+pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
+    // The console only sends cc messages, so we know that the status is always going to be 0xb0,
+    // except when the message is a running status (i.e. the knobs are turned faster).
+    // In the case of running status, we do need to read the status byte to figure out which control is being touched.
+    // 0xb0 0x1f 0x7f 0x0
+    // ^    ^    ^    ^
+    // |    |    |    useless for our purposes
+    // |    |    value
+    // |    cc number
+    // status "cc message"
+    // 0x6b 0x46 0x0 0xdd
+    // ^    ^    ^    ^
+    // |    |    |    I assume this is noise
+    // |    |    empty
+    // |    value
+    // cc number (byte is < 0xb0, so this is running status)
+    const msg = c.MIDI_event_message(evt);
+    const status = msg[0] & 0xf0;
+    const chan = msg[0] & 0x0f;
+    _ = chan;
+    const cc_enum: ?c1.CCs = std.enums.fromInt(c1.CCs, if (status == 0xb0) msg[1] else msg[0]);
+    const val = if (status == 0xb0) msg[2] else msg[1];
+
+    if (cc_enum) |cc| onControl(globals, cc, val);
+}
+
+/// The Alt key of the computer's keyboard is a modifier of the FX controls, whether or not the Mode button is one: while it is held,
+/// the transport mode is shown, and its release brings the FX controls back. It only acts from the FX controls, and a release only
+/// leaves the transport mode that its own press entered.
+pub fn applyAltModifier(globals: *Globals, held: bool) void {
+    if (held == globals.alt_held) return;
+    globals.alt_held = held;
+    if (held) {
+        if (globals.state.current_mode == .fx_ctrl) {
+            globals.alt_mode_held = true;
+            actions.dispatch(globals, .{ .change_mode = .transport });
+        }
+    } else if (globals.alt_mode_held) {
+        globals.alt_mode_held = false;
+        if (globals.state.current_mode == .transport) actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+    }
+}
+
+/// An event of the unit in sysex mode. While nothing but the emulation of the legacy unit exists, a tick or a press ends in
+/// the same call as a CC did.
+pub fn onUnitEvent(globals: *Globals, event: Unit.ControlEvent) void {
+    // When the Mode button is a modifier, the transport mode lasts as long as the button is held down: its press enters it
+    // from the FX control mode, and its release leaves it.
+    if (globals.preferences.mode_is_modifier) {
+        switch (event) {
+            .press => |cc| if (cc == .Inpt_disp_mode and globals.state.current_mode == .fx_ctrl) {
+                globals.mode_held = true;
+                actions.dispatch(globals, .{ .change_mode = .transport });
+                return;
+            },
+            .release => |cc| if (cc == .Inpt_disp_mode and globals.mode_held) {
+                globals.mode_held = false;
+                if (globals.state.current_mode == .transport) actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+                return;
+            },
+            else => {},
+        }
+    }
+    if (globals.state.current_mode == .fx_ctrl and globals.unit.shiftHeld()) {
+        if (MidiEvtsFxCtrl.shiftFunction(globals, event)) return;
+    }
+    // The end of the loop is the alternative use of the button of the loop start.
+    if (globals.state.current_mode == .transport and globals.unit.shiftHeld()) {
+        switch (event) {
+            .press => |cc| if (cc == .Eq_hp_shape) {
+                actions.dispatch(globals, .{ .transport = .loop_end });
+                return;
+            },
+            else => {},
+        }
+    }
+    switch (event) {
+        .tick => |tick| {
+            if (globals.state.current_mode == .transport) {
+                actions.dispatch(globals, .{ .transport = .{ .knob_by = .{ .cc = tick.cc, .delta = if (tick.delta > 0) 1 else -1, .fine = tick.fine } } });
+                return;
+            }
+            if (tick.cc == .Out_Vol and scrollList(globals, if (tick.delta > 0) 1 else -1)) return;
+            if (MidiEvtsFxCtrl.onTick(globals, tick)) return;
+        },
+        else => {},
+    }
+    if (globals.unit.input.legacyValue(event)) |legacy| onControl(globals, legacy.cc, legacy.value);
+}
+
+/// Whether the browser of plugins is inside a menu, or inside the mappings of a plugin, which Cancel leaves first.
+fn fxSelIsInside(globals: *Globals) bool {
+    const state = globals.state.fx_sel;
+    return state.menu_depth > 0 or state.sub_mode == .select_mapping;
+}
+
+/// Volume scrolls the list of the browse modes by a row for each tick. It returns whether the mode has such a list.
+fn scrollList(globals: *Globals, delta: i8) bool {
+    switch (globals.state.current_mode) {
+        .fx_sel => actions.dispatch(globals, .{ .fx_sel = .{ .scroll_by = delta } }),
+        .default_fx_sel => actions.dispatch(globals, .{ .default_fx_sel = .{ .scroll_by = delta } }),
+        .settings => actions.dispatch(globals, .{ .settings = .{ .scroll_by = delta } }),
+        .presets => actions.dispatch(globals, .{ .presets = .{ .scroll_by = delta } }),
+        .mapping_panel => switch (globals.state.mapping_panel.mode) {
+            .browse => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll_by = delta } }),
+            .assign => return false,
+        },
+        else => return false,
+    }
+    return true;
+}
+
+/// What the control `cc` does in the current mode, with the value that the legacy unit would have sent for it.
+/// The legacy decoder above and the sysex unit both end here.
+pub fn onControl(globals: *Globals, cc: c1.CCs, val: u8) void {
+    mode_switch: switch (globals.state.current_mode) {
+        .fx_ctrl => {
+            switch (cc) {
+                // The sysex unit has no mapping panel on this button: it loads a preset.
+                .Inpt_preset => if (globals.unit.isReady()) {
+                    actions.dispatch(globals, .{ .presets = .{ .enter = .load } });
+                } else {
+                    actions.dispatch(globals, .{ .change_mode = .mapping_panel });
+                    actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
+                },
+                else => actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } }),
+            }
+        },
+        .fx_sel => {
+            switch (cc) {
+                .Out_Vol => actions.dispatch(globals, .{ .fx_sel = .{ .scroll = val } }),
+                .Out_solo => actions.dispatch(globals, .{ .fx_sel = .confirm }),
+                // Cancel steps out of a menu, or out of the mappings of a plugin, before it closes the browser.
+                .Out_mute => actions.dispatch(globals, .{ .fx_sel = if (fxSelIsInside(globals)) .back else .close_browser }),
+                .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
+                else => continue :mode_switch .fx_ctrl,
+            }
+        },
+        .default_fx_sel => {
+            switch (cc) {
+                .Out_Vol => actions.dispatch(globals, .{ .default_fx_sel = .{ .scroll = val } }),
+                .Out_solo => actions.dispatch(globals, .{ .default_fx_sel = .confirm }),
+                .Out_mute => actions.dispatch(globals, .{ .default_fx_sel = .close_browser }),
+                .Tr_tr1 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                .Tr_tr2 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .GATE } }),
+                .Tr_tr3 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .EQ } }),
+                .Tr_tr4 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .COMP } }),
+                .Tr_tr5 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                else => {},
+            }
+        },
+        .presets => switch (cc) {
+            .Out_Vol => actions.dispatch(globals, .{ .presets = .{ .scroll = val } }),
+            .Out_solo => actions.dispatch(globals, .{ .presets = .confirm }),
+            .Out_mute => actions.dispatch(globals, .{ .presets = .cancel }),
+            else => {},
+        },
+        .settings => {
+            switch (cc) {
+                .Tr_tr20 => actions.dispatch(globals, .{ .settings = .save }),
+                .Out_mute => actions.dispatch(globals, .{ .settings = .cancel }),
+                .Out_solo => actions.dispatch(globals, .{ .settings = .toggle }),
+                .Out_Vol => actions.dispatch(globals, .{ .settings = .{ .scroll = val } }),
+                else => {},
+            }
+        },
+        .transport => {
+            switch (cc) {
+                .Inpt_HiCut => actions.dispatch(globals, .{ .transport = .{ .rate = val } }),
+                .Inpt_disp_mode => actions.dispatch(globals, .{ .change_mode = .fx_ctrl }),
+                // Because the panel of the transport mode puts these controls on the cards, and the controller has to do
+                // what the panel does, the buttons below are the ones of the panel (see `gui_lib.zig`).
+                .Out_mute => {
+                    if (globals.state.current_mode == .suspended) {
+                        actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+                    }
+                    actions.dispatch(globals, .set_fx_ctrl_gui);
+                },
+                .Comp_comp => actions.dispatch(globals, .{ .transport = .marker_set }),
+                .Inpt_filt_to_comp => actions.dispatch(globals, .{ .transport = .play }),
+                .Inpt_phase_inv => actions.dispatch(globals, .{ .transport = .stop }),
+                .Inpt_preset => actions.dispatch(globals, .{ .transport = .rec }),
+                .Tr_tr11 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
+                .Tr_tr12 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
+                .Tr_tr13 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
+                .Tr_tr14 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
+                .Tr_tr15 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
+                .Eq_lp_shape => actions.dispatch(globals, .{ .transport = .loop_toggle }),
+                // Because the legacy unit has no shift, the button only starts the loop there. The sysex unit ends it
+                // while shift is held (see `onUnitEvent`).
+                .Eq_hp_shape => actions.dispatch(globals, .{ .transport = .loop_start }),
+                .Eq_LoGain => actions.dispatch(globals, .{ .transport = .{ .scrub = val } }),
+                .Eq_LoMidGain => actions.dispatch(globals, .{ .transport = .{ .jog = val } }),
+                .Comp_Attack => actions.dispatch(globals, .{ .transport = .{ .jog_marker = val } }),
+                .Eq_HiGain => actions.dispatch(globals, .{ .transport = .{ .jog_item = val } }),
+                .Out_Vol => actions.dispatch(globals, .{ .transport = .{ .tr_sel = val } }),
+                .Out_Drive => actions.dispatch(globals, .{ .transport = .{ .zoom_horizontal = val } }),
+                .Out_DriveChar => actions.dispatch(globals, .{ .transport = .{ .zoom_vertical = val } }),
+                .Out_Pan => actions.dispatch(globals, .{ .transport = .{ .grid = val } }),
+                .Out_solo => actions.dispatch(globals, .{ .transport = .snap_tgl }),
+                else => {},
+            }
+        },
+        .mapping_panel => {
+            switch (globals.state.mapping_panel.mode) {
+                .browse => {
+                    switch (cc) {
+                        .Out_Vol => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll = val } }),
+                        .Out_solo => actions.dispatch(globals, .{ .mapping_panel = .browse_confirm }),
+                        .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .browse_cancel }),
+                        else => continue :mode_switch .fx_ctrl,
+                    }
+                },
+                .assign => {
+                    const set = &globals.state.mapping_panel.mode.assign;
+                    const assign = set.activeConst();
+                    const normalized: f32 = @floatFromInt(val);
+
+                    if (cc.isFxAssignable()) {
+                        actions.dispatch(globals, .{ .mapping_panel = .{ .assign_update_knob = .{ .cc = cc, .value = normalized / 127.0 } } });
+                    }
+
+                    if (assign.midi_learn_active) {
+                        // Because every module is assigned at once, a control is the one of the module that has it.
+                        const module_matches = if (set.moduleOf(cc)) |owner|
+                            owner != .STRIP or cc.isFxAssignable() or cc == .Tr_order or cc == .Tr_ext_sidechain
+                        else
+                            false;
+                        if (module_matches) {
+                            actions.dispatch(globals, .{ .mapping_panel = .{ .assign_select_control = cc } });
+                        }
+                    } else {
+                        switch (cc) {
+                            .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .assign_cancel }),
+                            .Out_Vol, .Out_solo => {},
+                            else => {},
+                        }
+                    }
+                },
+            }
+        },
+        else => {},
+    }
+}
