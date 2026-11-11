@@ -18,7 +18,6 @@ test {
     _ = @import("mft_order.zig");
     _ = @import("mft_actions.zig");
     _ = @import("mft_plugin_state.zig");
-    _ = @import("mft_wizard.zig");
     _ = @import("mft_imgui.zig");
     _ = @import("mft_transport.zig");
     _ = @import("mft_preferences.zig");

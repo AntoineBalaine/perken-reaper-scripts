@@ -13,7 +13,6 @@ const mft_settings = @import("mft_settings.zig");
 const theme = @import("panel_theme");
 const panel_fonts = @import("panel_fonts");
 const widgets = @import("panel_widgets");
-const wizard = @import("mft_wizard.zig");
 const device = @import("mft_device.zig");
 const mft_fxsel = @import("mft_fxsel.zig");
 const browser_source = @import("mft_browser_source.zig");
@@ -245,8 +244,6 @@ const window_y: f64 = 60;
 /// The roundness of the window's corners, which is the roundness of the device's body, so that the body fills the window
 /// to its edges.
 const window_rounding: f64 = 16;
-/// The room between the device and the cards under it.
-const cards_gap: f64 = 10;
 
 fn draw(globals: *MftGlobals) !void {
     const io = mft_globals.hostIo();
@@ -308,18 +305,8 @@ fn draw(globals: *MftGlobals) !void {
     if (response.close) globals.mft.panel_visible = false;
     if (response.fold) folded = !folded;
 
-    // The settings form and the calibration card belong to the settings mode, and are not shown in the others, unless
-    // a calibration is under way. Because a folded device is its header row alone, nothing is under it then.
-    const show_cards = !folded and globals.wizard.active;
-    if (show_cards) {
-        imgui.api.SetCursorScreenPos(ctx, response.left, response.bottom + cards_gap);
-        imgui.api.Dummy(ctx, 1, 1);
-    }
-    // Settings mode draws its form under the device; otherwise the buffers stay synced from preferences for the next
-    // time it is opened.
     // The settings have a window of their own; otherwise the buffers stay synced from the preferences for the next time it is opened.
     if (active != .SETTINGS) mft_settings.markUnsynced();
-    if (show_cards) drawWizard(globals);
 }
 
 /// Where the window of the FX Selection opens the first time, to the right of the device, and how big it is.
@@ -1970,77 +1957,11 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
     return info;
 }
 
-// The calibration wizard is a card of its own: the LED test is a toggle, the step's status is a lamp and a screen in
-// the color of the result, and the steps are pushed with buttons.
-fn drawWizard(globals: *MftGlobals) void {
-    const io = mft_globals.hostIo();
-    const w = &globals.wizard;
-    if (!widgets.beginCard(&kit, "Calibration", null, null, theme.amber)) return;
-    defer widgets.endCard(&kit);
-
-    // The actual color/ring sweep is driven from the control surface's run loop; here the panel only flips the flag
-    // so it stays free of the MIDI-out cImport and remains unit-testable.
-    var led_test = w.led_test_active;
-    if (widgets.toggle(&kit, "LED test", &led_test)) {
-        w.led_test_active = led_test;
-        if (led_test) w.led_frame = 0;
-    }
-
-    if (!w.active) {
-        if (widgets.pushButton(&kit, "Start calibration", 0)) w.start();
-        return;
-    }
-
-    const step = wizard.steps[w.current];
-    const result = w.results[w.current];
-
-    var buf: [128:0]u8 = undefined;
-    widgets.display(&kit, std.mem.printSentinel(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }, 0) catch "Calibration", theme.amber, 200);
-    imgui.api.Text(ctx, wizard.describe(step, &buf));
-    imgui.api.TextColored(ctx, theme.grey, wizard.expectedText(step, &buf));
-    imgui.api.Text(ctx, wizard.observedText(result, &buf));
-
-    const status_color = switch (result.status) {
-        .pass => theme.green,
-        .fail => theme.red,
-        .pending, .skipped => theme.grey,
-    };
-    widgets.lamp(&kit, status_color, result.status == .pass or result.status == .fail);
-    imgui.api.SameLine(ctx, null, null);
-    widgets.display(&kit, @tagName(result.status), status_color, 90);
-
-    if (step.kind == .look) {
-        // The controller shows the step, and the user says how it looks.
-        if (widgets.pushButton(&kit, "Looks right", 0)) w.mark(.pass);
-        imgui.api.SameLine(ctx, null, null);
-        if (widgets.pushButton(&kit, "Looks wrong", 0)) w.mark(.fail);
-        imgui.api.SameLine(ctx, null, null);
-    } else {
-        if (widgets.pushButton(&kit, "Retry", 0)) w.retry();
-        imgui.api.SameLine(ctx, null, null);
-    }
-    if (widgets.pushButton(&kit, "Skip", 0)) w.skip();
-    imgui.api.SameLine(ctx, null, null);
-    if (w.isLast()) {
-        if (widgets.pushButton(&kit, "Finish", 0)) {
-            wizard.writeReport(w, io, globals.resource_path) catch |err| log.err("report write failed: {s}", .{@errorName(err)});
-            w.stop();
-        }
-    } else {
-        if (widgets.pushButton(&kit, "Next", 0)) w.next();
-    }
-    imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(&kit, "Stop", 0)) {
-        wizard.writeReport(w, io, globals.resource_path) catch {};
-        w.stop();
-    }
-}
-
 // Run the panel against the mock ImGui and assert every window, child, group,
 // and style-color push/pop is balanced.
 const MockImGui = @import("mock_imgui").MockImGui;
 
-fn assertPanelBalanced(module: MftActiveModule, calibrating: bool) !void {
+fn assertPanelBalanced(module: MftActiveModule) !void {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
@@ -2048,24 +1969,21 @@ fn assertPanelBalanced(module: MftActiveModule, calibrating: bool) !void {
 
     var globals: MftGlobals = .{};
     globals.mft.active_module = module;
-    if (calibrating) globals.wizard.start();
     try draw(&globals);
     try mock.assertBalanced();
 }
 
 test "panel balanced across modes" {
-    try assertPanelBalanced(.INPUT, false);
-    try assertPanelBalanced(.TRANSPORT, false);
-    try assertPanelBalanced(.SETTINGS, false);
-    try assertPanelBalanced(.INPUT, true);
-    try assertPanelBalanced(.SETTINGS, true);
+    try assertPanelBalanced(.INPUT);
+    try assertPanelBalanced(.TRANSPORT);
+    try assertPanelBalanced(.SETTINGS);
 }
 
-test "a folded panel is balanced too, with the cards of the settings mode hidden under the header row" {
+test "a folded panel is balanced too" {
     folded = true;
     defer folded = false;
-    try assertPanelBalanced(.SETTINGS, true);
-    try assertPanelBalanced(.TRANSPORT, false);
+    try assertPanelBalanced(.SETTINGS);
+    try assertPanelBalanced(.TRANSPORT);
 }
 
 test "the buttons of the corner fold the device and hide the panel" {

@@ -153,19 +153,7 @@ The extension adds these actions to the Action List of REAPER, which can be boun
 
 - MFT: Toggle UI
 - MFT: Module order EQ-S-C, MFT: Module order S-C-EQ, MFT: Module order S-EQ-C, MFT: Next module order, MFT: Previous module order
-- MFT: Calibration wizard
 
-## Calibration
-
-The action "MFT: Calibration wizard" opens the window of the device with the card of the wizard. While it runs, the controller drives nothing: the wizard
-listens to each control in turn and says whether it sent what the code expects. It asks for a turn to the right of each encoder, a turn to the left of
-the first one (which checks the relative encoding), a push of each encoder, and a press of each side key (CCs 8 to 13). Then it shows the colors of the
-pages on the bottom row, the nine hues of the settings on the first nine encoders, and a sweep of the rings, and the user answers Looks right or Looks
-wrong. Retry listens to a step again, and Skip goes on. Finish or Stop writes the report to `Data/Perken/MFT/wizard_report.md`, and every step is also
-logged.
-
-The LED test of the card cycles every knob through the palette and sweeps the rings, so that the feedback can be looked at apart from the input. A
-failed turn means that `decodeRelative` in `mft.zig` is off; an unexpected CC means that the CC map is off; a wrong color means that the hues in
-`mft_colors.zig` are.
+## Tests
 
 The layout of the windows is checked by unit tests that draw them against the mock of ImGui from reaziglib (`zig build mft-test`).

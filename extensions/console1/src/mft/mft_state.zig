@@ -23,9 +23,6 @@ test "pageForEncoder: the bottom row selects the pages in order, and the top row
     try t.expectEqual(@as(?MftActiveModule, null), pageForEncoder(16));
 }
 
-// The full MFT color palette (hue values on channel 3), used by the LED test.
-pub const LED_TEST_COLORS = [_]u8{ 0x02, 0x0F, 0x19, 0x2E, 0x3C, 0x40, 0x49, 0x56, 0x5A, 0x6B, 0x71 };
-
 /// How long a control of the panel stays lit after the controller stopped using it, in milliseconds. Because the
 /// controller gives no state for a turn, and a press can be shorter than a frame, the light lingers so that it can be
 /// seen. The pop-up of a value uses the same duration.

@@ -125,8 +125,6 @@ export fn zSurfaceDestroyed(self: ?*anyopaque) callconv(.c) void {
     if (self != null and self == my_csurf) my_csurf = null;
 }
 
-var led_test_running = false;
-
 export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     const globals = MftGlobals.get();
@@ -142,38 +140,6 @@ export fn zRun() callconv(.c) void {
     midi_out.syncMeters(globals);
     midi_events.pollFxSel(globals);
     midi_events.pollSettings(globals);
-
-    // The LED test is toggled from the panel; the sweep runs here so the panel
-    // stays free of the MIDI-out cImport. On stopping, restore the surface.
-    if (globals.m_midi_out) |mo| {
-        // A step of the wizard that is looked at shows its colors or its sweep, and the surface is restored after it, as after the LED test.
-        if (globals.wizard.look()) |look| {
-            switch (look) {
-                .page_colors => midi_out.sendPageColors(mo, globals.preferences.pageHues(.TRANSPORT)),
-                .hues => {
-                    const p = &globals.preferences;
-                    var hues: [16]u8 = @splat(0);
-                    const nine = [_]u8{ p.color_input, p.color_gate, p.color_eq, p.color_comp, p.color_output, p.color_settings, p.color_transport, p.color_auto, p.color_fxsel };
-                    @memcpy(hues[0..nine.len], &nine);
-                    midi_out.sendPageColors(mo, hues);
-                },
-                .ring_sweep => midi_out.sendAllRings(mo, globals.wizard.ledTestAdvance().ring),
-            }
-            led_test_running = true;
-            return;
-        }
-        if (globals.wizard.led_test_active) {
-            const frame = globals.wizard.ledTestAdvance();
-            midi_out.sendAllColors(mo, frame.hue);
-            midi_out.sendAllRings(mo, frame.ring);
-            led_test_running = true;
-        } else if (led_test_running) {
-            led_test_running = false;
-            midi_out.clearAll(mo);
-            midi_out.sendPageColors(mo, globals.preferences.pageHues(globals.mft.active_module));
-            midi_out.syncRings(globals, true);
-        }
-    }
 }
 
 export fn zSetTrackListChange() callconv(.c) void {}

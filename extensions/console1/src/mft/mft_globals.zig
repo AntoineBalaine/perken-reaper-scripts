@@ -3,7 +3,6 @@ const reaper = @import("reaper").reaper;
 const fs_helpers = @import("fs_helpers");
 const MftState = @import("mft_state.zig").MftState;
 const MftMapStore = @import("mft_map_store.zig").MftMapStore;
-const WizardState = @import("mft_wizard.zig").WizardState;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const mft_feedback = @import("mft_feedback.zig");
 
@@ -32,7 +31,6 @@ pub const MftGlobals = struct {
     // The track whose FX the encoders currently drive. Follows REAPER's
     // last-touched track (see the SETLASTTOUCHEDTRACK csurf callback).
     current_track: reaper.MediaTrack = null,
-    wizard: WizardState = .{},
     /// What the rings of the controller show, which the surface keeps in step with REAPER.
     feedback: mft_feedback.Feedback = .{},
     preferences: MftPreferences = .{},

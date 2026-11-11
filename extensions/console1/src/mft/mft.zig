@@ -27,7 +27,7 @@ pub const SIDE_BUTTON_CCS = [6]u8{ 8, 9, 10, 11, 12, 13 };
 // Decode a relative encoder value into a signed delta. The MFT relative mode is
 // centered on 64: one click clockwise sends 65 (0x41), one click
 // counter-clockwise sends 63 (0x3F), and faster turns step further from 64
-// (confirmed on hardware via the calibration wizard). So the delta is val - 64.
+// (confirmed on hardware). So the delta is val - 64.
 pub fn decodeRelative(val: u8) i8 {
     return @as(i8, @intCast(val)) - 64;
 }
