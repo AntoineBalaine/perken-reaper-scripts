@@ -5,17 +5,18 @@ set -euo pipefail
 #
 #   install-maps.sh <source maps folder> <destination maps folder>
 #
-# Every default.ini of the source folder (<MODULE>/<plugin folder>/default.ini)
-# goes to the same place in the destination. Because a map in the destination
+# Every map of the source folder (<MODULE>/<plugin folder>/<map>.ini) goes to
+# the same place in the destination. A plugin can have several maps: default.ini,
+# and the maps that come from a pack, which have the name of the pack. Because a map in the destination
 # is the user's to edit, it is replaced only when it is still exactly what a
 # previous run installed. The checksum of every installed map is recorded next
-# to it (default.ini.installed-sha), and four cases follow:
+# to it (<map>.ini.installed-sha), and four cases follow:
 #
 #   * the map is not there yet: it is installed;
 #   * the map already equals the new one: nothing changes;
 #   * the map is unmodified since the last install: the new one replaces it;
 #   * the map was edited, or comes from before this script recorded anything:
-#     it is kept, and the new one is written beside it as default.ini.new.
+#     it is kept, and the new one is written beside it as <map>.ini.new.
 
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <source maps folder> <destination maps folder>" >&2
@@ -67,6 +68,6 @@ while IFS= read -r -d '' file; do
     cp "$file" "$target.new"
     kept=$((kept + 1))
   fi
-done < <(find "$SOURCE" -name default.ini -print0 | sort -z)
+done < <(find "$SOURCE" -name '*.ini' -print0 | sort -z)
 
-echo "maps: $installed installed, $unchanged already up to date, $kept kept because they were edited (the new ones are beside them as default.ini.new)"
+echo "maps: $installed installed, $unchanged already up to date, $kept kept because they were edited (the new ones are beside them as <map>.ini.new)"

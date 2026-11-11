@@ -215,13 +215,18 @@ pub const MftMapStore = struct {
     }
 
     /// Opens the map that the plugin uses. Because a map that was chosen can be gone from the disk (the user deleted its file), the map `default` is
-    /// opened when it is not there.
+    /// opened when it is not there, and the first map of the plugin when it has no `default` either, as the maps that come from a pack have the name of
+    /// the pack.
     fn openInUse(self: *MftMapStore, io: std.Io, owner: Owner, fx_name: [:0]const u8, buffer: []u8) !OpenedMap {
         const name = self.mapInUse(io, owner, fx_name);
-        return self.openEither(io, owner.dirName(), fx_name, name, buffer) catch |err| switch (err) {
-            error.FileNotFound => if (std.mem.eql(u8, name, default_map)) err else try self.openEither(io, owner.dirName(), fx_name, default_map, buffer),
-            else => return err,
-        };
+        if (self.openEither(io, owner.dirName(), fx_name, name, buffer)) |opened| return opened else |err| if (err != error.FileNotFound) return err;
+        if (!std.mem.eql(u8, name, default_map)) {
+            if (self.openEither(io, owner.dirName(), fx_name, default_map, buffer)) |opened| return opened else |err| if (err != error.FileNotFound) return err;
+        }
+        var list = BrowserList{};
+        self.listMaps(io, owner, fx_name, &list);
+        if (list.count == 0) return error.FileNotFound;
+        return self.openEither(io, owner.dirName(), fx_name, list.get(0), buffer);
     }
 
     /// The key of a plugin in the choices of the maps: its folder and its name, which tell apart a plugin that has maps for two modules.
@@ -903,4 +908,26 @@ test "default_maps.ini: the lines of its sections are read back as they are writ
     try t.expectEqual(Owner.strip, second.owner);
     try t.expectEqualStrings("Mix", second.map_name);
     try t.expectEqual(@as(?DefaultChoice, null), reader.next());
+}
+
+test "a plugin that has no map named default uses its first map, as the maps of a pack have the name of the pack" {
+    const t = std.testing;
+    const io = t.io;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realPathFileAlloc(io, ".", t.allocator);
+    defer t.allocator.free(root);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var store = MftMapStore.init(arena.allocator(), root);
+    const dir = try std.fmt.allocPrint(t.allocator, "{s}/maps/factory/STRIP/JS_ Strip", .{root});
+    defer t.allocator.free(dir);
+    try std.Io.Dir.cwd().createDirPath(io, dir);
+    const file = try std.fmt.allocPrint(t.allocator, "{s}/chmaha.ini", .{dir});
+    defer t.allocator.free(file);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = file, .data = "version = 2\nmodule = STRIP\nfx_name = JS: Strip\n\n[EQ]\nknob_1 = 4\n" });
+    try t.expectEqual(@as(?u16, 4), store.getStrip(io, "JS: Strip").?.pageFor(.EQ).slotToParam(0));
+    var list = BrowserList{};
+    store.listStrips(io, &list);
+    try t.expectEqualStrings("JS: Strip", list.get(0));
 }

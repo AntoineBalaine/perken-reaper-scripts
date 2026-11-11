@@ -543,7 +543,15 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     // settings turned the auto insert off.
     if (globals.preferences.auto_insert) {
         if (MappableModule.fromActive(module)) |mappable| {
-            if (globals.current_track) |track| mft_fx.ensureModuleFx(globals, track, mappable);
+            if (globals.current_track) |track| {
+                // The pop-up of the button says why the single FX mode inserted nothing.
+                const why: []const u8 = switch (mft_fx.ensureModuleFx(globals, track, mappable)) {
+                    .ok => "",
+                    .no_default_strip => "No default strip set",
+                    .strip_not_added => "Strip not found",
+                };
+                if (why.len > 0) globals.mft.push_note.set(cc, why, std.Io.Timestamp.now(io, .awake).toMilliseconds());
+            }
         }
     }
     // The settings can ask that a module button also puts the modules of the track in the order that they prefer.

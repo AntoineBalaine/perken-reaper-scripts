@@ -465,14 +465,13 @@ fn hasSuffixedFx(track: reaper.MediaTrack) bool {
     return false;
 }
 
-// Adds the default channel strip to the track and marks it as one. Returns false when no strip is named or the plugin could not be added, in which
-// case the track gets the plugins of the modules.
+// Adds the default channel strip to the track and marks it as one. Returns false when no strip is named or the plugin could not be added.
 fn insertDefaultStrip(globals: *MftGlobals, track: reaper.MediaTrack) bool {
     const name = defaultPluginFor(globals, .strip);
     if (name.len == 0) return false;
     const index = reaper.TrackFX_AddByName(track, name, false, -1);
     if (index < 0) {
-        std.log.scoped(.mft_fx).warn("The default channel strip '{s}' could not be added, so the track gets its modules", .{name});
+        std.log.scoped(.mft_fx).warn("The default channel strip '{s}' could not be added", .{name});
         return false;
     }
     setSlotSuffix(track, index, name, .strip);
@@ -533,11 +532,19 @@ pub fn loadStrip(globals: *MftGlobals, track: reaper.MediaTrack, fx_name: [:0]co
 // plugin if present, otherwise inserting a fresh one at the canonical position.
 // Because the position comes from the slot rank rather than the selection order,
 // selecting modules out of order still yields a correctly ordered chain.
-pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) void {
+/// What a module button inserted: what it should have, or, in the single FX mode, nothing because no channel strip is named in the settings, or because
+/// REAPER could not add the one that is named.
+pub const Ensured = enum { ok, no_default_strip, strip_not_added };
+
+pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) Ensured {
     // A channel strip does the work of every module, so a track that has one needs no other plugin.
-    if (findStrip(track) != null) return;
-    // In the channel strip mode, a track that has none of the plugins of the modules gets the default strip instead of them.
-    if (globals.preferences.single_fx_mode and !hasSuffixedFx(track) and insertDefaultStrip(globals, track)) return;
+    if (findStrip(track) != null) return .ok;
+    // In the single FX mode, a track that has none of the plugins of the modules gets the default strip instead of them. Because the player chose that
+    // mode, a strip that cannot be inserted inserts nothing else, and the caller says why.
+    if (globals.preferences.single_fx_mode and !hasSuffixedFx(track)) {
+        if (defaultPluginFor(globals, .strip).len == 0) return .no_default_strip;
+        return if (insertDefaultStrip(globals, track)) .ok else .strip_not_added;
+    }
     for (slotsFor(module)) |slot| {
         if (trackHasSlot(track, slot)) continue;
         const name = defaultPluginFor(globals, slot);
@@ -554,6 +561,7 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
         setSlotSuffix(track, new_idx, name, slot);
         afterInsert(globals, track, new_idx);
     }
+    return .ok;
 }
 
 // Build the routing of a module's sixteen encoders from the suffixed FX on the track.
