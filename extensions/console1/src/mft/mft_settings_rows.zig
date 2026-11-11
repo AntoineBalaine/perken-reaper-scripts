@@ -2,7 +2,8 @@
 //! tracks, and the default FX. The first encoder of the SETTINGS page scrolls them, and the second one adjusts the highlighted one: a turn changes a color,
 //! a number or the choice of a list, and moves a switch, and a click flips a switch or goes to the next choice.
 //!
-//! Some rows of the design have nothing behind them in the controller yet (the feedback window, the log file, the language and the manual routing): they are drawn and marked as not done, and the encoders leave them as they are. Because the logic does not call REAPER, it is
+//! The language row has nothing behind it in the controller yet: it is drawn and marked as not done, and the encoders leave it as it is. The feedback
+//! window, the log file and the manual routing of the design are left out, because the controller has no use for them. Because the logic does not call REAPER, it is
 //! here, where the unit tests can reach it.
 const std = @import("std");
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
@@ -43,10 +44,8 @@ pub const Setting = enum {
     sensitivity,
     fine,
     startup_message,
-    feedback_window,
     plugin_ui,
     language,
-    manual_routing,
     auto_insert,
     auto_insert_bypassed,
     auto_reorder,
@@ -80,10 +79,8 @@ pub const rows = [_]Row{
     .{ .setting = .sensitivity, .group = .knobs, .kind = .number, .label = "Sensitivity" },
     .{ .setting = .fine, .group = .knobs, .kind = .number, .label = "Fine multiplier" },
     .{ .setting = .startup_message, .group = .general, .kind = .toggle, .label = "Show startup message" },
-    .{ .setting = .feedback_window, .group = .general, .kind = .not_done, .label = "Show feedback window" },
     .{ .setting = .plugin_ui, .group = .general, .kind = .toggle, .label = "Show plugin UI" },
     .{ .setting = .language, .group = .general, .kind = .not_done, .label = "Language" },
-    .{ .setting = .manual_routing, .group = .tracks, .kind = .not_done, .label = "Manual routing" },
     .{ .setting = .auto_insert, .group = .tracks, .kind = .toggle, .label = "Auto insert modules" },
     .{ .setting = .auto_insert_bypassed, .group = .tracks, .kind = .toggle, .label = "Auto insert bypassed" },
     .{ .setting = .auto_reorder, .group = .tracks, .kind = .toggle, .label = "Auto reorder modules" },
@@ -249,7 +246,7 @@ test "the rows are in the groups of the design, in order, and every color has it
         last = group;
         if (row.kind == .hue) try t.expect(pageOf(row.setting) != null or row.setting == .hue_fxsel);
     }
-    try t.expectEqual(@as(usize, 27), row_count);
+    try t.expectEqual(@as(usize, 25), row_count);
 }
 
 test "a turn changes a color round the wheel, a number by its steps within its range, and a switch and the mode by its side" {
@@ -264,14 +261,14 @@ test "a turn changes a color round the wheel, a number by its steps within its r
     try t.expectApproxEqAbs(@as(f32, 1.1), prefs.sensitivity, 1e-5);
     adjust(&prefs, rows[10], -50);
     try t.expectEqual(fine_min, prefs.fine);
-    adjust(&prefs, rows[16], -1);
+    adjust(&prefs, rows[14], -1);
     try t.expect(!prefs.auto_insert);
-    flip(&prefs, rows[16]);
+    flip(&prefs, rows[14]);
     try t.expect(prefs.auto_insert);
-    try t.expectEqual(@as(f64, 1.0), fraction(&prefs, rows[16]));
-    adjust(&prefs, rows[26], 1);
+    try t.expectEqual(@as(f64, 1.0), fraction(&prefs, rows[14]));
+    adjust(&prefs, rows[24], 1);
     try t.expect(prefs.single_fx_mode);
-    flip(&prefs, rows[26]);
+    flip(&prefs, rows[24]);
     try t.expect(!prefs.single_fx_mode);
 }
 
@@ -279,9 +276,9 @@ test "a row that is not done, and a plugin, stay as they are under the encoder" 
     const t = std.testing;
     var prefs = MftPreferences{};
     const before = prefs;
-    adjust(&prefs, rows[12], 5);
-    flip(&prefs, rows[12]);
-    adjust(&prefs, rows[20], 5);
+    adjust(&prefs, rows[11], 5);
+    flip(&prefs, rows[11]);
+    adjust(&prefs, rows[18], 5);
     try t.expect(std.meta.eql(before.single_fx_mode, prefs.single_fx_mode));
     try t.expectEqual(before.auto_insert, prefs.auto_insert);
     try t.expectEqual(@as(?usize, 2), pluginSlot(.default_eq));
@@ -307,10 +304,10 @@ test "the order of the modules goes round with a turn and a click, and the auto 
     const t = std.testing;
     var prefs = MftPreferences{};
     try t.expectEqual(@import("mft_order.zig").Order.s_eq_c, prefs.module_order);
-    adjust(&prefs, rows[19], 1);
+    adjust(&prefs, rows[17], 1);
     try t.expectEqualStrings("EQ-S-C", prefs.module_order.label());
-    flip(&prefs, rows[19]);
+    flip(&prefs, rows[17]);
     try t.expectEqualStrings("S-C-EQ", prefs.module_order.label());
-    adjust(&prefs, rows[18], -1);
+    adjust(&prefs, rows[16], -1);
     try t.expect(!prefs.auto_reorder);
 }
