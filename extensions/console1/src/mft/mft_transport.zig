@@ -25,10 +25,9 @@ const CMD_PLAY_PAUSE = 40073;
 const CMD_INSERT_MARKER = 40157;
 const CMD_DELETE_MARKER_NEAR_CURSOR = 40613;
 const CMD_RECORD = 1013;
-// The two zoom-fit command IDs are best guesses and need confirming against the
-// REAPER action list on hardware (right-click the action, copy command ID).
-const CMD_ZOOM_FIT_PROJECT_H = 40295; // View: fit whole project horizontally (VERIFY)
-const CMD_ZOOM_FIT_TRACKS_V = 40110; // View: minimize/fit all tracks vertically (VERIFY)
+// The names of the two zoom commands were read from REAPER on the debug bridge (kbd_getTextFromCmd).
+const CMD_ZOOM_FIT_PROJECT_H = 40295; // View: Zoom out project, which shows the whole project
+const CMD_ZOOM_FIT_TRACKS_V = 40110; // View: Toggle track zoom to minimum height, which a second push restores
 
 pub fn rotationLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
