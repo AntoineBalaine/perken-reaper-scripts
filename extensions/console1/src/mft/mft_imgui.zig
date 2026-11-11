@@ -23,6 +23,7 @@ const mft_port = @import("mft_port.zig");
 const mft_auto = @import("mft_auto.zig");
 const settings_rows = @import("mft_settings_rows.zig");
 const mft_actions = @import("mft_actions.zig");
+const map_store = @import("mft_map_store.zig");
 const rgba = @import("ui_palette").rgba;
 const pi = std.math.pi;
 const log = std.log.scoped(.mft_imgui);
@@ -434,6 +435,9 @@ fn drawFxSelRow(label: [:0]const u8, index: usize, is_menu: bool, is_cursor: boo
     return try imgui.Selectable(.{ ctx, text });
 }
 
+/// What the Default key of a row makes the default: the plugin of the module, or the map of the plugin.
+const DefaultOf = enum { plugin, map };
+
 /// What a click on the row of a plugin did: nothing, a click on the row, or a click on its Default key.
 const PluginRowClick = enum { none, row, default };
 
@@ -443,7 +447,7 @@ const default_key_gap: f64 = 6;
 
 /// The row of a plugin in the browser: the row itself, which loads the plugin, and a key on its right that makes the plugin the default of the module. The
 /// key of the default plugin is lit and has a check, so that the default is seen in the list.
-fn drawFxSelPluginRow(label: [:0]const u8, index: usize, is_cursor: bool, accent: c_int, is_default: bool) !PluginRowClick {
+fn drawFxSelPluginRow(label: [:0]const u8, index: usize, is_cursor: bool, accent: c_int, is_default: bool, what: DefaultOf) !PluginRowClick {
     var avail_w: f64 = undefined;
     var avail_h: f64 = undefined;
     imgui.api.GetContentRegionAvail(ctx, &avail_w, &avail_h);
@@ -486,7 +490,10 @@ fn drawFxSelPluginRow(label: [:0]const u8, index: usize, is_cursor: bool, accent
         widgets.line(dl, check_x + 3, middle + 3.5, check_x + 8, middle - 3.5, ink, 1.6);
     }
     imgui.api.DrawList_AddText(dl, text_x, middle - size.h / 2, ink, word);
-    if (hovered) widgets.tooltip(&fxsel_kit, if (is_default) "This is the default plugin of the module." else "Make this plugin the default of the module: a module button inserts it on a track that has none.");
+    if (hovered) widgets.tooltip(&fxsel_kit, switch (what) {
+        .plugin => if (is_default) "This is the default plugin of the module." else "Make this plugin the default of the module: a module button inserts it on a track that has none.",
+        .map => if (is_default) "This is the default map of the plugin." else "Make this map the default of the plugin: the plugin is loaded with it from now on.",
+    });
     if (key_clicked) return .default;
     return if (row_clicked) .row else .none;
 }
@@ -534,7 +541,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
         const range = rowRange(state.search_cursor, count, list_rows);
         for (range.first..range.last) |i| {
             const name = fx_browser.pluginAt(source, hits[i].index) orelse continue;
-            const click = try drawFxSelPluginRow(name, i, i == state.search_cursor, accent, std.mem.eql(u8, name, default_plugin));
+            const click = try drawFxSelPluginRow(name, i, i == state.search_cursor, accent, std.mem.eql(u8, name, default_plugin), .plugin);
             if (click != .none) outcome = pluginRowOutcome(click, state, i, name, source);
         }
         return outcome;
@@ -557,7 +564,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
                 const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, mapped_rows);
                 for (range.first..range.last) |i| {
                     const name = state.browser.get(i);
-                    const click = try drawFxSelPluginRow(name, i, cursor == i, accent, std.mem.eql(u8, name, default_plugin));
+                    const click = try drawFxSelPluginRow(name, i, cursor == i, accent, std.mem.eql(u8, name, default_plugin), .plugin);
                     if (click != .none) outcome = pluginRowOutcome(click, state, i, name, source);
                 }
             }
@@ -594,10 +601,34 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
                     if (try drawFxSelRow(label, index, true, cursor == index, accent)) outcome = mft_fxsel.clickEntry(state, index, source);
                     continue;
                 }
-                const click = try drawFxSelPluginRow(label, index, cursor == index, accent, std.mem.eql(u8, label, default_plugin));
+                const click = try drawFxSelPluginRow(label, index, cursor == index, accent, std.mem.eql(u8, label, default_plugin), .plugin);
                 if (click != .none) outcome = pluginRowOutcome(click, state, index, label, source);
             }
         },
+    }
+    return outcome;
+}
+
+/// The card of the maps of the plugin that was chosen in the browser: a click on a map loads the plugin with it, and its Default key makes it the map that
+/// the plugin is loaded with from now on.
+fn drawFxSelMaps(k: *widgets.Panel, state: *mft_fxsel.FxSelState, default_map: []const u8, accent: c_int, line_height: f64, card_w: f64, room: f64) !mft_fxsel.Outcome {
+    var outcome: mft_fxsel.Outcome = .none;
+    const height = @max(room, fxselCardHeight(line_height, 3));
+    const rows = fxselRowsFor(line_height, height);
+    fxsel_page_rows = rows;
+    var title_buf: [200:0]u8 = undefined;
+    const title = std.mem.printSentinel(&title_buf, "Maps of {s}", .{state.mapsPlugin()}, 0) catch "Maps";
+    if (!widgets.beginCard(k, title, card_w, height, accent)) return outcome;
+    defer widgets.endCard(k);
+    const cursor: usize = state.maps_cursor;
+    const range = rowRange(cursor, state.maps.count, rows);
+    for (range.first..range.last) |i| {
+        const name = state.maps.get(i);
+        switch (try drawFxSelPluginRow(name, i, cursor == i, accent, std.mem.eql(u8, name, default_map), .map)) {
+            .none => {},
+            .row => outcome = mft_fxsel.clickEntry(state, i, null_source),
+            .default => outcome = .{ .set_default_map = name },
+        }
     }
     return outcome;
 }
@@ -1506,6 +1537,10 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
             try imgui.Text(.{ ctx, "The list of plugins could not be read." });
         },
         .presets => outcome = try drawFxSelPresets(&fxsel_kit, state, accent, line_height, card_w, room),
+        .maps => {
+            const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
+            outcome = try drawFxSelMaps(&fxsel_kit, state, globals.map_store.defaultMapName(mft_globals.hostIo(), owner, state.mapsPlugin()), accent, line_height, card_w, room);
+        },
         .save => try drawFxSelSave(&fxsel_kit, state, accent, line_height, card_w, room),
         .map => {},
     }

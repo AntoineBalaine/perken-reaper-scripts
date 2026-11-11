@@ -16,6 +16,7 @@ const mft_auto = @import("../mft_auto.zig");
 const mft_fxsel = @import("../mft_fxsel.zig");
 const mft_presets = @import("../mft_presets.zig");
 const browser_source = @import("../mft_browser_source.zig");
+const map_store = @import("../mft_map_store.zig");
 const mft_settings = @import("../mft_settings.zig");
 const settings_rows = @import("../mft_settings_rows.zig");
 const midi_out = @import("../midi_out_mft.zig");
@@ -103,6 +104,15 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
         .leave => closeFxSel(globals, state.return_page),
         .fill_browser => if (state.strip_target) globals.map_store.listStrips(io, &state.browser) else globals.map_store.listFx(io, state.module, &state.browser),
         .load_plugin => |name| {
+            // A plugin that has several maps asks which one to load it with, on a screen of its own.
+            const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
+            if (state.screen != .maps) {
+                globals.map_store.listMaps(io, owner, name, &state.maps);
+                if (state.maps.count > 1) {
+                    mft_fxsel.openMaps(state, name, globals.map_store.defaultMapName(io, owner, name));
+                    return;
+                }
+            }
             const track = globals.current_track orelse {
                 state.setNote("There is no track to load the plugin on.");
                 return;
@@ -122,6 +132,23 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             } else {
                 state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
             }
+        },
+        .load_plugin_map => |map_name| {
+            const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
+            globals.map_store.useMap(owner, state.mapsPlugin(), map_name) catch |err| {
+                state.setNote("The map could not be chosen.");
+                log.warn("failed to choose the map {s}: {s}", .{ map_name, @errorName(err) });
+                return;
+            };
+            applyOutcome(globals, state, .{ .load_plugin = state.mapsPlugin() });
+        },
+        .set_default_map => |map_name| {
+            const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
+            globals.map_store.setDefaultMap(io, owner, state.mapsPlugin(), map_name) catch |err| {
+                log.warn("failed to save the default map: {s}", .{@errorName(err)});
+                state.setNote(if (err == error.UnsupportedName) "A map whose name has an equal sign cannot be the default." else "The default map could not be written to default_maps.ini.");
+                return;
+            };
         },
         .set_default_plugin => |name| {
             // Because the name belongs to the list of the browser, the preferences keep a copy of their own, for the session.

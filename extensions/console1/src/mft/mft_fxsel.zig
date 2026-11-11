@@ -32,6 +32,8 @@ pub const Screen = enum {
     actions,
     /// The plugins that can be loaded for the module.
     browse,
+    /// The maps of the plugin that was chosen in the browser, when it has more than one: the map that is chosen is the one that the plugin is loaded with.
+    maps,
     /// The user presets of the plugin of the module.
     presets,
     /// The name of a new preset, which is typed in the window.
@@ -172,6 +174,10 @@ pub const FxSelState = struct {
     /// The page that the controller was on when the mode opened, which it goes back to when the mode closes.
     return_page: mft_state.MftActiveModule = .TRANSPORT,
     browser: BrowserList = .{},
+    /// The maps of the plugin that the maps screen is for, the entry that the cursor is on, and the plugin.
+    maps: BrowserList = .{},
+    maps_cursor: u16 = 0,
+    maps_plugin: [160:0]u8 = @splat(0),
     /// The presets of the plugin of the module, and the entry that the cursor is on. They are read when the screen opens, and again when another module is chosen.
     presets: BrowserList = .{},
     preset_cursor: u16 = 0,
@@ -285,6 +291,11 @@ pub const FxSelState = struct {
         self.syncSearch();
     }
 
+    /// The plugin that the maps screen is for.
+    pub fn mapsPlugin(self: *const FxSelState) [:0]const u8 {
+        return std.mem.sliceTo(&self.maps_plugin, 0);
+    }
+
     pub fn action(self: *const FxSelState) Action {
         return @fromBackingInt(@intCast(self.action_cursor));
     }
@@ -313,6 +324,10 @@ pub const Outcome = union(enum) {
     load_plugin: [:0]const u8,
     /// The plugin of that name is to be the default of the module (or of the channel strip), which the settings keep. The mode stays open.
     set_default_plugin: [:0]const u8,
+    /// The plugin of the maps screen is to be loaded with the map of that name, and the mode closed.
+    load_plugin_map: [:0]const u8,
+    /// The map of that name is to be the default of the plugin of the maps screen, which `default_maps.ini` keeps. The mode stays open.
+    set_default_map: [:0]const u8,
     /// The presets of the plugin of the module have to be read again.
     fill_presets,
     /// The preset of that name is to be loaded into the plugin of the module, and the mode closed.
@@ -338,6 +353,7 @@ pub fn listCount(state: *const FxSelState, source: ?fx_browser.Source) usize {
     return switch (state.screen) {
         .actions => action_count,
         .presets => state.presets.count,
+        .maps => state.maps.count,
         .save, .map => 0,
         .browse => blk: {
             const data = source orelse break :blk 0;
@@ -356,6 +372,7 @@ pub fn moveCursor(state: *FxSelState, steps: i32, source: ?fx_browser.Source) vo
     switch (state.screen) {
         .actions => move(&state.action_cursor, steps, action_count),
         .presets => move(&state.preset_cursor, steps, state.presets.count),
+        .maps => move(&state.maps_cursor, steps, state.maps.count),
         .save, .map => {},
         .browse => if (state.searching()) move(&state.search_cursor, steps, listCount(state, source)) else move(&state.browse_cursors[state.browse_depth], steps, listCount(state, source)),
     }
@@ -443,7 +460,8 @@ fn toggleSingle(state: *FxSelState) Outcome {
     state.strip_target = if (state.screen == .map) !state.map_single else !state.strip_target;
     switch (state.screen) {
         .actions => return .none,
-        .browse => {
+        .browse, .maps => {
+            state.screen = .browse;
             state.resetBrowser();
             return .fill_browser;
         },
@@ -487,7 +505,8 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
         state.module = module;
         state.strip_target = false;
         switch (state.screen) {
-            .browse => {
+            .browse, .maps => {
+                state.screen = .browse;
                 state.resetBrowser();
                 return .fill_browser;
             },
@@ -511,6 +530,13 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
                 state.screen = .actions;
                 break :blk .none;
             },
+            // Back from the maps goes to the browser, where the plugin was chosen.
+            .maps => blk: {
+                state.screen = .browse;
+                state.scroll_dirty = true;
+                state.focus_search = true;
+                break :blk .none;
+            },
             .browse => blk: {
                 state.scroll_dirty = true;
                 // Back clears what was typed first, then leaves the menu that is open, and the browser when it is on the first level.
@@ -532,6 +558,7 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
             .actions => runAction(state, state.action()),
             .browse => if (source) |data| confirmEntry(state, data) else .none,
             .presets => if (state.presets.count == 0) .none else .{ .load_preset = state.presets.get(state.preset_cursor) },
+            .maps => if (state.maps.count == 0) .none else .{ .load_plugin_map = state.maps.get(state.maps_cursor) },
             .save => confirmSave(state),
             .map => .save_mapping,
         };
@@ -548,6 +575,11 @@ pub fn press(state: *FxSelState, encoder: usize, source: ?fx_browser.Source) Out
 
 /// A click of the mouse on the entry `index` of the list that is shown: the cursor goes to it, and it is confirmed, as a press of the encoder does.
 pub fn clickEntry(state: *FxSelState, index: usize, source: fx_browser.Source) Outcome {
+    if (state.screen == .maps) {
+        if (index >= state.maps.count) return .none;
+        state.maps_cursor = @intCast(index);
+        return .{ .load_plugin_map = state.maps.get(index) };
+    }
     if (state.screen == .presets) {
         if (index >= state.presets.count) return .none;
         state.preset_cursor = @intCast(index);
@@ -557,6 +589,21 @@ pub fn clickEntry(state: *FxSelState, index: usize, source: fx_browser.Source) O
     if (state.searching()) state.search_cursor = @intCast(index) else state.browse_cursors[state.browse_depth] = @intCast(index);
     state.focus_search = true;
     return confirmEntry(state, source);
+}
+
+/// Opens the maps screen for a plugin that has more than one map, whose names are already in `state.maps`. The cursor starts on the default map, so that a
+/// press loads the plugin as it would have been loaded without the screen.
+pub fn openMaps(state: *FxSelState, plugin: []const u8, default_map: []const u8) void {
+    std.debug.assert(state.maps.count > 1);
+    const n = @min(plugin.len, state.maps_plugin.len);
+    @memcpy(state.maps_plugin[0..n], plugin[0..n]);
+    state.maps_plugin[n] = 0;
+    state.screen = .maps;
+    state.scroll_dirty = true;
+    state.maps_cursor = 0;
+    for (0..state.maps.count) |i| {
+        if (std.mem.eql(u8, state.maps.get(i), default_map)) state.maps_cursor = @intCast(i);
+    }
 }
 
 /// The page of the controller that has the name of a module.
@@ -701,7 +748,7 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
     if (encoder == list_encoder) {
         return .{ .turn = switch (state.screen) {
             .actions => state.action().label(),
-            .browse, .presets => "Scroll",
+            .browse, .presets, .maps => "Scroll",
             .save, .map => null,
         }, .press = "OK" };
     }
@@ -1162,4 +1209,22 @@ test "in the single FX mode the plates edit the pages of the channel strip, and 
     try t.expectEqual(Outcome.none, press(&state, single_encoder, null));
     try t.expect(!state.map_single);
     try t.expectEqual(@as(?u16, null), controlParam(&state, .EQ, 2));
+}
+
+test "the maps screen: it opens on the default map, the encoder scrolls it, a press loads the plugin with the map, and back returns to the browser" {
+    const t = std.testing;
+    var state = FxSelState{ .screen = .browse };
+    state.maps.add("default");
+    state.maps.add("Bass");
+    state.maps.add("Vocals");
+    openMaps(&state, "VST: ReaEQ (Cockos)", "Bass");
+    try t.expectEqual(Screen.maps, state.screen);
+    try t.expectEqual(@as(u16, 1), state.maps_cursor);
+    try t.expectEqualStrings("VST: ReaEQ (Cockos)", state.mapsPlugin());
+    _ = turn(&state, list_encoder, ticks_per_step, null);
+    try t.expectEqual(@as(u16, 2), state.maps_cursor);
+    try t.expectEqualStrings("Vocals", press(&state, list_encoder, null).load_plugin_map);
+    try t.expectEqualStrings("default", clickEntry(&state, 0, undefined).load_plugin_map);
+    _ = press(&state, cancel_encoder, null);
+    try t.expectEqual(Screen.browse, state.screen);
 }
