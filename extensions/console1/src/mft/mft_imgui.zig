@@ -963,6 +963,136 @@ fn mapWrenchKey(id: [:0]const u8, tip: [:0]const u8, after: TitleButton) bool {
     return clicked;
 }
 
+/// What the picker of the maps of a plugin asked for: nothing, to use one of the maps, or to make a new map of that name from the one that is shown.
+const MapPick = union(enum) { none, use: [:0]const u8, create: [:0]const u8 };
+
+/// The maps that the open picker lists, and the plate that it was opened for (the strip being the plate after the modules). Because the list is read
+/// from the disk, it is read when the picker opens, and not on every frame.
+var map_picker_list: mft_fxsel.BrowserList = .{};
+var map_picker_for: ?usize = null;
+/// The name of a new map, which is typed in the picker.
+var new_map_name: [map_store.map_name_len:0]u8 = @splat(0);
+/// The plate of the channel strip, in the places of the picker.
+const strip_plate = mappings.module_count;
+
+/// The picker of the maps of a plugin, on the line of the title of its plate, after the key of the window of the plugin (`after` is the button of the
+/// plugin, which the key follows). It lists the maps of the plugin, the one in use being checked, and has a field for the name of a new map, which is made
+/// from the map that the plate shows.
+fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]const u8, plate: usize, after: TitleButton) !MapPick {
+    const io = mft_globals.hostIo();
+    var spacing_x: f64 = 0;
+    var spacing_y: f64 = 0;
+    imgui.api.GetStyleVar(ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y);
+    const key_size = after.bottom - after.top;
+    imgui.api.SetCursorScreenPos(ctx, after.right + spacing_x + key_size + spacing_x, after.top);
+    const in_use = globals.map_store.mapInUse(io, owner, fx_name);
+    var preview_buf: [96:0]u8 = undefined;
+    const preview = std.mem.printSentinel(&preview_buf, "Map: {s}  v", .{in_use}, 0) catch "Map";
+    // The combo has no padding above its text, as the small button of the plugin, so that the two are as tall as each other.
+    theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 4, 0);
+    imgui.api.SetNextItemWidth(ctx, widgets.textSize(&fxsel_kit, preview).w + 12);
+    var id_buf: [32:0]u8 = undefined;
+    const id = std.mem.printSentinel(&id_buf, "##mappick{d}", .{plate}, 0) catch "##mappick";
+    const open = try imgui.BeginCombo(.{ ctx, id, preview, imgui.ComboFlags_NoArrowButton });
+    var popped: c_int = 1;
+    imgui.api.PopStyleVar(ctx, &popped);
+    if (!open) {
+        if (map_picker_for == plate) map_picker_for = null;
+        if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "The map of the plugin: choose another, or make a new one from this one.");
+        return .none;
+    }
+    defer imgui.EndCombo(.{ctx}) catch {};
+    if (map_picker_for != plate) {
+        globals.map_store.listMaps(io, owner, fx_name, &map_picker_list);
+        map_picker_for = plate;
+        new_map_name[0] = 0;
+    }
+    var pick: MapPick = .none;
+    for (0..map_picker_list.count) |i| {
+        const name = map_picker_list.get(i);
+        var item_buf: [96:0]u8 = undefined;
+        const item = std.mem.printSentinel(&item_buf, "{s}##mapitem{d}", .{ name, i }, 0) catch continue;
+        var selected = std.mem.eql(u8, name, in_use);
+        if (imgui.api.Selectable(ctx, item, &selected, null, null, null)) pick = .{ .use = name };
+    }
+    imgui.api.Separator(ctx);
+    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
+    try imgui.Text(.{ ctx, "New map, made from this one:" });
+    try imgui.PopStyleColor(.{ ctx, 1 });
+    try imgui.SetNextItemWidth(.{ ctx, 200 });
+    _ = try imgui.InputText(.{ ctx, "##newmap", @as([*]u8, @ptrCast(&new_map_name)), new_map_name.len + 1, null, null });
+    const typed = std.mem.trim(u8, std.mem.sliceTo(&new_map_name, 0), " \t");
+    if (typed.len > 0) {
+        var create_buf: [96:0]u8 = undefined;
+        const create = std.mem.printSentinel(&create_buf, "Create \"{s}\"##createmap", .{typed}, 0) catch "Create##createmap";
+        if (try imgui.Selectable(.{ ctx, create })) {
+            // The name is trimmed in place, since the slice has to outlive the call and the buffer is the picker's.
+            const start = @intFromPtr(typed.ptr) - @intFromPtr(&new_map_name);
+            new_map_name[start + typed.len] = 0;
+            pick = .{ .create = new_map_name[start .. start + typed.len :0] };
+        }
+    }
+    return pick;
+}
+
+/// Carries out what the picker of a module plate asked for: the plate edits the map that was chosen, or a new map made from the one it shows. A name that
+/// cannot be the name of a map leaves its reason in `error_buf`, which the plate shows.
+fn applyMapPick(globals: *MftGlobals, state: *mft_fxsel.FxSelState, owner: map_store.Owner, fx_name: [:0]const u8, pick: MapPick, error_buf: *[96:0]u8) void {
+    const io = mft_globals.hostIo();
+    switch (pick) {
+        .none => return,
+        .use => |name| {
+            globals.map_store.useMap(owner, fx_name, name) catch |err| {
+                _ = std.mem.printSentinel(error_buf, "The map could not be chosen: {s}.", .{@errorName(err)}, 0) catch {};
+                return;
+            };
+        },
+        .create => |typed| {
+            // Because the name of a map is the name of its file, the characters that a file name cannot have are replaced, as for the plugins.
+            var name_buf: [512:0]u8 = undefined;
+            const name = @import("fs_helpers").sanitizeFxName(&name_buf, typed) catch {
+                _ = std.mem.printSentinel(error_buf, "That name is too long for a map.", .{}, 0) catch {};
+                return;
+            };
+            if (std.mem.indexOfScalar(u8, name, '=') != null) {
+                _ = std.mem.printSentinel(error_buf, "The name of a map cannot have an equal sign.", .{}, 0) catch {};
+                return;
+            }
+            if (map_picker_list.contains(name)) {
+                _ = std.mem.printSentinel(error_buf, "The plugin has a map of that name already.", .{}, 0) catch {};
+                return;
+            }
+            globals.map_store.useMap(owner, fx_name, name) catch |err| {
+                _ = std.mem.printSentinel(error_buf, "The map could not be made: {s}.", .{@errorName(err)}, 0) catch {};
+                return;
+            };
+            // The new map is the map that the plate shows, written under its new name.
+            const saved = switch (owner) {
+                .module => |module| globals.map_store.saveUser(io, module, fx_name, mft_fxsel.editOf(state, module)),
+                .strip => globals.map_store.saveStrip(io, fx_name, &state.map_strip),
+            };
+            saved catch |err| {
+                _ = std.mem.printSentinel(error_buf, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+                return;
+            };
+        },
+    }
+    error_buf[0] = 0;
+    map_picker_for = null;
+    // The plate reads the map that the plugin uses now.
+    switch (owner) {
+        .module => |module| {
+            const i = mft_fxsel.moduleIndex(module);
+            state.map_edits[i] = globals.map_store.get(io, module, fx_name) orelse .{};
+            state.map_loaded[i] = state.map_edits[i];
+        },
+        .strip => {
+            state.map_strip = globals.map_store.getStrip(io, fx_name) orelse .{};
+            state.map_strip_loaded = state.map_strip;
+        },
+    }
+}
+
 /// A note on the line of the title of a card, after the title, in the dim of the panel.
 fn mapTitleNote(title: [:0]const u8, note: [:0]const u8) void {
     const line = mapTitleLine(title);
@@ -975,7 +1105,7 @@ fn mapTitleNote(title: [:0]const u8, note: [:0]const u8) void {
 
 /// A plate: the title of the module with the button of its plugin next to it, and under them the grid of its sixteen cells. The plate of the module in focus has
 /// the color of its module.
-fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, color: c_int, changed: *bool) !void {
+fn drawMapPlate(globals: *MftGlobals, state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: mft_fxsel.MappableModule, color: c_int, changed: *bool) !void {
     const mi = mft_fxsel.moduleIndex(module);
     const focus = state.module == module;
     imgui.api.BeginGroup(ctx);
@@ -1007,6 +1137,9 @@ fn drawMapPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     if (state.map_fx_index[mi] >= 0 and track != null) {
         var ui_id: [24:0]u8 = undefined;
         if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window", plugin_button)) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+        const fx_name = state.map_fx_name[mi][0..plugin.len :0];
+        const pick = try drawMapPicker(globals, .{ .module = module }, fx_name, mi, plugin_button);
+        applyMapPick(globals, state, .{ .module = module }, fx_name, pick, &state.map_error[mi]);
     }
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
@@ -1227,6 +1360,9 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
     }
     if (state.map_strip_fx >= 0 and track != null) {
         if (mapWrenchKey("##uistrip", "Open FX window", strip_button)) mft_fx.toggleFxWindow(track, state.map_strip_fx);
+        const strip_name = state.map_strip_name[0..strip.len :0];
+        const pick = try drawMapPicker(globals, .strip, strip_name, strip_plate, strip_button);
+        applyMapPick(globals, state, .strip, strip_name, pick, &state.map_strip_error);
     }
 
     // The sections, as many to a row as the card has room for.
@@ -1433,7 +1569,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
             const module = @field(mft_fxsel.MappableModule, field_name);
             var plate_gap: f64 = 14;
             if (placed % per_row != 0) imgui.api.SameLine(ctx, null, &plate_gap);
-            try drawMapPlate(state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
+            try drawMapPlate(globals, state, track, module, colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(module))), &changed);
             placed += 1;
         }
     }
