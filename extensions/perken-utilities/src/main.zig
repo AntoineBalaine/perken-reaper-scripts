@@ -235,6 +235,7 @@ test {
     _ = @import("meter.zig");
     _ = @import("rhythm_simplify.zig");
     _ = @import("hegel.zig");
+    _ = @import("compiler_rt_windows.zig");
     _ = @import("timemap.zig");
     _ = @import("rhythm_action.zig");
     _ = @import("rhythm_simplify_pbt.zig");
