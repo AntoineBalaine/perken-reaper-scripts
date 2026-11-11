@@ -7,6 +7,7 @@ const MftModuleMapping = mappings.MftModuleMapping;
 const BrowserList = @import("mft_fxsel.zig").BrowserList;
 const mft_port = @import("mft_port.zig");
 const mft_auto = @import("mft_auto.zig");
+const plugin_state = @import("mft_plugin_state.zig");
 const log = std.log.scoped(.mft_maps);
 
 /// Whose maps a list or a choice is about: the plugin of a module, or a channel strip, whose maps are in a folder of their own.
@@ -312,6 +313,52 @@ pub const MftMapStore = struct {
         try writeDefaultsText(&self.defaults, &aw.writer);
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = self.defaultsPath(&path_buf), .data = aw.written() });
+    }
+
+    /// The path of the state that a map of a plugin keeps: `maps/<root>/<dir>/<plugin>/<map>.state`.
+    fn statePath(self: *const MftMapStore, buf: []u8, root: []const u8, owner: Owner, fx_name: []const u8, map_name: []const u8) ![]const u8 {
+        var name_buf: [512:0]u8 = undefined;
+        const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+        return fs_helpers.joinStrings(buf, &.{
+            self.controller_dir, std.fs.path.sep_str, "maps",              std.fs.path.sep_str, root,     std.fs.path.sep_str, owner.dirName(),
+            std.fs.path.sep_str, sanitized,           std.fs.path.sep_str, map_name,            ".state",
+        });
+    }
+
+    /// The state that the map in use of a plugin keeps, the user's before the factory one, or null when the map keeps none.
+    pub fn readState(self: *MftMapStore, io: std.Io, owner: Owner, fx_name: []const u8, out: *plugin_state.PluginState) bool {
+        const map_name = self.mapInUse(io, owner, fx_name);
+        // The text of a state of a thousand parameters fits.
+        var text_buf: [32768]u8 = undefined;
+        for ([_][]const u8{ "user", "factory" }) |root| {
+            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const path = self.statePath(&path_buf, root, owner, fx_name, map_name) catch return false;
+            const text = std.Io.Dir.cwd().readFile(io, path, &text_buf) catch continue;
+            out.* = plugin_state.PluginState.parse(text);
+            return true;
+        }
+        return false;
+    }
+
+    /// Makes the map in use of a plugin keep a state, as the user's.
+    pub fn saveState(self: *MftMapStore, io: std.Io, owner: Owner, fx_name: []const u8, state: *const plugin_state.PluginState) !void {
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = try self.statePath(&path_buf, "user", owner, fx_name, self.mapInUse(io, owner, fx_name));
+        try std.Io.Dir.cwd().createDirPath(io, std.fs.path.dirname(path) orelse return error.BadPath);
+        var aw: std.Io.Writer.Allocating = .init(self.allocator);
+        defer aw.deinit();
+        try state.write(&aw.writer);
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = aw.written() });
+    }
+
+    /// Makes the map in use of a plugin keep no state of the user's. A map that keeps none is left as it is.
+    pub fn removeState(self: *MftMapStore, io: std.Io, owner: Owner, fx_name: []const u8) !void {
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const path = try self.statePath(&path_buf, "user", owner, fx_name, self.mapInUse(io, owner, fx_name));
+        std.Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+            error.FileNotFound => {},
+            else => return err,
+        };
     }
 
     /// Fills `list` with the names of the maps of a plugin, the user's and the factory ones, a name that both have being listed once. The map `default`
@@ -988,4 +1035,40 @@ test "the names of the controls are written in [labels] and read back, for a mod
     defer sparser.deinit();
     const sread = try parseStripMapping(&sparser);
     try t.expect(std.meta.eql(sread, strip));
+}
+
+test "the map in use keeps a state of its own, which is read back, and removed, and the list of the maps leaves the state out" {
+    const t = std.testing;
+    const io = t.io;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const root = try tmp.dir.realPathFileAlloc(io, ".", t.allocator);
+    defer t.allocator.free(root);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var store = MftMapStore.init(arena.allocator(), root);
+    const fx = "VST: ReaComp (Cockos)";
+    var mine = MftModuleMapping{};
+    mine.setSlot(0, 1);
+    try store.saveUser(io, .COMP, fx, &mine);
+    var state = plugin_state.PluginState{};
+    var read = plugin_state.PluginState{};
+    try t.expect(!store.readState(io, .{ .module = .COMP }, fx, &read));
+    state.setPreset("Snare");
+    state.count = 2;
+    state.values[1] = 0.5;
+    try store.saveState(io, .{ .module = .COMP }, fx, &state);
+    try t.expect(store.readState(io, .{ .module = .COMP }, fx, &read));
+    try t.expectEqualStrings("Snare", read.presetName());
+    try t.expectEqual(@as(f32, 0.5), read.values[1]);
+    var list = BrowserList{};
+    store.listMaps(io, .{ .module = .COMP }, fx, &list);
+    try t.expectEqual(@as(usize, 1), list.count);
+    // Another map of the plugin keeps no state.
+    try store.useMap(.{ .module = .COMP }, fx, "Other");
+    try t.expect(!store.readState(io, .{ .module = .COMP }, fx, &read));
+    try store.useMap(.{ .module = .COMP }, fx, "default");
+    try store.removeState(io, .{ .module = .COMP }, fx);
+    try t.expect(!store.readState(io, .{ .module = .COMP }, fx, &read));
+    try store.removeState(io, .{ .module = .COMP }, fx);
 }

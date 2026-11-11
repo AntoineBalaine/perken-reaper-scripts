@@ -24,6 +24,7 @@ const mft_auto = @import("mft_auto.zig");
 const settings_rows = @import("mft_settings_rows.zig");
 const mft_actions = @import("mft_actions.zig");
 const map_store = @import("mft_map_store.zig");
+const plugin_state = @import("mft_plugin_state.zig");
 const rgba = @import("ui_palette").rgba;
 const pi = std.math.pi;
 const log = std.log.scoped(.mft_imgui);
@@ -1067,11 +1068,7 @@ const strip_plate = mappings.module_count;
 /// from the map that the plate shows.
 fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]const u8, plate: usize, after: TitleButton) !MapPick {
     const io = mft_globals.hostIo();
-    var spacing_x: f64 = 0;
-    var spacing_y: f64 = 0;
-    imgui.api.GetStyleVar(ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y);
-    const key_size = after.bottom - after.top;
-    imgui.api.SetCursorScreenPos(ctx, after.right + spacing_x + key_size + spacing_x, after.top);
+    imgui.api.SetCursorScreenPos(ctx, titleKeyX(after, 2), after.top);
     const in_use = globals.map_store.mapInUse(io, owner, fx_name);
     var preview_buf: [96:0]u8 = undefined;
     const preview = std.mem.printSentinel(&preview_buf, "Map: {s}  v", .{in_use}, 0) catch "Map";
@@ -1120,6 +1117,76 @@ fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]cons
         }
     }
     return pick;
+}
+
+/// Where the key `index` after the button of a plugin goes, on the line of the title: the keys are squares as tall as the button, with the spacing of ImGui
+/// between them; the key 0 is the key of the window of the plugin.
+fn titleKeyX(after: TitleButton, index: usize) f64 {
+    var spacing_x: f64 = 0;
+    var spacing_y: f64 = 0;
+    imgui.api.GetStyleVar(ctx, imgui.StyleVar_ItemSpacing, &spacing_x, &spacing_y);
+    const key_size = after.bottom - after.top;
+    return after.right + spacing_x + @as(f64, @floatFromInt(index)) * (key_size + spacing_x);
+}
+
+/// Whether the map in use of each plate keeps a state, as it was read for the plugin and the map that the plate shows. Because the answer is on the disk,
+/// it is read again only when the plugin or the map changes, or the key changed it.
+const StateMark = struct { key: u64 = 0, has: bool = false };
+var state_marks: [mappings.module_count + 1]StateMark = @splat(.{});
+
+fn mapKeepsState(globals: *MftGlobals, owner: map_store.Owner, fx_name: []const u8, plate: usize) bool {
+    const io = mft_globals.hostIo();
+    var hasher = std.hash.Wyhash.init(0);
+    hasher.update(fx_name);
+    hasher.update(globals.map_store.mapInUse(io, owner, fx_name));
+    const key = hasher.final() | 1;
+    if (state_marks[plate].key != key) {
+        var state: plugin_state.PluginState = undefined;
+        state_marks[plate] = .{ .key = key, .has = globals.map_store.readState(io, owner, fx_name, &state) };
+    }
+    return state_marks[plate].has;
+}
+
+/// The key that makes the map keep the state of the plugin, after the key of the window of the plugin. A click stores the state that the plugin has now
+/// (its preset and the values of its parameters), which loading the plugin with the map restores, and an Alt-click makes the map keep none. The key is lit
+/// while the map keeps one.
+fn drawStateKey(globals: *MftGlobals, track: reaper.MediaTrack, fx: c_int, owner: map_store.Owner, fx_name: [:0]const u8, plate: usize, after: TitleButton, error_buf: *[96:0]u8) void {
+    const io = mft_globals.hostIo();
+    const has = mapKeepsState(globals, owner, fx_name, plate);
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const size = after.bottom - after.top;
+    const at = widgets.Point{ .x = titleKeyX(after, 1), .y = after.top };
+    imgui.api.SetCursorScreenPos(ctx, at.x, at.y);
+    var id_buf: [24:0]u8 = undefined;
+    const clicked = imgui.api.InvisibleButton(ctx, std.mem.printSentinel(&id_buf, "##state{d}", .{plate}, 0) catch "##state", size, size, null);
+    const hovered = imgui.api.IsItemHovered(ctx, null);
+    widgets.rectFilled(dl, at.x, at.y, at.x + size, at.y + size, if (has) widgets.faded(theme.amber, 0x55) else theme.knob_top, 4);
+    widgets.rect(dl, at.x, at.y, at.x + size, at.y + size, if (hovered or has) theme.amber else theme.knob_edge, 4, 1);
+    // A pin: its head, and its needle under it.
+    const tone = if (hovered or has) theme.amber else theme.label;
+    const cx = at.x + size / 2;
+    widgets.circleFilled(dl, cx, at.y + size * 0.36, size * 0.17, tone);
+    widgets.line(dl, cx - size * 0.24, at.y + size * 0.52, cx + size * 0.24, at.y + size * 0.52, tone, 1.8);
+    widgets.line(dl, cx, at.y + size * 0.52, cx, at.y + size * 0.82, tone, 1.6);
+    if (hovered) widgets.tooltip(&fxsel_kit, if (has)
+        "The map keeps the state of the plugin, which loading the plugin with the map restores. Click to store the state that it has now; Alt-click to keep none."
+    else
+        "Store the state of the plugin in the map (its preset and the values of its parameters): loading the plugin with the map restores it.");
+    if (!clicked) return;
+    state_marks[plate] = .{};
+    if (altHeld()) {
+        globals.map_store.removeState(io, owner, fx_name) catch |err| {
+            _ = std.mem.printSentinel(error_buf, "The state could not be removed: {s}.", .{@errorName(err)}, 0) catch {};
+        };
+        return;
+    }
+    var state: plugin_state.PluginState = undefined;
+    mft_fx.captureState(track, fx, &state);
+    globals.map_store.saveState(io, owner, fx_name, &state) catch |err| {
+        _ = std.mem.printSentinel(error_buf, "The state could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+        return;
+    };
+    error_buf[0] = 0;
 }
 
 /// Carries out what the picker of a module plate asked for: the plate edits the map that was chosen, or a new map made from the one it shows. A name that
@@ -1225,6 +1292,7 @@ fn drawMapPlate(globals: *MftGlobals, state: *mft_fxsel.FxSelState, track: reape
         var ui_id: [24:0]u8 = undefined;
         if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window", plugin_button)) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
         const fx_name = state.map_fx_name[mi][0..plugin.len :0];
+        drawStateKey(globals, track, state.map_fx_index[mi], .{ .module = module }, fx_name, mi, plugin_button, &state.map_error[mi]);
         const pick = try drawMapPicker(globals, .{ .module = module }, fx_name, mi, plugin_button);
         applyMapPick(globals, state, .{ .module = module }, fx_name, pick, &state.map_error[mi]);
     }
@@ -1450,6 +1518,7 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
     if (state.map_strip_fx >= 0 and track != null) {
         if (mapWrenchKey("##uistrip", "Open FX window", strip_button)) mft_fx.toggleFxWindow(track, state.map_strip_fx);
         const strip_name = state.map_strip_name[0..strip.len :0];
+        drawStateKey(globals, track, state.map_strip_fx, .strip, strip_name, strip_plate, strip_button, &state.map_strip_error);
         const pick = try drawMapPicker(globals, .strip, strip_name, strip_plate, strip_button);
         applyMapPick(globals, state, .strip, strip_name, pick, &state.map_strip_error);
     }

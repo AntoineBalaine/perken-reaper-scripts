@@ -7,6 +7,8 @@ const MappableModule = mappings.MappableModule;
 const mft_push = @import("mft_push.zig");
 const mft_auto = @import("mft_auto.zig");
 const mft_order = @import("mft_order.zig");
+const map_store = @import("mft_map_store.zig");
+const plugin_state = @import("mft_plugin_state.zig");
 const mft_actions = @import("mft_actions.zig");
 
 pub const SlotTarget = struct {
@@ -479,7 +481,7 @@ fn insertDefaultStrip(globals: *MftGlobals, track: reaper.MediaTrack) bool {
         return false;
     }
     setSlotSuffix(track, index, name, .strip);
-    afterInsert(globals, track, index);
+    afterInsert(globals, track, index, .strip, name);
     return true;
 }
 
@@ -505,12 +507,15 @@ pub fn loadPlugin(globals: *MftGlobals, track: reaper.MediaTrack, module: Mappab
     const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
     if (index < 0) return false;
     setSlotSuffix(track, index, fx_name, slot);
-    afterInsert(globals, track, index);
+    afterInsert(globals, track, index, .{ .module = module }, fx_name);
     return true;
 }
 
-// What the preferences ask of a plugin that the controller has just inserted: that it be bypassed, and that its window open.
-fn afterInsert(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: c_int) void {
+// What a plugin that the controller has just inserted gets: the state that its map keeps, when it keeps one, and what the preferences ask (that it be
+// bypassed, and that its window open).
+fn afterInsert(globals: *MftGlobals, track: reaper.MediaTrack, fx_index: c_int, owner: map_store.Owner, fx_name: []const u8) void {
+    var state: plugin_state.PluginState = undefined;
+    if (globals.map_store.readState(mft_globals.hostIo(), owner, fx_name, &state)) applyState(track, fx_index, &state);
     if (globals.preferences.auto_insert_bypassed) reaper.TrackFX_SetEnabled(track, fx_index, false);
     if (globals.preferences.show_plugin_ui) reaper.TrackFX_Show(track, fx_index, SHOW_FLOATING);
 }
@@ -527,7 +532,7 @@ pub fn loadStrip(globals: *MftGlobals, track: reaper.MediaTrack, fx_name: [:0]co
     const index = reaper.TrackFX_AddByName(track, fx_name, false, instantiate);
     if (index < 0) return false;
     setSlotSuffix(track, index, fx_name, .strip);
-    afterInsert(globals, track, index);
+    afterInsert(globals, track, index, .strip, fx_name);
     return true;
 }
 
@@ -563,7 +568,7 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
         const new_idx = reaper.TrackFX_AddByName(track, name, false, instantiate);
         if (new_idx < 0) continue;
         setSlotSuffix(track, new_idx, name, slot);
-        afterInsert(globals, track, new_idx);
+        afterInsert(globals, track, new_idx, .{ .module = module }, name);
     }
     return .ok;
 }
@@ -606,6 +611,28 @@ fn bandTypeKey(buf: *[16:0]u8, band: u2) [:0]const u8 {
 
 /// Does what a click on a push asks: steps a parameter, or the shape of a band of the EQ. The text that says what it changed (the new shape,
 /// or the new value as the plugin writes it) goes into `note`, which is left empty when nothing changed.
+/// The state of a plugin, which a map can keep: the preset that it has selected, and the values of its parameters.
+pub fn captureState(track: reaper.MediaTrack, fx: c_int, out: *plugin_state.PluginState) void {
+    out.* = .{};
+    var preset: [plugin_state.preset_len + 1:0]u8 = @splat(0);
+    if (reaper.TrackFX_GetPreset(track, fx, &preset, preset.len)) out.setPreset(std.mem.sliceTo(&preset, 0));
+    const count: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, fx), 0));
+    out.count = @intCast(@min(count, plugin_state.max_params));
+    for (0..out.count) |p| {
+        const value = reaper.TrackFX_GetParamNormalized(track, fx, @intCast(p));
+        out.values[p] = if (std.math.isNan(value)) 0 else @floatCast(std.math.clamp(value, 0.0, 1.0));
+    }
+}
+
+/// Gives a plugin a state that a map keeps: its preset first, then the values of its parameters, which keep what was changed after the preset was selected.
+pub fn applyState(track: reaper.MediaTrack, fx: c_int, state: *const plugin_state.PluginState) void {
+    if (state.presetName().len > 0) _ = reaper.TrackFX_SetPreset(track, fx, state.presetName());
+    const count: usize = @intCast(@max(reaper.TrackFX_GetNumParams(track, fx), 0));
+    for (0..@min(count, state.count)) |p| {
+        _ = reaper.TrackFX_SetParamNormalized(track, fx, @intCast(p), state.values[p]);
+    }
+}
+
 /// How a parameter is stepped, its step in normalized units.
 pub fn paramStepping(track: reaper.MediaTrack, fx: c_int, param: c_int) mft_push.Stepping {
     var step: f64 = 0;
