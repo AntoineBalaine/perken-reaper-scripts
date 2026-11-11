@@ -123,6 +123,21 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
             }
         },
+        .set_default_plugin => |name| {
+            // Because the name belongs to the list of the browser, the preferences keep a copy of their own, for the session.
+            const owned = globals.arena.allocator().dupeSentinel(u8, name, 0) catch {
+                state.setNote("The default could not be changed: out of memory.");
+                return;
+            };
+            globals.preferences.setDefaultPlugin(state.module, state.strip_target, owned);
+            // The settings panel reads the default plugins again the next time that it is drawn.
+            mft_settings.markUnsynced();
+            globals.preferences.saveToDisk(io, globals.resource_path) catch |err| {
+                log.warn("failed to save the default plugin: {s}", .{@errorName(err)});
+                state.setNote("The default is changed for this session, but preferences.ini could not be written.");
+                return;
+            };
+        },
         .fill_presets => {
             state.presets.clear();
             const track = globals.current_track orelse return;

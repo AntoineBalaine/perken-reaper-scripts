@@ -311,6 +311,8 @@ pub const Outcome = union(enum) {
     fill_browser,
     /// The plugin of that name is to be loaded for the module, and the mode closed.
     load_plugin: [:0]const u8,
+    /// The plugin of that name is to be the default of the module (or of the channel strip), which the settings keep. The mode stays open.
+    set_default_plugin: [:0]const u8,
     /// The presets of the plugin of the module have to be read again.
     fill_presets,
     /// The preset of that name is to be loaded into the plugin of the module, and the mode closed.

@@ -3,6 +3,7 @@ const ini = @import("ini");
 const fs_helpers = @import("fs_helpers");
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 const mft_order = @import("mft_order.zig");
+const mappings = @import("mft_mappings.zig");
 const log = std.log.scoped(.mft_prefs);
 
 // User-editable settings, persisted to Data/Perken/MFT/preferences.ini. Modeled
@@ -113,6 +114,30 @@ pub const MftPreferences = struct {
         var self = MftPreferences{};
         try parse(&self, &parser, allocator);
         return self;
+    }
+
+    /// The default plugin of a module, or of the channel strip when `strip` is true: the one that a module button inserts on a track that has none.
+    pub fn defaultPlugin(self: *const MftPreferences, module: mappings.MappableModule, strip: bool) [:0]const u8 {
+        if (strip) return self.default_strip;
+        return switch (module) {
+            .INPUT => self.default_input,
+            .GATE => self.default_gate,
+            .EQ => self.default_eq,
+            .COMP => self.default_comp,
+            .OUTPUT => self.default_output,
+        };
+    }
+
+    /// Makes a plugin the default of a module, or of the channel strip when `strip` is true. The name must outlive the preferences.
+    pub fn setDefaultPlugin(self: *MftPreferences, module: mappings.MappableModule, strip: bool, name: [:0]const u8) void {
+        const field: *[:0]const u8 = if (strip) &self.default_strip else switch (module) {
+            .INPUT => &self.default_input,
+            .GATE => &self.default_gate,
+            .EQ => &self.default_eq,
+            .COMP => &self.default_comp,
+            .OUTPUT => &self.default_output,
+        };
+        field.* = name;
     }
 
     pub fn saveToDisk(self: *const MftPreferences, io: std.Io, dir: [:0]const u8) !void {
@@ -344,4 +369,15 @@ test "MftPreferences: the options of the settings panel are read, and kept in th
     const defaults = MftPreferences{};
     try t.expect(defaults.auto_insert and !defaults.auto_insert_bypassed);
     try t.expectEqual(@as(f32, 0.1), defaults.fine);
+}
+
+test "defaultPlugin and setDefaultPlugin: a module has its default, and the channel strip has its own" {
+    const t = std.testing;
+    var prefs = MftPreferences{};
+    prefs.setDefaultPlugin(.EQ, false, "VST: ReaFIR (Cockos)");
+    try t.expectEqualStrings("VST: ReaFIR (Cockos)", prefs.defaultPlugin(.EQ, false));
+    try t.expectEqualStrings("VST: ReaComp (Cockos)", prefs.defaultPlugin(.COMP, false));
+    prefs.setDefaultPlugin(.EQ, true, "VST: Strip");
+    try t.expectEqualStrings("VST: Strip", prefs.defaultPlugin(.GATE, true));
+    try t.expectEqualStrings("VST: ReaFIR (Cockos)", prefs.default_eq);
 }
