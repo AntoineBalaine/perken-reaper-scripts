@@ -417,6 +417,13 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
         // (msvcrt's __vcrt_* startup) and msvcprt (the C++ standard library).
         .windows => {
             requireMsvcAbi(compile.rootModuleTarget());
+            // Because Zig looks for these libraries only in the folder of MSVC and in the um folder of the Windows SDK, while ucrt.lib is in its ucrt
+            // folder, the folders of the developer environment are added as library paths. That environment (vcvars, or the msvc-dev-cmd step of
+            // the CI) lists them in LIB, which Microsoft's linker reads and Zig's linker does not.
+            if (b.graph.environ_map.get("LIB")) |lib_dirs| {
+                var dirs = std.mem.tokenizeScalar(u8, lib_dirs, ';');
+                while (dirs.next()) |dir| compile.root_module.addLibraryPath(.{ .cwd_relative = dir });
+            }
             for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.root_module.linkSystemLibrary(lib, .{});
         },
         else => {},
