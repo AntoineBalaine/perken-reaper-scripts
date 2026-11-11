@@ -100,6 +100,11 @@ pub fn sensitivityAtFraction(fraction: f64) f32 {
 const CHOICES_W: f64 = 440.0;
 const CHOICES_H: f64 = 220.0;
 var filter: [64:0]u8 = @splat(0);
+/// The picker whose list is open, and how many more frames the search of its list asks for the keyboard. Because the list opens without the keyboard, and
+/// nothing would say that the search is a field, the search takes the keyboard when the list opens; ImGui can miss the first ask while the list appears,
+/// so it is asked again for a few frames, until the field has it.
+var filter_open_slot: ?usize = null;
+var filter_focus: u8 = 0;
 
 /// Copies a name into a buffer of the panel. Because a save points the preferences at these buffers, the name can be the buffer itself when the panel reads
 /// the preferences again, so the copy allows the two to overlap.
@@ -217,7 +222,14 @@ fn bar(kit: *widgets.Panel, id: [:0]const u8, fraction: f64, fill: ?c_int) ?f64 
 fn pluginPicker(kit: *widgets.Panel, slot: usize, width: f64) !void {
     const current = bufSlice(slot);
     const preview: [:0]const u8 = if (current.len == 0) "(choose a plugin)" else current;
-    if (!widgets.beginPickList(kit, NAME_IDS[slot], preview, width)) return;
+    if (!widgets.beginPickList(kit, NAME_IDS[slot], preview, width)) {
+        // The list closed: the next time that it opens, its search starts empty and takes the keyboard again.
+        if (filter_open_slot == slot) {
+            filter_open_slot = null;
+            filter[0] = 0;
+        }
+        return;
+    }
     defer widgets.endPickList(kit);
     try pluginChoices(kit, slot);
 }
@@ -226,7 +238,18 @@ fn pluginPicker(kit: *widgets.Panel, slot: usize, width: f64) !void {
 // list that scrolls, because a machine has hundreds. A click on one makes it the slot's plugin.
 fn pluginChoices(kit: *widgets.Panel, slot: usize) !void {
     const ctx = kit.ctx;
-    _ = try imgui.InputText(.{ ctx, "##pluginfilter", @as([*]u8, @ptrCast(&filter)), filter.len, null, null });
+    if (filter_open_slot != slot) {
+        filter_open_slot = slot;
+        filter[0] = 0;
+        filter_focus = edit_focus_frames;
+    }
+    if (filter_focus > 0) {
+        imgui.api.SetKeyboardFocusHere(ctx, null);
+        filter_focus -= 1;
+    }
+    imgui.api.SetNextItemWidth(ctx, CHOICES_W);
+    _ = imgui.api.InputTextWithHint(ctx, "##pluginfilter", "Search\u{2026}", @as([*]u8, @ptrCast(&filter)), filter.len + 1, null, null);
+    if (imgui.api.IsItemActive(ctx)) filter_focus = 0;
     const query = std.mem.sliceTo(&filter, 0);
     var width: f64 = CHOICES_W;
     var height: f64 = CHOICES_H;
