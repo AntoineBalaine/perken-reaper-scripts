@@ -49,6 +49,11 @@ fn run(kind: mft_actions.Kind, globals: *MftGlobals) void {
         .order_s_eq_c => setOrder(globals, .s_eq_c),
         .order_next => midi_events.stepOrder(globals, 1),
         .order_previous => midi_events.stepOrder(globals, -1),
+        // The wizard is a card under the device, so the window of the device opens with it.
+        .calibrate => if (globals.wizard.active) globals.wizard.stop() else {
+            globals.wizard.start();
+            globals.mft.panel_visible = true;
+        },
     }
 }
 

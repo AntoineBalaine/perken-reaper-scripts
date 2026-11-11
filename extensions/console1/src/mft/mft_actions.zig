@@ -2,7 +2,7 @@
 //! of the mapping panel lists them, so that a control of the AUTO page can run them. Because this is only data, it is here, where both reach it.
 const std = @import("std");
 
-pub const Kind = enum { toggle_ui, order_eq_s_c, order_s_c_eq, order_s_eq_c, order_next, order_previous };
+pub const Kind = enum { toggle_ui, order_eq_s_c, order_s_c_eq, order_s_eq_c, order_next, order_previous, calibrate };
 
 pub const Entry = struct {
     kind: Kind,
@@ -23,6 +23,7 @@ pub const entries = [_]Entry{
     entry(.order_s_eq_c, "PRKN_MFT_ORDER_S_EQ_C", "MFT: Module order S-EQ-C"),
     entry(.order_next, "PRKN_MFT_ORDER_NEXT", "MFT: Next module order"),
     entry(.order_previous, "PRKN_MFT_ORDER_PREVIOUS", "MFT: Previous module order"),
+    entry(.calibrate, "PRKN_MFT_CALIBRATE", "MFT: Calibration wizard"),
 };
 
 /// The name of an action of the controller from the name that a map keeps, or null for another action.

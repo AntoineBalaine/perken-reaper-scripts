@@ -2009,8 +2009,16 @@ fn drawWizard(globals: *MftGlobals) void {
     imgui.api.SameLine(ctx, null, null);
     widgets.display(&kit, @tagName(result.status), status_color, 90);
 
-    if (widgets.pushButton(&kit, "Retry", 0)) w.retry();
-    imgui.api.SameLine(ctx, null, null);
+    if (step.kind == .look) {
+        // The controller shows the step, and the user says how it looks.
+        if (widgets.pushButton(&kit, "Looks right", 0)) w.mark(.pass);
+        imgui.api.SameLine(ctx, null, null);
+        if (widgets.pushButton(&kit, "Looks wrong", 0)) w.mark(.fail);
+        imgui.api.SameLine(ctx, null, null);
+    } else {
+        if (widgets.pushButton(&kit, "Retry", 0)) w.retry();
+        imgui.api.SameLine(ctx, null, null);
+    }
     if (widgets.pushButton(&kit, "Skip", 0)) w.skip();
     imgui.api.SameLine(ctx, null, null);
     if (w.isLast()) {
