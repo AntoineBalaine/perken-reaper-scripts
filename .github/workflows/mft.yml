@@ -102,6 +102,14 @@ jobs:
         if: matrix.name == 'linux-x86_64'
         run: cp ../reaziglib/assets/fonts/*.txt release-binaries/
 
+      # The factory maps are not in the binary: they are installed apart from it, so that a map that the user edited is kept. One row ships them
+      # in a zip with the script that installs them.
+      - name: Add the factory maps
+        if: matrix.name == 'linux-x86_64'
+        run: |
+          (cd src/mft/resources && zip -qr ../../../release-binaries/mft-factory-maps.zip maps/factory)
+          cp ../install-maps.sh release-binaries/
+
       - uses: actions/upload-artifact@v4
         with:
           name: mft-${{ matrix.name }}
