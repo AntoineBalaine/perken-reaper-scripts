@@ -27,7 +27,9 @@ pub const MftGlobals = struct {
 
     arena: std.heap.ArenaAllocator = undefined,
     resource_path: [:0]const u8 = "",
-    map_store: MftMapStore = undefined,
+    /// The maps, which `init` points at the folder of the controller. Until then the store has no folder, so that a read finds nothing (the tests
+    /// draw the windows with it) instead of reading a path that was never set.
+    map_store: MftMapStore = MftMapStore.init(std.heap.page_allocator, ""),
     // The track whose FX the encoders currently drive. Follows REAPER's
     // last-touched track (see the SETLASTTOUCHEDTRACK csurf callback).
     current_track: reaper.MediaTrack = null,
