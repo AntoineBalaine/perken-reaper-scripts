@@ -67,10 +67,61 @@ pub const PushAction = union(enum) {
 /// The parameters that the encoders of one FX move, by position: `knob_N` in a map file is the position N of the grid (1 to 16, row by
 /// row), and `push_N` the push of the encoder N (1 to 8). The value of a knob is a parameter number or `wet`, and the value of a push is a
 /// parameter number, `wet` or `band:N`. Because the maps of the first version only had `knob_1` to `knob_8`, they stay valid in this version.
+/// How many letters the name that the user gives a control can have.
+pub const control_name_len = 31;
+
+/// The names that the user gave the controls of a page, which the windows of the device show instead of the names of the parameters: the sixteen knobs,
+/// then the eight pushes. A control that has no name has an empty one. A map keeps them in its section `[labels]`, as `knob_N = name` and `push_N = name`.
+pub const ControlNames = struct {
+    bufs: [knob_count + push_count][control_name_len:0]u8 = @splat(@splat(0)),
+
+    /// The name of a control, or null when it has none.
+    pub fn get(self: *const ControlNames, control: usize) ?[:0]const u8 {
+        std.debug.assert(control < knob_count + push_count);
+        const name = std.mem.sliceTo(&self.bufs[control], 0);
+        return if (name.len == 0) null else name;
+    }
+
+    /// Names a control, or takes its name away for a text that is empty. The spaces around the text are dropped, and so are the letters that a line of a
+    /// map cannot keep (`;` and `#` start a comment, the brackets a section), and the name is cut to `control_name_len` letters.
+    pub fn set(self: *ControlNames, control: usize, text: []const u8) void {
+        std.debug.assert(control < knob_count + push_count);
+        const buf = &self.bufs[control];
+        var n: usize = 0;
+        for (std.mem.trim(u8, text, " \t\r\n")) |c| {
+            if (n == control_name_len) break;
+            if (c < 0x20 or c == ';' or c == '#' or c == '[' or c == ']') continue;
+            buf[n] = c;
+            n += 1;
+        }
+        while (n > 0 and buf[n - 1] == ' ') n -= 1;
+        @memset(buf[n..], 0);
+    }
+
+    pub fn isEmpty(self: *const ControlNames) bool {
+        for (0..knob_count + push_count) |i| if (self.get(i) != null) return false;
+        return true;
+    }
+};
+
+test "ControlNames: a name is trimmed, cut, loses the letters that a map cannot keep, and an empty one takes the name away" {
+    const t = std.testing;
+    var names = ControlNames{};
+    names.set(0, "  Air ; band ");
+    try t.expectEqualStrings("Air  band", names.get(0).?);
+    names.set(knob_count + 7, "A name that is far too long for the window of a knob");
+    try t.expectEqual(@as(usize, control_name_len), names.get(knob_count + 7).?.len);
+    names.set(0, "   ");
+    try t.expectEqual(@as(?[:0]const u8, null), names.get(0));
+    try t.expect(!names.isEmpty());
+}
+
 pub const MftModuleMapping = struct {
     version: u8 = MFT_MAPPING_FORMAT_VERSION,
     knobs: [knob_count]?u16 = @splat(null),
     pushes: [push_count]?PushAction = @splat(null),
+    /// The names that the user gave the controls of the page.
+    names: ControlNames = .{},
 
     pub fn slotToParam(self: *const MftModuleMapping, slot: u4) ?u16 {
         return self.knobs[slot];

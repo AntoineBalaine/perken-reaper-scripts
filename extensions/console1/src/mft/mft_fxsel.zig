@@ -215,6 +215,9 @@ pub const FxSelState = struct {
     map_strip_fx: c_int = -1,
     map_strip_name: [160:0]u8 = @splat(0),
     map_strip_error: [96:0]u8 = @splat(0),
+    /// The control that the user is naming in the mapping panel, or null, and the name that is typed for it.
+    map_namer: ?Namer = null,
+    map_namer_text: [mappings.control_name_len:0]u8 = @splat(0),
     /// What was typed in the search of the browser, and the entry of the results that the cursor is on. Because the text is typed in the window and the
     /// encoder scrolls the results, both read the same text. `search_hash` says which text the cursor was placed for.
     search: [96:0]u8 = @splat(0),
@@ -629,6 +632,40 @@ pub fn browseFromMapping(state: *FxSelState, module: MappableModule) void {
     state.screen = .browse;
     state.resetBrowser();
     state.focus_search = true;
+}
+
+/// The plate of the mapping panel that a name is for: a module (whose page of the channel strip, in the single FX mode), or the AUTO page.
+pub const NamedPlate = union(enum) { module: MappableModule, auto };
+
+/// A control that the user is naming: its plate, and the control (the sixteen knobs first, then the eight pushes).
+pub const Namer = struct { plate: NamedPlate, control: u8 };
+
+/// The names of the controls of a plate, in the mappings that are being made.
+pub fn namesOf(state: *FxSelState, plate: NamedPlate) *mappings.ControlNames {
+    return switch (plate) {
+        .module => |module| &editOf(state, module).names,
+        .auto => &state.map_auto.names,
+    };
+}
+
+/// Starts naming a control: the field starts with the name that the control has.
+pub fn openNamer(state: *FxSelState, plate: NamedPlate, control: usize) void {
+    std.debug.assert(control < control_count);
+    state.map_namer = .{ .plate = plate, .control = @intCast(control) };
+    const current = namesOf(state, plate).get(control) orelse "";
+    @memset(&state.map_namer_text, 0);
+    @memcpy(state.map_namer_text[0..current.len], current);
+}
+
+/// Gives the control that is being named the name that was typed (an empty name takes its name away), and stops naming it. It returns whether the name
+/// changed, which is when the mapping has to be saved.
+pub fn applyNamer(state: *FxSelState) bool {
+    const namer = state.map_namer orelse return false;
+    state.map_namer = null;
+    const names = namesOf(state, namer.plate);
+    const before = names.bufs[namer.control];
+    names.set(namer.control, std.mem.sliceTo(&state.map_namer_text, 0));
+    return !std.mem.eql(u8, &before, &names.bufs[namer.control]);
 }
 
 /// Gives the selected control of the module in focus a parameter, or takes its parameter away when `param` is null.
@@ -1227,4 +1264,28 @@ test "the maps screen: it opens on the default map, the encoder scrolls it, a pr
     try t.expectEqualStrings("default", clickEntry(&state, 0, undefined).load_plugin_map);
     _ = press(&state, cancel_encoder, null);
     try t.expectEqual(Screen.browse, state.screen);
+}
+
+test "naming a control: the field starts with its name, a new name is kept and changes the mapping, and an empty one takes the name away" {
+    const t = std.testing;
+    var state = FxSelState{ .screen = .map };
+    openNamer(&state, .{ .module = .EQ }, 3);
+    try t.expectEqualStrings("", std.mem.sliceTo(&state.map_namer_text, 0));
+    @memcpy(state.map_namer_text[0..3], "Air");
+    try t.expect(applyNamer(&state));
+    try t.expectEqual(@as(?Namer, null), state.map_namer);
+    try t.expectEqualStrings("Air", state.map_edits[moduleIndex(.EQ)].names.get(3).?);
+    try t.expect(isChanged(&state, .EQ));
+    openNamer(&state, .{ .module = .EQ }, 3);
+    try t.expectEqualStrings("Air", std.mem.sliceTo(&state.map_namer_text, 0));
+    try t.expect(!applyNamer(&state));
+    openNamer(&state, .auto, control_count - 1);
+    @memset(&state.map_namer_text, 0);
+    @memcpy(state.map_namer_text[0..4], "Save");
+    try t.expect(applyNamer(&state));
+    try t.expect(isAutoChanged(&state));
+    openNamer(&state, .{ .module = .EQ }, 3);
+    @memset(&state.map_namer_text, 0);
+    try t.expect(applyNamer(&state));
+    try t.expectEqual(@as(?[:0]const u8, null), state.map_edits[moduleIndex(.EQ)].names.get(3));
 }

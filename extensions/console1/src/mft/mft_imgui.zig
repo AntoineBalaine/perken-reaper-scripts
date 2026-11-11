@@ -778,12 +778,16 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     _ = std.mem.printSentinel(&id, "##map{d}_{d}", .{ mi, control }, 0) catch return false;
     var param_buf: [96:0]u8 = undefined;
     const param = mft_fxsel.controlParam(state, module, control);
-    const preview: [:0]const u8 = if (param) |p| paramLabel(track, fx, p, &param_buf) else "-";
+    const param_text: [:0]const u8 = if (param) |p| paramLabel(track, fx, p, &param_buf) else "-";
+    // A control that the user named shows its name, in amber, and its parameter in its tooltip.
+    const plate: mft_fxsel.NamedPlate = .{ .module = module };
+    const custom = mft_fxsel.namesOf(state, plate).get(control);
+    const preview: [:0]const u8 = custom orelse param_text;
     imgui.api.SetCursorScreenPos(ctx, x, y);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBg, 0);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgHovered, theme.amber_soft);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgActive, theme.amber_soft);
-    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (param != null) theme.label else theme.text_dim);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (custom != null) theme.amber else if (param != null) theme.label else theme.text_dim);
     theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 2, 0);
     defer {
         var vars: c_int = 1;
@@ -806,7 +810,7 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
     var fit_buf: [96:0]u8 = undefined;
     const shown = device.fitText(&fxsel_kit, preview, width - 6, &fit_buf);
     const open = try imgui.BeginCombo(.{ ctx, &id, shown, imgui.ComboFlags_NoArrowButton });
-    if (shown.ptr != preview.ptr and imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, preview);
+    comboNaming(state, plate, control, param_text, custom);
     if (!open) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
     mft_fxsel.selectControl(state, module, control);
@@ -827,6 +831,89 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
             mft_fxsel.assign(state, @intCast(p));
             changed = true;
         }
+    }
+    return changed;
+}
+
+/// What the mouse does to a combo of the mapping panel, beyond opening it: its tooltip says what it maps and how to name it, and a right click starts
+/// naming its control.
+fn comboNaming(state: *mft_fxsel.FxSelState, plate: mft_fxsel.NamedPlate, control: usize, target: [:0]const u8, custom: ?[:0]const u8) void {
+    if (imgui.api.IsItemHovered(ctx, null)) {
+        var tip_buf: [256:0]u8 = undefined;
+        const tip = if (custom) |name|
+            std.mem.printSentinel(&tip_buf, "{s}: {s}\nRight-click to rename the control.", .{ name, target }, 0) catch target
+        else
+            std.mem.printSentinel(&tip_buf, "{s}\nRight-click to name the control.", .{target}, 0) catch target;
+        widgets.tooltip(&fxsel_kit, tip);
+    }
+    var right: c_int = 1;
+    if (imgui.api.IsItemClicked(ctx, &right)) mft_fxsel.openNamer(state, plate, control);
+}
+
+/// Whether the popup of the namer was opened, so that it is opened once, and is known to have closed when ImGui stops drawing it; and how many more
+/// frames its field asks for the keyboard (ImGui can miss the first ask while the popup appears).
+var namer_opened = false;
+var namer_focus: u8 = 0;
+const namer_focus_frames = 6;
+
+/// The popup that names a control, which a right click on its combo opens: a field that has the name, which Enter or OK gives the control, Clear that takes
+/// its name away, and Escape or a click outside that leaves it as it was. It returns whether a name changed.
+fn drawNamer(state: *mft_fxsel.FxSelState) !bool {
+    const namer = state.map_namer orelse {
+        namer_opened = false;
+        return false;
+    };
+    if (!namer_opened) {
+        imgui.api.OpenPopup(ctx, "##namer", null);
+        namer_opened = true;
+        namer_focus = namer_focus_frames;
+    }
+    if (!imgui.api.BeginPopup(ctx, "##namer", null)) {
+        // A click outside closed the popup: the name stays as it was.
+        state.map_namer = null;
+        namer_opened = false;
+        return false;
+    }
+    defer imgui.api.EndPopup(ctx);
+    var title_buf: [64:0]u8 = undefined;
+    const title = if (namer.control < mappings.knob_count)
+        std.mem.printSentinel(&title_buf, "Name of the knob {d}", .{namer.control + 1}, 0) catch "Name"
+    else
+        std.mem.printSentinel(&title_buf, "Name of the push {d}", .{namer.control - mappings.knob_count + 1}, 0) catch "Name";
+    try imgui.Text(.{ ctx, title });
+    if (namer_focus > 0) {
+        imgui.api.SetKeyboardFocusHere(ctx, null);
+        namer_focus -= 1;
+    }
+    imgui.api.SetNextItemWidth(ctx, 240);
+    var flags: c_int = imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll;
+    const entered = imgui.api.InputTextWithHint(ctx, "##namertext", "Name of the control", @as([*]u8, @ptrCast(&state.map_namer_text)), state.map_namer_text.len + 1, &flags, null);
+    if (imgui.api.IsItemActive(ctx)) namer_focus = 0;
+    var changed = false;
+    var done = false;
+    if (entered) {
+        changed = mft_fxsel.applyNamer(state);
+        done = true;
+    }
+    if (!done and imgui.api.IsKeyPressed(ctx, imgui.Key_Escape, null)) {
+        state.map_namer = null;
+        done = true;
+    }
+    if (!done and widgets.pushButton(&fxsel_kit, "OK", 0)) {
+        changed = mft_fxsel.applyNamer(state);
+        done = true;
+    }
+    if (!done) {
+        imgui.api.SameLine(ctx, null, null);
+        if (widgets.pushButton(&fxsel_kit, "Clear", 0)) {
+            @memset(&state.map_namer_text, 0);
+            changed = mft_fxsel.applyNamer(state);
+            done = true;
+        }
+    }
+    if (done) {
+        imgui.api.CloseCurrentPopup(ctx);
+        namer_opened = false;
     }
     return changed;
 }
@@ -1174,12 +1261,14 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
     _ = std.mem.printSentinel(&id, "##auto{d}", .{control}, 0) catch return false;
     var label_buf: [160:0]u8 = undefined;
     const target = state.map_auto.control(control);
-    const preview: [:0]const u8 = if (target) |t| autoTargetLabel(track, t, &label_buf) else "-";
+    const target_text: [:0]const u8 = if (target) |t| autoTargetLabel(track, t, &label_buf) else "-";
+    const custom = mft_fxsel.namesOf(state, .auto).get(control);
+    const preview: [:0]const u8 = custom orelse target_text;
     imgui.api.SetCursorScreenPos(ctx, x, y);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBg, 0);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgHovered, theme.amber_soft);
     imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgActive, theme.amber_soft);
-    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (target != null) theme.label else theme.text_dim);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, if (custom != null) theme.amber else if (target != null) theme.label else theme.text_dim);
     theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 2, 0);
     defer {
         var vars: c_int = 1;
@@ -1202,7 +1291,7 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
     var fit_buf: [96:0]u8 = undefined;
     const shown = device.fitText(&fxsel_kit, preview, width - 6, &fit_buf);
     const open = try imgui.BeginCombo(.{ ctx, &id, shown, imgui.ComboFlags_NoArrowButton });
-    if (shown.ptr != preview.ptr and imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, preview);
+    comboNaming(state, .auto, control, target_text, custom);
     if (!open) return false;
     defer imgui.EndCombo(.{ctx}) catch {};
     mft_fxsel.selectAuto(state, control);
@@ -1592,6 +1681,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     }
     imgui.api.EndGroup(ctx);
     // The mapping is saved as soon as it changes.
+    if (try drawNamer(state)) changed = true;
     if (changed and state.pending == .none) state.pending = .store_mapping;
 }
 
@@ -1776,7 +1866,17 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
         info.push_mapped[push] = true;
         pushName(track, route, &info.push_name_bufs[push]);
     }
-    // The controls of the AUTO page that run an action have the name of the action.
+    // The names that the user gave the controls take the place of the names of the parameters.
+    for (0..mappings.knob_count) |slot| {
+        const name = routing.names.get(slot) orelse continue;
+        copyName(&info.name_bufs[slot], name);
+        info.has_name[slot] = true;
+    }
+    for (0..mappings.push_count) |push| {
+        const name = routing.names.get(mappings.knob_count + push) orelse continue;
+        copyName(&info.push_name_bufs[push], name);
+    }
+    // The controls of the AUTO page that run an action have the name of the action, unless the user named them.
     if (active == .AUTO) {
         const map = globals.map_store.getAuto(mft_globals.hostIo());
         for (map.knobs, 0..) |maybe, slot| {
@@ -1785,6 +1885,7 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
             info.mapped[slot] = true;
             info.is_action[slot] = true;
             info.has_name[slot] = true;
+            if (map.names.get(slot) != null) continue;
             var name_buf: [160:0]u8 = undefined;
             copyName(&info.name_bufs[slot], mft_fx.actionName(target, &name_buf));
         }
@@ -1792,6 +1893,7 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
             const target = maybe orelse continue;
             if (target == .fx_param) continue;
             info.push_mapped[push] = true;
+            if (map.names.get(mappings.knob_count + push) != null) continue;
             var name_buf: [160:0]u8 = undefined;
             copyName(&info.push_name_bufs[push], mft_fx.actionName(target, &name_buf));
         }

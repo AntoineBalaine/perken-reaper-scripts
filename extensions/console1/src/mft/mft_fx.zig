@@ -26,21 +26,25 @@ pub const PushRoute = struct {
 pub const SlotRouting = struct {
     targets: [mappings.knob_count]?SlotTarget = @splat(null),
     pushes: [mappings.push_count]?PushRoute = @splat(null),
+    /// The names that the user gave the controls, from the map that gave each control its parameter.
+    names: mappings.ControlNames = .{},
 
     // Fill this routing's empty slots from a mapping belonging to one FX.
     // Slots already claimed by an earlier FX are left untouched, so the first
-    // FX to define a slot wins.
+    // FX to define a slot wins, and so does its name.
     pub fn merge(self: *SlotRouting, fx_index: c_int, mapping: mappings.MftModuleMapping) void {
         for (&self.targets, 0..) |*target, slot| {
             if (target.* != null) continue;
             if (mapping.slotToParam(@intCast(slot))) |param| {
                 target.* = .{ .fx_index = fx_index, .param = param };
+                if (mapping.names.get(slot)) |name| self.names.set(slot, name);
             }
         }
         for (&self.pushes, 0..) |*push, index| {
             if (push.* != null) continue;
             if (mapping.pushAt(@intCast(index))) |action| {
                 push.* = .{ .fx_index = fx_index, .action = action };
+                if (mapping.names.get(mappings.knob_count + index)) |name| self.names.set(mappings.knob_count + index, name);
             }
         }
     }
@@ -281,7 +285,7 @@ pub fn actionName(target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
 // have an action are not in it, since they move no parameter.
 pub fn resolveAuto(globals: *MftGlobals, track: reaper.MediaTrack) SlotRouting {
     const map = globals.map_store.getAuto(mft_globals.hostIo());
-    var routing = SlotRouting{};
+    var routing = SlotRouting{ .names = map.names };
     for (map.knobs, 0..) |maybe, i| {
         const target = maybe orelse continue;
         if (target != .fx_param) continue;

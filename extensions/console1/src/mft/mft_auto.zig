@@ -67,6 +67,8 @@ pub const Target = union(enum) {
 pub const AutoMap = struct {
     knobs: [mappings.knob_count]?Target = @splat(null),
     pushes: [mappings.push_count]?Target = @splat(null),
+    /// The names that the user gave the controls of the page.
+    names: mappings.ControlNames = .{},
 
     /// The target of a control, the sixteen knobs first and then the eight pushes.
     pub fn control(self: *const AutoMap, index: usize) ?Target {
@@ -84,7 +86,7 @@ pub const AutoMap = struct {
             if ((a == null) != (b == null)) return false;
             if (a) |ta| if (!ta.eql(b.?)) return false;
         }
-        return true;
+        return std.meta.eql(self.names, other.names);
     }
 };
 
@@ -160,6 +162,12 @@ pub fn write(map: *const AutoMap, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try writeTarget(w, target);
         try w.writeByte('\n');
     }
+    if (map.names.isEmpty()) return;
+    try w.writeAll("\n[labels]\n");
+    for (0..mappings.knob_count + mappings.push_count) |i| {
+        const name = map.names.get(i) orelse continue;
+        if (i < mappings.knob_count) try w.print("knob_{d} = {s}\n", .{ i + 1, name }) else try w.print("push_{d} = {s}\n", .{ i - mappings.knob_count + 1, name });
+    }
 }
 
 /// Matches a key made of `prefix` and a number from 1 to `count`, and returns the zero-based position.
@@ -173,11 +181,23 @@ fn positionKey(key: []const u8, prefix: []const u8, count: usize) ?usize {
 /// Reads the map of the AUTO page from its lines (`knob_N = ...`, `push_N = ...`). A line that is not a control, or whose value is not a target, is left out.
 pub fn parse(text: []const u8) AutoMap {
     var map = AutoMap{};
+    // The lines after `[labels]` are the names of the controls; another section is not read.
+    var section: enum { controls, labels, other } = .controls;
     var lines = std.mem.splitScalar(u8, text, '\n');
     while (lines.next()) |raw| {
         const line = std.mem.trim(u8, if (std.mem.indexOfScalar(u8, raw, ';')) |at| raw[0..at] else raw, " \t\r");
+        if (line.len > 1 and line[0] == '[' and line[line.len - 1] == ']') {
+            section = if (std.mem.eql(u8, line, "[labels]")) .labels else .other;
+            continue;
+        }
         const eq = std.mem.indexOfScalar(u8, line, '=') orelse continue;
         const key = std.mem.trim(u8, line[0..eq], " \t");
+        if (section == .other) continue;
+        if (section == .labels) {
+            const value = std.mem.trim(u8, line[eq + 1 ..], " \t");
+            if (positionKey(key, "knob_", mappings.knob_count)) |i| map.names.set(i, value) else if (positionKey(key, "push_", mappings.push_count)) |i| map.names.set(mappings.knob_count + i, value);
+            continue;
+        }
         const target = parseTarget(line[eq + 1 ..]) orelse continue;
         if (positionKey(key, "knob_", mappings.knob_count)) |i| map.knobs[i] = target else if (positionKey(key, "push_", mappings.push_count)) |i| map.pushes[i] = target;
     }
@@ -205,6 +225,7 @@ test "write and parse: the map of the AUTO page reads back the same" {
     map.setControl(0, .{ .fx_param = FxParam.init("JS: Saturation", 1) });
     map.setControl(mappings.knob_count + 2, .{ .action = 40026 });
     map.setControl(7, .{ .named_action = NamedAction.init("_RS1234abcd") });
+    map.names.set(mappings.knob_count + 2, "Save");
     var aw: std.Io.Writer.Allocating = .init(t.allocator);
     defer aw.deinit();
     try write(&map, &aw.writer);

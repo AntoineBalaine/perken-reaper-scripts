@@ -232,13 +232,25 @@ fn writePage(w: *std.Io.Writer, page: *const MftModuleMapping) std.Io.Writer.Err
     }
 }
 
-/// Writes the map of one module: the headers, then its knobs and pushes. A map that the user made is written with this too.
+/// Writes the names that the user gave the controls of a page, under a heading, when the page has any.
+pub fn writeLabels(w: *std.Io.Writer, heading: []const u8, names: *const mappings.ControlNames) std.Io.Writer.Error!void {
+    if (names.isEmpty()) return;
+    try w.print("\n[{s}]\n", .{heading});
+    for (0..mappings.knob_count + mappings.push_count) |i| {
+        const name = names.get(i) orelse continue;
+        if (i < mappings.knob_count) try w.print("knob_{d} = {s}\n", .{ i + 1, name }) else try w.print("push_{d} = {s}\n", .{ i - mappings.knob_count + 1, name });
+    }
+}
+
+/// Writes the map of one module: the headers, then its knobs and pushes, and the names of its controls. A map that the user made is written with this too.
 pub fn writeModuleMap(w: *std.Io.Writer, module: MappableModule, fx_name: []const u8, page: *const MftModuleMapping) std.Io.Writer.Error!void {
     try w.print("version = {d}\nmodule = {s}\nfx_name = {s}\n", .{ mappings.MFT_MAPPING_FORMAT_VERSION, module.dirName(), fx_name });
     try writePage(w, page);
+    try writeLabels(w, "labels", &page.names);
 }
 
-/// Writes the map of a channel strip: the headers, then a section for each page that has controls.
+/// Writes the map of a channel strip: the headers, then a section for each page that has controls, and a section `[<PAGE>.labels]` for each page whose
+/// controls have names.
 pub fn writeStripMap(w: *std.Io.Writer, fx_name: []const u8, strip: *const mappings.StripMapping) std.Io.Writer.Error!void {
     try w.print("version = {d}\nmodule = STRIP\nfx_name = {s}\n", .{ mappings.MFT_MAPPING_FORMAT_VERSION, fx_name });
     inline for (@typeInfo(MappableModule).@"enum".field_names, 0..) |name, i| {
@@ -247,6 +259,7 @@ pub fn writeStripMap(w: *std.Io.Writer, fx_name: []const u8, strip: *const mappi
             try w.print("\n[{s}]\n", .{name});
             try writePage(w, page);
         }
+        try writeLabels(w, name ++ ".labels", &page.names);
     }
 }
 

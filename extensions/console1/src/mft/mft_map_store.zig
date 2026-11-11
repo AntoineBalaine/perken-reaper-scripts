@@ -493,10 +493,18 @@ fn writeDefaultsText(defaults: *const std.StringArrayHashMapUnmanaged([:0]const 
 fn parseMapping(parser: anytype) !MftModuleMapping {
     var mapping = MftModuleMapping{};
     var version_found = false;
+    // The keys before any section are the controls; the section `[labels]` has the names of the controls, and another section is not read.
+    var section: enum { controls, labels, other } = .controls;
 
     while (try parser.next()) |record| {
         switch (record) {
+            .section => |name| section = if (std.mem.eql(u8, name, "labels")) .labels else .other,
             .property => |kv| {
+                if (section == .other) continue;
+                if (section == .labels) {
+                    readLabel(&mapping.names, kv.key, kv.value);
+                    continue;
+                }
                 if (std.mem.eql(u8, kv.key, "version")) {
                     const v = std.fmt.parseInt(u8, kv.value, 10) catch continue;
                     if (v > mappings.MFT_MAPPING_FORMAT_VERSION) return error.UnsupportedMapVersion;
@@ -512,12 +520,21 @@ fn parseMapping(parser: anytype) !MftModuleMapping {
                     mapping.setPush(@intCast(position), action);
                 }
             },
-            .section, .enumeration => {},
+            .enumeration => {},
         }
     }
 
     if (!version_found) return error.MissingVersion;
     return mapping;
+}
+
+/// Reads a line of a section of names: `knob_N = name` or `push_N = name`. A key that is not a control is skipped.
+fn readLabel(names: *mappings.ControlNames, key: []const u8, value: []const u8) void {
+    if (parsePositionKey(key, "knob_", mappings.knob_count)) |position| {
+        names.set(position, value);
+    } else if (parsePositionKey(key, "push_", mappings.push_count)) |position| {
+        names.set(mappings.knob_count + position, value);
+    }
 }
 
 // Matches a key made of `prefix` and a number from 1 to `count`, and returns the zero-based position.
@@ -533,13 +550,17 @@ fn parsePositionKey(key: []const u8, prefix: []const u8, count: usize) ?usize {
 fn parseStripMapping(parser: anytype) !mappings.StripMapping {
     var strip = mappings.StripMapping{};
     var page: ?*MftModuleMapping = null;
+    // The section `[<PAGE>.labels]` has the names of the controls of the page.
+    var labels_of: ?*MftModuleMapping = null;
     var version_found = false;
     while (try parser.next()) |record| {
         switch (record) {
             .section => |name| {
                 page = null;
+                labels_of = null;
                 inline for (@typeInfo(MappableModule).@"enum".field_names, 0..) |field_name, i| {
                     if (std.mem.eql(u8, name, field_name)) page = &strip.pages[i];
+                    if (std.mem.eql(u8, name, field_name ++ ".labels")) labels_of = &strip.pages[i];
                 }
             },
             .property => |kv| {
@@ -547,6 +568,10 @@ fn parseStripMapping(parser: anytype) !mappings.StripMapping {
                     const v = std.fmt.parseInt(u8, kv.value, 10) catch continue;
                     if (v > mappings.MFT_MAPPING_FORMAT_VERSION) return error.UnsupportedMapVersion;
                     version_found = true;
+                    continue;
+                }
+                if (labels_of) |named| {
+                    readLabel(&named.names, kv.key, kv.value);
                     continue;
                 }
                 const target = page orelse continue;
@@ -930,4 +955,37 @@ test "a plugin that has no map named default uses its first map, as the maps of 
     var list = BrowserList{};
     store.listStrips(io, &list);
     try t.expectEqualStrings("JS: Strip", list.get(0));
+}
+
+test "the names of the controls are written in [labels] and read back, for a module map and for each page of a strip" {
+    const t = std.testing;
+    var mapping = MftModuleMapping{};
+    mapping.setSlot(0, 9);
+    mapping.names.set(0, "Air");
+    mapping.names.set(mappings.knob_count + 2, "Shape");
+    var aw: std.Io.Writer.Allocating = .init(t.allocator);
+    defer aw.deinit();
+    try mft_port.writeModuleMap(&aw.writer, .EQ, "VST: ReaEQ (Cockos)", &mapping);
+    var fbs: std.Io.Reader = .fixed(aw.written());
+    var parser = ini.parse(t.allocator, &fbs, ";#");
+    defer parser.deinit();
+    const read = try parseMapping(&parser);
+    try t.expectEqualStrings("Air", read.names.get(0).?);
+    try t.expectEqualStrings("Shape", read.names.get(mappings.knob_count + 2).?);
+    // The name of a knob is not its parameter.
+    try t.expectEqual(@as(?u16, 9), read.slotToParam(0));
+    try t.expectEqual(@as(?u16, null), read.slotToParam(1));
+
+    var strip = mappings.StripMapping{};
+    strip.pages[@backingInt(MappableModule.COMP)].setSlot(3, 4);
+    strip.pages[@backingInt(MappableModule.COMP)].names.set(3, "Glue");
+    strip.pages[@backingInt(MappableModule.INPUT)].names.set(0, "Trim");
+    var sw: std.Io.Writer.Allocating = .init(t.allocator);
+    defer sw.deinit();
+    try mft_port.writeStripMap(&sw.writer, "JS: Strip", &strip);
+    var sfbs: std.Io.Reader = .fixed(sw.written());
+    var sparser = ini.parse(t.allocator, &sfbs, ";#");
+    defer sparser.deinit();
+    const sread = try parseStripMapping(&sparser);
+    try t.expect(std.meta.eql(sread, strip));
 }
