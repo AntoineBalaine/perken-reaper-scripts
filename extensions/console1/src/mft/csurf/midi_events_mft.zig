@@ -423,7 +423,12 @@ fn turnOrder(globals: *MftGlobals, delta: i8) void {
     const total: i32 = @as(i32, globals.mft.order_ticks) + delta;
     const steps = @divTrunc(total, order_ticks_per_step);
     globals.mft.order_ticks = @intCast(total - steps * order_ticks_per_step);
-    if (steps != 0) stepOrder(globals, steps);
+    if (steps == 0) return;
+    stepOrder(globals, steps);
+    // Because the player turns the knob to reach an order, the pop-up of the knob says the order that the track is in now.
+    const track = globals.current_track orelse return;
+    const text: []const u8 = if (mft_fx.trackOrder(track)) |order| order.label() else "No modules";
+    globals.mft.push_note.set(8 + mft_transport.order_knob, text, std.Io.Timestamp.now(mft_globals.hostIo(), .awake).toMilliseconds());
 }
 
 // Puts the modules of the current track in the next order (or the previous one, for a turn to the left), starting from the order that they are in, or the

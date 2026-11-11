@@ -684,6 +684,13 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     const mapped = info.mapped[idx];
     const value = std.math.clamp(info.vals[idx], 0.0, 1.0);
     drawEncoder(dl, cell.cx, cell.cy, .{ .value = if (mapped) value else null, .color = color, .pressed = held or active });
+    // A turn of the transport page can leave a note on its knob, as the Order knob does with the order that the track is in now.
+    const has_note = noteIsFor(view, idx);
+    if (has_note) {
+        var bubble = Bubble{ .cx = cell.cx, .top = cell.cy - led_ring_r - bubble_gap, .text = undefined, .color = view.color(view.active) };
+        @memcpy(&bubble.text, view.push_note.?.text[0..formatted_len :0]);
+        bubbles.add(bubble);
+    }
     var name_buf: [16:0]u8 = undefined;
     var value_buf: [16:0]u8 = undefined;
     // On the transport page the turns of the bottom row have their own functions, which have no ring.
@@ -691,7 +698,7 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     if (mapped) {
         const text = knobText(info, idx, &name_buf, &value_buf);
         turn = text.name;
-        showValue(cell, text.value_text, view.color(view.active), (view.show_value >> @intCast(idx)) & 1 == 1, bubbles);
+        showValue(cell, text.value_text, view.color(view.active), (view.show_value >> @intCast(idx)) & 1 == 1 and !has_note, bubbles);
     }
     // The word under a page button says what a click does, so it is written as a press: with the sign of a press, and lit while the button
     // is held. The page in use is in the color of the page.

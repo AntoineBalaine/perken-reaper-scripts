@@ -45,7 +45,6 @@ pub const Setting = enum {
     startup_message,
     feedback_window,
     plugin_ui,
-    log_file,
     language,
     manual_routing,
     auto_insert,
@@ -83,7 +82,6 @@ pub const rows = [_]Row{
     .{ .setting = .startup_message, .group = .general, .kind = .toggle, .label = "Show startup message" },
     .{ .setting = .feedback_window, .group = .general, .kind = .not_done, .label = "Show feedback window" },
     .{ .setting = .plugin_ui, .group = .general, .kind = .toggle, .label = "Show plugin UI" },
-    .{ .setting = .log_file, .group = .general, .kind = .not_done, .label = "Log to file" },
     .{ .setting = .language, .group = .general, .kind = .not_done, .label = "Language" },
     .{ .setting = .manual_routing, .group = .tracks, .kind = .not_done, .label = "Manual routing" },
     .{ .setting = .auto_insert, .group = .tracks, .kind = .toggle, .label = "Auto insert modules" },
@@ -251,7 +249,7 @@ test "the rows are in the groups of the design, in order, and every color has it
         last = group;
         if (row.kind == .hue) try t.expect(pageOf(row.setting) != null or row.setting == .hue_fxsel);
     }
-    try t.expectEqual(@as(usize, 28), row_count);
+    try t.expectEqual(@as(usize, 27), row_count);
 }
 
 test "a turn changes a color round the wheel, a number by its steps within its range, and a switch and the mode by its side" {
@@ -266,14 +264,14 @@ test "a turn changes a color round the wheel, a number by its steps within its r
     try t.expectApproxEqAbs(@as(f32, 1.1), prefs.sensitivity, 1e-5);
     adjust(&prefs, rows[10], -50);
     try t.expectEqual(fine_min, prefs.fine);
-    adjust(&prefs, rows[17], -1);
+    adjust(&prefs, rows[16], -1);
     try t.expect(!prefs.auto_insert);
-    flip(&prefs, rows[17]);
+    flip(&prefs, rows[16]);
     try t.expect(prefs.auto_insert);
-    try t.expectEqual(@as(f64, 1.0), fraction(&prefs, rows[17]));
-    adjust(&prefs, rows[27], 1);
+    try t.expectEqual(@as(f64, 1.0), fraction(&prefs, rows[16]));
+    adjust(&prefs, rows[26], 1);
     try t.expect(prefs.single_fx_mode);
-    flip(&prefs, rows[27]);
+    flip(&prefs, rows[26]);
     try t.expect(!prefs.single_fx_mode);
 }
 
@@ -283,7 +281,7 @@ test "a row that is not done, and a plugin, stay as they are under the encoder" 
     const before = prefs;
     adjust(&prefs, rows[12], 5);
     flip(&prefs, rows[12]);
-    adjust(&prefs, rows[21], 5);
+    adjust(&prefs, rows[20], 5);
     try t.expect(std.meta.eql(before.single_fx_mode, prefs.single_fx_mode));
     try t.expectEqual(before.auto_insert, prefs.auto_insert);
     try t.expectEqual(@as(?usize, 2), pluginSlot(.default_eq));
@@ -309,10 +307,10 @@ test "the order of the modules goes round with a turn and a click, and the auto 
     const t = std.testing;
     var prefs = MftPreferences{};
     try t.expectEqual(@import("mft_order.zig").Order.s_eq_c, prefs.module_order);
-    adjust(&prefs, rows[20], 1);
+    adjust(&prefs, rows[19], 1);
     try t.expectEqualStrings("EQ-S-C", prefs.module_order.label());
-    flip(&prefs, rows[20]);
+    flip(&prefs, rows[19]);
     try t.expectEqualStrings("S-C-EQ", prefs.module_order.label());
-    adjust(&prefs, rows[19], -1);
+    adjust(&prefs, rows[18], -1);
     try t.expect(!prefs.auto_reorder);
 }
