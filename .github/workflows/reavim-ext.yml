@@ -17,6 +17,14 @@ on:
       - "extensions/reaziglib/**"
       - ".github/workflows/reavim-ext.yml"
   workflow_dispatch:
+  # release.yml calls this workflow to build every extension for one release, with the version of its tag. The release job of this workflow only runs
+  # on this workflow's own tags, so it is skipped then.
+  workflow_call:
+    inputs:
+      version:
+        description: "The version to build, given by release.yml"
+        type: string
+        required: true
 
 jobs:
   build:
@@ -34,10 +42,14 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        env:
+          CALLER_VERSION: ${{ inputs.version }}
         shell: bash
         # Tags look like reavim-ext-v1.2.3; other runs build a "dev" version.
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/reavim-ext-v* ]]; then
+          if [[ -n "$CALLER_VERSION" ]]; then
+            echo "version=$CALLER_VERSION" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/reavim-ext-v* ]]; then
             echo "version=${GITHUB_REF_NAME#reavim-ext-v}" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
