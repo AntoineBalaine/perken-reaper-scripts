@@ -101,9 +101,11 @@ const CHOICES_W: f64 = 440.0;
 const CHOICES_H: f64 = 220.0;
 var filter: [64:0]u8 = @splat(0);
 
+/// Copies a name into a buffer of the panel. Because a save points the preferences at these buffers, the name can be the buffer itself when the panel reads
+/// the preferences again, so the copy allows the two to overlap.
 fn copyInto(buf: *[NAME_LEN:0]u8, s: [:0]const u8) void {
     const n = @min(s.len, NAME_LEN - 1);
-    @memcpy(buf[0..n], s[0..n]);
+    @memmove(buf[0..n], s[0..n]);
     buf[n] = 0;
 }
 
@@ -553,4 +555,10 @@ test "the ends and the middle of a bar stand for the ends and the middle of the 
     try std.testing.expectEqual(@as(u8, 64), hueAtFraction(0.5));
     try std.testing.expectEqual(@as(f32, 0.1), sensitivityAtFraction(0));
     try std.testing.expectApproxEqAbs(@as(f32, 4.0), sensitivityAtFraction(1), 0.001);
+}
+
+test "the panel reads the default plugins again after a save, when the preferences point at its own buffers" {
+    copyInto(&buffers[0], "VST: ReaEQ (Cockos)");
+    copyInto(&buffers[0], bufSlice(0));
+    try std.testing.expectEqualStrings("VST: ReaEQ (Cockos)", bufSlice(0));
 }
