@@ -15,10 +15,23 @@ pub fn extendBits(bits: u80) u128 {
     return (sign_and_exponent << 112) | (fraction << 49);
 }
 
-/// The helper as the compiler calls it. Because the C calling convention of some systems (aarch64) has no 80-bit float, it is only analyzed on Windows,
-/// where it is exported.
-fn extendxftf2(a: f80) callconv(.c) f128 {
-    return @bitCast(extendBits(@bitCast(a)));
+/// How the compiler passes the two floats to the helper, as Zig's compiler_rt declares it: a float that the C of the target has is passed as itself, and
+/// one that it has not (the 80-bit float of MSVC, whose long double has 64 bits) as a struct of its integers.
+const F80Abi = switch (std.zig.target.compilerRtFloatAbi(&builtin.target, 80)) {
+    .hard => f80,
+    .soft => extern struct { mantissa: u64, exponent: u16 },
+};
+const F128Abi = switch (std.zig.target.compilerRtFloatAbi(&builtin.target, 128)) {
+    .hard => f128,
+    .soft => extern struct { lo: u64, hi: u64 },
+};
+
+/// The helper as the compiler calls it. It is only analyzed on Windows, where it is exported.
+fn extendxftf2(a: F80Abi) callconv(.c) F128Abi {
+    comptime std.debug.assert(builtin.cpu.arch.endian() == .little);
+    const bits: u80 = if (F80Abi == f80) @bitCast(a) else (@as(u80, a.exponent) << 64) | a.mantissa;
+    const result = extendBits(bits);
+    return if (F128Abi == f128) @bitCast(result) else .{ .lo = @truncate(result), .hi = @truncate(result >> 64) };
 }
 
 comptime {
