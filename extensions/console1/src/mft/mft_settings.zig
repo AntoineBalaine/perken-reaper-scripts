@@ -250,6 +250,11 @@ fn pluginChoices(kit: *widgets.Panel, slot: usize) !void {
     imgui.api.SetNextItemWidth(ctx, CHOICES_W);
     _ = imgui.api.InputTextWithHint(ctx, "##pluginfilter", "Search\u{2026}", @as([*]u8, @ptrCast(&filter)), filter.len + 1, null, null);
     if (imgui.api.IsItemActive(ctx)) filter_focus = 0;
+    // Because the field has the keyboard, Escape would only leave the field, and the list would stay open: Escape closes the list.
+    if (imgui.api.IsKeyPressed(ctx, imgui.Key_Escape, null)) {
+        imgui.api.CloseCurrentPopup(ctx);
+        return;
+    }
     const query = std.mem.sliceTo(&filter, 0);
     var width: f64 = CHOICES_W;
     var height: f64 = CHOICES_H;

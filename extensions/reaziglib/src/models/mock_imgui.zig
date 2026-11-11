@@ -157,6 +157,7 @@ const ImguiMocks = struct {
     EndMenu: @TypeOf(imgui.api.EndMenu),
     BeginPopup: @TypeOf(imgui.api.BeginPopup),
     EndPopup: @TypeOf(imgui.api.EndPopup),
+    CloseCurrentPopup: @TypeOf(imgui.api.CloseCurrentPopup),
     OpenPopup: @TypeOf(imgui.api.OpenPopup),
     BeginDisabled: @TypeOf(imgui.api.BeginDisabled),
     EndDisabled: @TypeOf(imgui.api.EndDisabled),
@@ -557,6 +558,7 @@ pub const MockImGui = struct {
     const EndMenu = &mockEndMenu;
     const BeginPopup = &mockBeginPopup;
     const EndPopup = &mockEndPopup;
+    const CloseCurrentPopup = &mockVoidCtx;
     const OpenPopup = &mockOpenPopup;
     const BeginDisabled = &mockBeginDisabled;
     const EndDisabled = &mockEndDisabled;
