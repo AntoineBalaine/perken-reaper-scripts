@@ -143,6 +143,10 @@ With ReaImGui, the extension draws the controller as an object in a window of it
 one that says what a turn and a push do, the side keys, and a header with a fold button and a close button. A value shows in a pop-up over its knob,
 as the plugin formats it, while the knob is hovered, held or turned. The action "MFT: Toggle UI" shows and hides the window, and can be bound to a key.
 
+The windows are in English or in French, as the row Language of the settings chooses; a change is seen at once. The texts are written in English in the
+code and translated by the table of `mft_i18n.zig`, and a text that the table lacks stops the build. The names of the actions in the Action List of REAPER
+stay in English.
+
 The FX Selection, the mapping panel and the settings have windows of their own. The settings window has a plate for each group of rows: the colors of
 the pages, the knobs (sensitivity and fine multiplier, which a double click lets the user type), the general options, the options of the tracks, and the
 default plugins, chosen from lists that have a fuzzy search.

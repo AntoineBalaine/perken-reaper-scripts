@@ -6,6 +6,7 @@
 //! follow have their own lists. Because the logic does not call REAPER, it is here, where the unit tests can reach it; the file that handles the
 //! MIDI events does what the outcomes ask for.
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const mft_state = @import("mft_state.zig");
 const mappings = @import("mft_mappings.zig");
 const fx_browser = @import("fx_browser");
@@ -53,14 +54,14 @@ pub const hidden_menus = fx_browser.HiddenMenus.initMany(&.{ .fx_chains, .track_
 /// The name of a menu of the first level.
 pub fn rootMenuName(menu: fx_browser.RootMenu) [:0]const u8 {
     return switch (menu) {
-        .fx_chains => "FX chains",
-        .track_templates => "Track templates",
-        .all_plugins => "All plugins",
-        .tags_category => "Categories",
-        .tags_developer => "Developers",
-        .container => "Container",
-        .video_processor => "Video processor",
-        .recent => "Recent",
+        .fx_chains => i18n.t("FX chains"),
+        .track_templates => i18n.t("Track templates"),
+        .all_plugins => i18n.t("All plugins"),
+        .tags_category => i18n.t("Categories"),
+        .tags_developer => i18n.t("Developers"),
+        .container => i18n.t("Container"),
+        .video_processor => i18n.t("Video processor"),
+        .recent => i18n.t("Recent"),
     };
 }
 
@@ -86,20 +87,20 @@ pub const Action = enum {
 
     pub fn label(self: Action) [:0]const u8 {
         return switch (self) {
-            .load_fx => "Load FX",
-            .select_preset => "Select preset",
-            .save_preset => "Save preset",
-            .create_mapping => "Create mapping",
+            .load_fx => i18n.t("Load FX"),
+            .select_preset => i18n.t("Select preset"),
+            .save_preset => i18n.t("Save preset"),
+            .create_mapping => i18n.t("Create mapping"),
         };
     }
 
     /// The shorter word under the shortcut on the top row.
     pub fn shortcut(self: Action) [:0]const u8 {
         return switch (self) {
-            .load_fx => "Load FX",
-            .select_preset => "Presets",
-            .save_preset => "Save Preset",
-            .create_mapping => "Mapping",
+            .load_fx => i18n.t("Load FX"),
+            .select_preset => i18n.t("Presets"),
+            .save_preset => i18n.t("Save Preset"),
+            .create_mapping => i18n.t("Mapping"),
         };
     }
 };
@@ -485,13 +486,13 @@ fn toggleSingle(state: *FxSelState) Outcome {
 fn confirmSave(state: *FxSelState) Outcome {
     const name = state.saveText();
     if (name.len == 0) {
-        state.setNote("Type a name for the preset first.");
+        state.setNote(i18n.t("Type a name for the preset first."));
         return .none;
     }
     const hash = std.hash.Wyhash.hash(0, name);
     if (state.presetExists(name) and state.save_armed != hash) {
         state.save_armed = hash;
-        state.setNote("A preset has that name: confirm again to replace it.");
+        state.setNote(i18n.t("A preset has that name: confirm again to replace it."));
         return .none;
     }
     // The name is trimmed in place, since the slice has to outlive the call and the buffer is the state's.
@@ -758,10 +759,23 @@ const push_names = blk: {
     for (&names, 0..) |*name, i| name.* = std.fmt.comptimePrint("Push {d}", .{i + 1});
     break :blk names;
 };
+/// The names of the controls in French, which the windows show while the language is French.
+const knob_names_fr = blk: {
+    var names: [mappings.knob_count][:0]const u8 = undefined;
+    for (&names, 0..) |*name, i| name.* = std.fmt.comptimePrint("Potard {d}", .{i + 1});
+    break :blk names;
+};
+const push_names_fr = blk: {
+    var names: [mappings.push_count][:0]const u8 = undefined;
+    for (&names, 0..) |*name, i| name.* = std.fmt.comptimePrint("Bouton {d}", .{i + 1});
+    break :blk names;
+};
 
-/// The name of a control of the mapping mode ("Knob 3", "Push 2").
+/// The name of a control of the mapping mode ("Knob 3", "Push 2"), in the language of the windows.
 pub fn controlName(index: usize) [:0]const u8 {
-    return if (index < mappings.knob_count) knob_names[index] else push_names[index - mappings.knob_count];
+    const fr = i18n.isFrench();
+    if (index < mappings.knob_count) return if (fr) knob_names_fr[index] else knob_names[index];
+    return if (fr) push_names_fr[index - mappings.knob_count] else push_names[index - mappings.knob_count];
 }
 
 /// What the window of an encoder says in the mode: the word of a turn, the word of a press, and whether the encoder is the module that is chosen.
@@ -780,16 +794,16 @@ pub fn label(state: *const FxSelState, encoder: usize) Label {
         }
         return .{};
     }
-    if (encoder == single_encoder) return .{ .press = "Single FX", .chosen = state.strip_target };
-    if (moduleForEncoder(encoder)) |module| return .{ .press = @tagName(module), .chosen = !state.strip_target and module == state.module };
+    if (encoder == single_encoder) return .{ .press = i18n.t("Single FX"), .chosen = state.strip_target };
+    if (moduleForEncoder(encoder)) |module| return .{ .press = i18n.dyn(@tagName(module)), .chosen = !state.strip_target and module == state.module };
     if (encoder == list_encoder) {
         return .{ .turn = switch (state.screen) {
             .actions => state.action().label(),
-            .browse, .presets, .maps => "Scroll",
+            .browse, .presets, .maps => i18n.t("Scroll"),
             .save, .map => null,
-        }, .press = "OK" };
+        }, .press = i18n.t("OK") };
     }
-    if (encoder == cancel_encoder) return .{ .press = if (state.screen == .actions) "Cancel" else "Back" };
+    if (encoder == cancel_encoder) return .{ .press = if (state.screen == .actions) i18n.t("Cancel") else i18n.t("Back") };
     return .{};
 }
 
@@ -825,12 +839,12 @@ fn scroll(state: *FxSelState, entries: i32, source: ?fx_browser.Source) void {
 
 fn mapLabel(state: *const FxSelState, encoder: usize) Label {
     const selected: usize = state.map_selected;
-    if (encoder == single_encoder) return .{ .turn = knob_names[encoder], .press = "Single FX", .chosen = state.map_single or selected == encoder };
-    if (moduleForEncoder(encoder)) |module| return .{ .turn = knob_names[encoder], .press = @tagName(module), .chosen = !state.map_focus_auto and module == state.module };
-    if (encoder == list_encoder) return .{ .turn = knob_names[encoder], .press = "Save", .chosen = selected == encoder };
-    if (encoder == cancel_encoder) return .{ .turn = knob_names[encoder], .press = "Cancel", .chosen = selected == encoder };
+    if (encoder == single_encoder) return .{ .turn = controlName(encoder), .press = i18n.t("Single FX"), .chosen = state.map_single or selected == encoder };
+    if (moduleForEncoder(encoder)) |module| return .{ .turn = controlName(encoder), .press = i18n.dyn(@tagName(module)), .chosen = !state.map_focus_auto and module == state.module };
+    if (encoder == list_encoder) return .{ .turn = controlName(encoder), .press = i18n.t("Save"), .chosen = selected == encoder };
+    if (encoder == cancel_encoder) return .{ .turn = controlName(encoder), .press = i18n.t("Cancel"), .chosen = selected == encoder };
     const chosen = selected == encoder or (encoder < mappings.push_count and selected == mappings.knob_count + encoder);
-    return .{ .turn = knob_names[encoder], .press = if (encoder < mappings.push_count) push_names[encoder] else "-", .chosen = chosen };
+    return .{ .turn = controlName(encoder), .press = if (encoder < mappings.push_count) controlName(mappings.knob_count + encoder) else "-", .chosen = chosen };
 }
 
 test "the encoder scrolls one entry for every few ticks, and keeps the ticks that did not make a step" {

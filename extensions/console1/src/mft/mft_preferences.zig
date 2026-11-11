@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers");
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
@@ -33,6 +34,8 @@ pub const MftPreferences = struct {
     /// The order of the shape, the EQ and the compressor on a track, and whether a module button puts a track in it.
     module_order: mft_order.Order = .s_eq_c,
     auto_reorder: bool = true,
+    /// The language of the windows.
+    language: i18n.Language = .en,
     // Hue positions on the MFT color wheel (channel 2).
     color_input: u8 = 0x0F,
     // Pinker than the comp's red, which 0x5A (90) and 0x5E (94) were too close to.
@@ -155,6 +158,7 @@ pub const MftPreferences = struct {
         try w.print("sensitivity = {d:.2}\n", .{self.sensitivity});
         try w.print("fine = {d:.2}\n", .{self.fine});
         try w.print("single_fx_mode = {s}\n", .{boolText(self.single_fx_mode)});
+        try w.print("language = {s}\n", .{@tagName(self.language)});
         try w.print("startup_message = {s}\n", .{boolText(self.startup_message)});
         try w.print("show_plugin_ui = {s}\n", .{boolText(self.show_plugin_ui)});
         try w.print("auto_insert = {s}\n", .{boolText(self.auto_insert)});
@@ -196,6 +200,8 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
             .property => |kv| {
                 if (std.mem.eql(u8, kv.key, "sensitivity")) {
                     self.sensitivity = std.fmt.parseFloat(f32, kv.value) catch self.sensitivity;
+                } else if (std.mem.eql(u8, kv.key, "language")) {
+                    self.language = i18n.Language.parse(kv.value) orelse self.language;
                 } else if (std.mem.eql(u8, kv.key, "single_fx_mode")) {
                     self.single_fx_mode = std.mem.eql(u8, kv.value, "true");
                 } else if (std.mem.eql(u8, kv.key, "fine")) {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const mft_globals = @import("mft_globals.zig");
 const builtin = @import("builtin");
 const imgui = @import("reaper_imgui");
@@ -199,6 +200,8 @@ fn onTimer() callconv(.c) void {
 
 /// The window of the device and, while the FX SEL mode is open, the window of the mode.
 fn drawWindows(globals: *MftGlobals) !void {
+    // The windows are drawn in the language of the settings, which can change at any time.
+    i18n.language = globals.preferences.language;
     try draw(globals);
     try drawFxSelWindow(globals);
     try drawMappingWindow(globals);
@@ -381,7 +384,7 @@ fn drawFxSelSearch(state: *mft_fxsel.FxSelState) !void {
         var y2: f64 = undefined;
         try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
         try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
-        const hint = "Type to search";
+        const hint = i18n.t("Type to search");
         var hint_w: f64 = undefined;
         var hint_h: f64 = undefined;
         try imgui.CalcTextSize(.{ ctx, hint, &hint_w, &hint_h });
@@ -465,7 +468,7 @@ fn drawFxSelPluginRow(label: [:0]const u8, index: usize, is_cursor: bool, accent
     const right = at.x + default_key_w;
     widgets.rectFilled(dl, at.x, top, right, bottom, if (is_default) widgets.faded(accent, 0x55) else theme.slot_bg, 4);
     widgets.rect(dl, at.x, top, right, bottom, if (hovered or is_default) accent else theme.slot_edge, 4, 1);
-    const word: [:0]const u8 = "Default";
+    const word: [:0]const u8 = i18n.t("Default");
     const size = widgets.textSize(&fxsel_kit, word);
     const check_w: f64 = if (is_default) 12 else 0;
     const text_x = at.x + (default_key_w - size.w - check_w) / 2 + check_w;
@@ -479,8 +482,8 @@ fn drawFxSelPluginRow(label: [:0]const u8, index: usize, is_cursor: bool, accent
     }
     imgui.api.DrawList_AddText(dl, text_x, middle - size.h / 2, ink, word);
     if (hovered) widgets.tooltip(&fxsel_kit, switch (what) {
-        .plugin => if (is_default) "This is the default plugin of the module." else "Make this plugin the default of the module: a module button inserts it on a track that has none.",
-        .map => if (is_default) "This is the default map of the plugin." else "Make this map the default of the plugin: the plugin is loaded with it from now on.",
+        .plugin => if (is_default) i18n.t("This is the default plugin of the module.") else i18n.t("Make this plugin the default of the module: a module button inserts it on a track that has none."),
+        .map => if (is_default) i18n.t("This is the default map of the plugin.") else i18n.t("Make this map the default of the plugin: the plugin is loaded with it from now on."),
     });
     if (key_clicked) return .default;
     return if (row_clicked) .row else .none;
@@ -523,9 +526,9 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
         var hits: [fx_browser.search_capacity]@import("fuzzy").Ranked = undefined;
         const count = fx_browser.search(source, state.searchText(), &hits);
         state.search_cursor = @min(state.search_cursor, @as(u16, @intCast(count -| 1)));
-        if (!widgets.beginCard(k, "Results", card_w, list_height, accent)) return outcome;
+        if (!widgets.beginCard(k, i18n.t("Results"), card_w, list_height, accent)) return outcome;
         defer widgets.endCard(k);
-        if (count == 0) try imgui.Text(.{ ctx, "No plugin matches." });
+        if (count == 0) try imgui.Text(.{ ctx, i18n.t("No plugin matches.") });
         const range = rowRange(state.search_cursor, count, list_rows);
         for (range.first..range.last) |i| {
             const name = fx_browser.pluginAt(source, hits[i].index) orelse continue;
@@ -546,9 +549,9 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             const mapped_height = @max(room - menus_height - 8, fxselCardHeight(line_height, 3));
             const mapped_rows = fxselRowsFor(line_height, mapped_height);
             fxsel_page_rows = mapped_rows;
-            if (widgets.beginCard(k, if (state.strip_target) "Channel strips with a map" else "Mapped plugins", card_w, mapped_height, accent)) {
+            if (widgets.beginCard(k, if (state.strip_target) i18n.t("Channel strips with a map") else i18n.t("Mapped plugins"), card_w, mapped_height, accent)) {
                 defer widgets.endCard(k);
-                if (state.browser.count == 0) try imgui.Text(.{ ctx, "No plugin has a map for this module." });
+                if (state.browser.count == 0) try imgui.Text(.{ ctx, i18n.t("No plugin has a map for this module.") });
                 const range = rowRange(if (cursor < state.browser.count) cursor else null, state.browser.count, mapped_rows);
                 for (range.first..range.last) |i| {
                     const name = state.browser.get(i);
@@ -556,7 +559,7 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
                     if (click != .none) outcome = pluginRowOutcome(click, state, i, name, source);
                 }
             }
-            if (widgets.beginCard(k, "Browse", card_w, menus_height, accent)) {
+            if (widgets.beginCard(k, i18n.t("Browse"), card_w, menus_height, accent)) {
                 defer widgets.endCard(k);
                 var listed: usize = 0;
                 for (std.enums.values(fx_browser.RootMenu)) |menu| {
@@ -575,11 +578,11 @@ fn drawFxSelBrowser(k: *widgets.Panel, state: *mft_fxsel.FxSelState, source: fx_
             const crumb = fxSelBreadcrumb(&crumb_buf, state, source);
             var title_buf: [128:0]u8 = undefined;
             const last = if (std.mem.lastIndexOf(u8, crumb, "  >  ")) |at| crumb[at + 5 ..] else crumb;
-            const title = std.mem.printSentinel(&title_buf, "{s}", .{last}, 0) catch "Plugins";
+            const title = std.mem.printSentinel(&title_buf, "{s}", .{last}, 0) catch i18n.t("Plugins");
             if (!widgets.beginCard(k, title, card_w, list_height, accent)) return outcome;
             defer widgets.endCard(k);
             const count = fx_browser.entryCount(source, level);
-            if (count == 0) try imgui.Text(.{ ctx, "Nothing in this list." });
+            if (count == 0) try imgui.Text(.{ ctx, i18n.t("Nothing in this list.") });
             const cursor: usize = state.cursor();
             const menus_end = fx_browser.leafStart(level);
             const range = rowRange(cursor, count, list_rows);
@@ -605,7 +608,7 @@ fn drawFxSelMaps(k: *widgets.Panel, state: *mft_fxsel.FxSelState, default_map: [
     const rows = fxselRowsFor(line_height, height);
     fxsel_page_rows = rows;
     var title_buf: [200:0]u8 = undefined;
-    const title = std.mem.printSentinel(&title_buf, "Maps of {s}", .{state.mapsPlugin()}, 0) catch "Maps";
+    const title = i18n.print(&title_buf, "Maps of {s}", .{state.mapsPlugin()}) catch i18n.t("Maps");
     if (!widgets.beginCard(k, title, card_w, height, accent)) return outcome;
     defer widgets.endCard(k);
     const cursor: usize = state.maps_cursor;
@@ -627,9 +630,9 @@ fn drawFxSelPresets(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_i
     const height = @max(room, fxselCardHeight(line_height, 3));
     const rows = fxselRowsFor(line_height, height);
     fxsel_page_rows = rows;
-    if (!widgets.beginCard(k, "Presets", card_w, height, accent)) return outcome;
+    if (!widgets.beginCard(k, i18n.t("Presets"), card_w, height, accent)) return outcome;
     defer widgets.endCard(k);
-    if (state.presets.count == 0) try imgui.Text(.{ ctx, "This plugin has no presets saved." });
+    if (state.presets.count == 0) try imgui.Text(.{ ctx, i18n.t("This plugin has no presets saved.") });
     const cursor: usize = state.preset_cursor;
     const range = rowRange(cursor, state.presets.count, rows);
     for (range.first..range.last) |i| {
@@ -655,13 +658,13 @@ fn drawFxSelSave(k: *widgets.Panel, state: *mft_fxsel.FxSelState, accent: c_int,
         try imgui.GetItemRectMin(.{ ctx, &x1, &y1 });
         try imgui.GetItemRectMax(.{ ctx, &x2, &y2 });
         const dl = try imgui.GetWindowDrawList(.{ctx});
-        try imgui.DrawList_AddText(.{ dl, x1 + 8, y1 + 3, theme.text_dim, "Name of the preset, then Enter" });
+        try imgui.DrawList_AddText(.{ dl, x1 + 8, y1 + 3, theme.text_dim, i18n.t("Name of the preset, then Enter") });
     }
     const height = @max(room - line_height * 1.5, fxselCardHeight(line_height, 3));
     const rows = fxselRowsFor(line_height, height);
-    if (!widgets.beginCard(k, "Presets that exist", card_w, height, accent)) return;
+    if (!widgets.beginCard(k, i18n.t("Presets that exist"), card_w, height, accent)) return;
     defer widgets.endCard(k);
-    if (state.presets.count == 0) try imgui.Text(.{ ctx, "None yet." });
+    if (state.presets.count == 0) try imgui.Text(.{ ctx, i18n.t("None yet.") });
     for (0..@min(state.presets.count, rows)) |i| {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text });
         try imgui.Text(.{ ctx, state.presets.get(i) });
@@ -703,17 +706,17 @@ const map_plate_w: f64 = map_grid_w + 28;
 /// The titles of the plates, which are the names that the modules have on the panel of the Console 1.
 fn mapTitle(module: mft_fxsel.MappableModule) [:0]const u8 {
     return switch (module) {
-        .INPUT => "Input",
-        .GATE => "Shape",
-        .EQ => "Equalizer",
-        .COMP => "Compressor",
-        .OUTPUT => "Output",
+        .INPUT => i18n.t("Input"),
+        .GATE => i18n.t("Shape"),
+        .EQ => i18n.t("Equalizer"),
+        .COMP => i18n.t("Compressor"),
+        .OUTPUT => i18n.t("Output"),
     };
 }
 
 /// The name of a parameter of an FX, or its number when REAPER gives no name.
 fn paramLabel(track: reaper.MediaTrack, fx: c_int, param: u16, buf: *[96:0]u8) [:0]const u8 {
-    if (param == mappings.wet_param) return "Dry/Wet";
+    if (param == mappings.wet_param) return i18n.t("Dry/Wet");
     var name: [64:0]u8 = undefined;
     name[0] = 0;
     if (track != null and reaper.TrackFX_GetParamName(track, fx, param, &name, 64) and name[0] != 0) {
@@ -737,7 +740,7 @@ fn altClearRow(id: [:0]const u8, full: [:0]const u8, width: f64) bool {
     var w = width;
     var h: f64 = 0;
     const clicked = imgui.api.Selectable(ctx, label, null, null, &w, &h);
-    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "Alt-click removes this mapping");
+    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, i18n.t("Alt-click removes this mapping"));
     return clicked;
 }
 
@@ -753,7 +756,7 @@ fn learnSelectRow(id: [:0]const u8, full: [:0]const u8, width: f64, selected: bo
     var w = width;
     var h: f64 = 0;
     const clicked = imgui.api.Selectable(ctx, label, &lit, null, &w, &h);
-    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "Click to choose this control, then move a parameter in the plugin");
+    if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, i18n.t("Click to choose this control, then move a parameter in the plugin"));
     return clicked;
 }
 
@@ -808,7 +811,7 @@ fn drawMapCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, module: 
         changed = true;
     }
     // The dry/wet of the FX has no fixed number, so it is a choice of its own, as in the maps.
-    if (try imgui.Selectable(.{ ctx, "Dry/Wet" })) {
+    if (try imgui.Selectable(.{ ctx, i18n.t("Dry/Wet") })) {
         mft_fxsel.assign(state, mappings.wet_param);
         changed = true;
     }
@@ -829,9 +832,9 @@ fn comboNaming(state: *mft_fxsel.FxSelState, plate: mft_fxsel.NamedPlate, contro
     if (imgui.api.IsItemHovered(ctx, null)) {
         var tip_buf: [256:0]u8 = undefined;
         const tip = if (custom) |name|
-            std.mem.printSentinel(&tip_buf, "{s}: {s}\nRight-click to rename the control.", .{ name, target }, 0) catch target
+            i18n.print(&tip_buf, "{s}: {s}\nRight-click to rename the control.", .{ name, target }) catch target
         else
-            std.mem.printSentinel(&tip_buf, "{s}\nRight-click to name the control.", .{target}, 0) catch target;
+            i18n.print(&tip_buf, "{s}\nRight-click to name the control.", .{target}) catch target;
         widgets.tooltip(&fxsel_kit, tip);
     }
     var right: c_int = 1;
@@ -865,9 +868,9 @@ fn drawNamer(state: *mft_fxsel.FxSelState) !bool {
     defer imgui.api.EndPopup(ctx);
     var title_buf: [64:0]u8 = undefined;
     const title = if (namer.control < mappings.knob_count)
-        std.mem.printSentinel(&title_buf, "Name of the knob {d}", .{namer.control + 1}, 0) catch "Name"
+        i18n.print(&title_buf, "Name of the knob {d}", .{namer.control + 1}) catch i18n.t("Name")
     else
-        std.mem.printSentinel(&title_buf, "Name of the push {d}", .{namer.control - mappings.knob_count + 1}, 0) catch "Name";
+        i18n.print(&title_buf, "Name of the push {d}", .{namer.control - mappings.knob_count + 1}) catch i18n.t("Name");
     try imgui.Text(.{ ctx, title });
     if (namer_focus > 0) {
         imgui.api.SetKeyboardFocusHere(ctx, null);
@@ -875,7 +878,7 @@ fn drawNamer(state: *mft_fxsel.FxSelState) !bool {
     }
     imgui.api.SetNextItemWidth(ctx, 240);
     var flags: c_int = imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll;
-    const entered = imgui.api.InputTextWithHint(ctx, "##namertext", "Name of the control", @as([*]u8, @ptrCast(&state.map_namer_text)), state.map_namer_text.len + 1, &flags, null);
+    const entered = imgui.api.InputTextWithHint(ctx, "##namertext", i18n.t("Name of the control"), @as([*]u8, @ptrCast(&state.map_namer_text)), state.map_namer_text.len + 1, &flags, null);
     if (imgui.api.IsItemActive(ctx)) namer_focus = 0;
     var changed = false;
     var done = false;
@@ -887,13 +890,13 @@ fn drawNamer(state: *mft_fxsel.FxSelState) !bool {
         state.map_namer = null;
         done = true;
     }
-    if (!done and widgets.pushButton(&fxsel_kit, "OK", 0)) {
+    if (!done and widgets.pushButton(&fxsel_kit, i18n.t("OK"), 0)) {
         changed = mft_fxsel.applyNamer(state);
         done = true;
     }
     if (!done) {
         imgui.api.SameLine(ctx, null, null);
-        if (widgets.pushButton(&fxsel_kit, "Clear", 0)) {
+        if (widgets.pushButton(&fxsel_kit, i18n.t("Clear"), 0)) {
             @memset(&state.map_namer_text, 0);
             changed = mft_fxsel.applyNamer(state);
             done = true;
@@ -984,7 +987,7 @@ fn mapTitleLine(title: [:0]const u8) struct { x: f64, y: f64 } {
     var padding_y: f64 = 0;
     imgui.api.GetStyleVar(ctx, imgui.StyleVar_WindowPadding, &padding_x, &padding_y);
     var upper_buf: [48:0]u8 = undefined;
-    const upper = std.ascii.upperString(upper_buf[0..@min(title.len, upper_buf.len - 1)], title);
+    const upper = widgets.upperText(upper_buf[0..@min(title.len, upper_buf.len - 1)], title);
     upper_buf[upper.len] = 0;
     const pushed = widgets.pushTitleFont(&fxsel_kit);
     const title_w = widgets.textSize(&fxsel_kit, upper_buf[0..upper.len :0]).w;
@@ -1058,7 +1061,7 @@ fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]cons
     imgui.api.SetCursorScreenPos(ctx, titleKeyX(after, 2), after.top);
     const in_use = globals.map_store.mapInUse(io, owner, fx_name);
     var preview_buf: [96:0]u8 = undefined;
-    const preview = std.mem.printSentinel(&preview_buf, "Map: {s}  v", .{in_use}, 0) catch "Map";
+    const preview = i18n.print(&preview_buf, "Map: {s}  v", .{in_use}) catch i18n.t("Map");
     // The combo has no padding above its text, as the small button of the plugin, so that the two are as tall as each other.
     theme.pushVar2(ctx, imgui.StyleVar_FramePadding, 4, 0);
     imgui.api.SetNextItemWidth(ctx, widgets.textSize(&fxsel_kit, preview).w + 12);
@@ -1069,7 +1072,7 @@ fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]cons
     imgui.api.PopStyleVar(ctx, &popped);
     if (!open) {
         if (map_picker_for == plate) map_picker_for = null;
-        if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, "The map of the plugin: choose another, or make a new one from this one.");
+        if (imgui.api.IsItemHovered(ctx, null)) widgets.tooltip(&fxsel_kit, i18n.t("The map of the plugin: choose another, or make a new one from this one."));
         return .none;
     }
     defer imgui.EndCombo(.{ctx}) catch {};
@@ -1088,14 +1091,14 @@ fn drawMapPicker(globals: *MftGlobals, owner: map_store.Owner, fx_name: [:0]cons
     }
     imgui.api.Separator(ctx);
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-    try imgui.Text(.{ ctx, "New map, made from this one:" });
+    try imgui.Text(.{ ctx, i18n.t("New map, made from this one:") });
     try imgui.PopStyleColor(.{ ctx, 1 });
     try imgui.SetNextItemWidth(.{ ctx, 200 });
     _ = try imgui.InputText(.{ ctx, "##newmap", @as([*]u8, @ptrCast(&new_map_name)), new_map_name.len + 1, null, null });
     const typed = std.mem.trim(u8, std.mem.sliceTo(&new_map_name, 0), " \t");
     if (typed.len > 0) {
         var create_buf: [96:0]u8 = undefined;
-        const create = std.mem.printSentinel(&create_buf, "Create \"{s}\"##createmap", .{typed}, 0) catch "Create##createmap";
+        const create = i18n.print(&create_buf, "Create \"{s}\"##createmap", .{typed}) catch "Create##createmap";
         if (try imgui.Selectable(.{ ctx, create })) {
             // The name is trimmed in place, since the slice has to outlive the call and the buffer is the picker's.
             const start = @intFromPtr(typed.ptr) - @intFromPtr(&new_map_name);
@@ -1156,21 +1159,21 @@ fn drawStateKey(globals: *MftGlobals, track: reaper.MediaTrack, fx: c_int, owner
     widgets.line(dl, cx - size * 0.24, at.y + size * 0.52, cx + size * 0.24, at.y + size * 0.52, tone, 1.8);
     widgets.line(dl, cx, at.y + size * 0.52, cx, at.y + size * 0.82, tone, 1.6);
     if (hovered) widgets.tooltip(&fxsel_kit, if (has)
-        "The map keeps the state of the plugin, which loading the plugin with the map restores. Click to store the state that it has now; Alt-click to keep none."
+        i18n.t("The map keeps the state of the plugin, which loading the plugin with the map restores. Click to store the state that it has now; Alt-click to keep none.")
     else
-        "Store the state of the plugin in the map (its preset and the values of its parameters): loading the plugin with the map restores it.");
+        i18n.t("Store the state of the plugin in the map (its preset and the values of its parameters): loading the plugin with the map restores it."));
     if (!clicked) return;
     state_marks[plate] = .{};
     if (altHeld()) {
         globals.map_store.removeState(io, owner, fx_name) catch |err| {
-            _ = std.mem.printSentinel(error_buf, "The state could not be removed: {s}.", .{@errorName(err)}, 0) catch {};
+            _ = i18n.print(error_buf, "The state could not be removed: {s}.", .{@errorName(err)}) catch {};
         };
         return;
     }
     var state: plugin_state.PluginState = undefined;
     mft_fx.captureState(track, fx, &state);
     globals.map_store.saveState(io, owner, fx_name, &state) catch |err| {
-        _ = std.mem.printSentinel(error_buf, "The state could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+        _ = i18n.print(error_buf, "The state could not be written: {s}.", .{@errorName(err)}) catch {};
         return;
     };
     error_buf[0] = 0;
@@ -1184,7 +1187,7 @@ fn applyMapPick(globals: *MftGlobals, state: *mft_fxsel.FxSelState, owner: map_s
         .none => return,
         .use => |name| {
             globals.map_store.useMap(owner, fx_name, name) catch |err| {
-                _ = std.mem.printSentinel(error_buf, "The map could not be chosen: {s}.", .{@errorName(err)}, 0) catch {};
+                _ = i18n.print(error_buf, "The map could not be chosen: {s}.", .{@errorName(err)}) catch {};
                 return;
             };
         },
@@ -1192,19 +1195,19 @@ fn applyMapPick(globals: *MftGlobals, state: *mft_fxsel.FxSelState, owner: map_s
             // Because the name of a map is the name of its file, the characters that a file name cannot have are replaced, as for the plugins.
             var name_buf: [512:0]u8 = undefined;
             const name = @import("fs_helpers").sanitizeFxName(&name_buf, typed) catch {
-                _ = std.mem.printSentinel(error_buf, "That name is too long for a map.", .{}, 0) catch {};
+                _ = i18n.print(error_buf, "That name is too long for a map.", .{}) catch {};
                 return;
             };
             if (std.mem.indexOfScalar(u8, name, '=') != null) {
-                _ = std.mem.printSentinel(error_buf, "The name of a map cannot have an equal sign.", .{}, 0) catch {};
+                _ = i18n.print(error_buf, "The name of a map cannot have an equal sign.", .{}) catch {};
                 return;
             }
             if (map_picker_list.contains(name)) {
-                _ = std.mem.printSentinel(error_buf, "The plugin has a map of that name already.", .{}, 0) catch {};
+                _ = i18n.print(error_buf, "The plugin has a map of that name already.", .{}) catch {};
                 return;
             }
             globals.map_store.useMap(owner, fx_name, name) catch |err| {
-                _ = std.mem.printSentinel(error_buf, "The map could not be made: {s}.", .{@errorName(err)}, 0) catch {};
+                _ = i18n.print(error_buf, "The map could not be made: {s}.", .{@errorName(err)}) catch {};
                 return;
             };
             // The new map is the map that the plate shows, written under its new name.
@@ -1213,7 +1216,7 @@ fn applyMapPick(globals: *MftGlobals, state: *mft_fxsel.FxSelState, owner: map_s
                 .strip => globals.map_store.saveStrip(io, fx_name, &state.map_strip),
             };
             saved catch |err| {
-                _ = std.mem.printSentinel(error_buf, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+                _ = i18n.print(error_buf, "The map file could not be written: {s}.", .{@errorName(err)}) catch {};
                 return;
             };
         },
@@ -1267,7 +1270,7 @@ fn drawMapPlate(globals: *MftGlobals, state: *mft_fxsel.FxSelState, track: reape
     const button = if (state.map_fx_index[mi] >= 0)
         std.mem.printSentinel(&button_buf, "{s}{s}  v##plugin{d}", .{ shown, if (shown.len < plugin.len) "..." else "", mi }, 0) catch "?"
     else
-        std.mem.printSentinel(&button_buf, "no plugin: Load FX  v##plugin{d}", .{mi}, 0) catch "?";
+        i18n.print(&button_buf, "no plugin: Load FX  v##plugin{d}", .{mi}) catch "?";
     const plugin_button = try mapTitleButton(mapTitle(module), button);
     if (plugin_button.clicked) {
         // The browser opens over the panel, which stays open and is where the controller goes back to.
@@ -1277,7 +1280,7 @@ fn drawMapPlate(globals: *MftGlobals, state: *mft_fxsel.FxSelState, track: reape
     // A module that has a plugin has a second button after it, which opens the window of the plugin, or closes it.
     if (state.map_fx_index[mi] >= 0 and track != null) {
         var ui_id: [24:0]u8 = undefined;
-        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", "Open FX window", plugin_button)) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
+        if (mapWrenchKey(std.mem.printSentinel(&ui_id, "##ui{d}", .{mi}, 0) catch "##ui", i18n.t("Open FX window"), plugin_button)) mft_fx.toggleFxWindow(track, state.map_fx_index[mi]);
         const fx_name = state.map_fx_name[mi][0..plugin.len :0];
         drawStateKey(globals, track, state.map_fx_index[mi], .{ .module = module }, fx_name, mi, plugin_button, &state.map_error[mi]);
         const pick = try drawMapPicker(globals, .{ .module = module }, fx_name, mi, plugin_button);
@@ -1356,24 +1359,24 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         changed = true;
     }
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-    try imgui.Text(.{ ctx, "REAPER actions" });
+    try imgui.Text(.{ ctx, i18n.t("REAPER actions") });
     try imgui.PopStyleColor(.{ ctx, 1 });
     // Any action can be chosen in REAPER's own Action List, which opens and gives back the one that is chosen there.
-    if (try imgui.Selectable(.{ ctx, "Choose in the Action List..." })) {
+    if (try imgui.Selectable(.{ ctx, i18n.t("Choose in the Action List...") })) {
         const current: c_int = if (target) |t| (mft_fx.autoCommand(t) orelse 0) else 0;
         _ = reaper.PromptForAction(1, current, 0);
         state.map_prompt = @intCast(control);
     }
     for (mft_auto.actions, 0..) |action, i| {
         var item: [96:0]u8 = undefined;
-        if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##act{d}", .{ action.label, i }, 0) catch continue })) {
+        if (try imgui.Selectable(.{ ctx, std.mem.printSentinel(&item, "{s}##act{d}", .{ i18n.dyn(action.label), i }, 0) catch continue })) {
             mft_fxsel.assignAuto(state, control, .{ .action = action.id });
             changed = true;
         }
     }
     // The actions of the controller itself, which REAPER lists with the others: they are kept by their name, as the actions of an extension are.
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-    try imgui.Text(.{ ctx, "MFT actions" });
+    try imgui.Text(.{ ctx, i18n.t("MFT actions") });
     try imgui.PopStyleColor(.{ ctx, 1 });
     for (mft_actions.entries, 0..) |action, i| {
         var item: [96:0]u8 = undefined;
@@ -1383,7 +1386,7 @@ fn drawAutoCombo(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, control
         }
     }
     try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-    try imgui.Text(.{ ctx, "FX parameters on the track" });
+    try imgui.Text(.{ ctx, i18n.t("FX parameters on the track") });
     try imgui.PopStyleColor(.{ ctx, 1 });
     if (track == null) return changed;
     const fx_count = reaper.TrackFX_GetCount(track);
@@ -1452,11 +1455,11 @@ fn drawMapAutoPlate(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, colo
         try imgui.Text(.{ ctx, std.mem.sliceTo(&state.map_auto_error, 0) });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
-    if (!widgets.beginCard(&fxsel_kit, "Auto", map_plate_w, null, if (state.map_focus_auto) color else null)) return;
+    if (!widgets.beginCard(&fxsel_kit, i18n.t("Auto"), map_plate_w, null, if (state.map_focus_auto) color else null)) return;
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
     // The AUTO page has no plugin: the line of its title says what its combos list.
-    mapTitleNote("Auto", "REAPER actions and FX parameters, user page");
+    mapTitleNote(i18n.t("Auto"), i18n.t("REAPER actions and FX parameters, user page"));
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
     const layout = mapCellLayout();
     imgui.api.Dummy(ctx, map_grid_w, 4 * layout.height);
@@ -1484,7 +1487,7 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
     const section_gap: f64 = 18;
     const per_row: usize = @max(1, @as(usize, @intFromFloat(@max((available_w - 28 + section_gap) / (map_grid_w + section_gap), 1))));
     const card_w = @as(f64, @floatFromInt(per_row)) * (map_grid_w + section_gap) - section_gap + 28;
-    const title = "Channel strip";
+    const title = i18n.t("Channel strip");
     if (!widgets.beginCard(&fxsel_kit, title, card_w, null, colors.hueToRgb(globals.preferences.color_fxsel))) return;
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
@@ -1494,7 +1497,7 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
     const button = if (state.map_strip_fx >= 0)
         std.mem.printSentinel(&button_buf, "{s}  v##strip", .{strip[0..@min(strip.len, 60)]}, 0) catch "?"
     else
-        std.mem.printSentinel(&button_buf, "no channel strip: Load FX  v##strip", .{}, 0) catch "?";
+        i18n.print(&button_buf, "no channel strip: Load FX  v##strip", .{}) catch "?";
     const strip_button = try mapTitleButton(title, button);
     if (strip_button.clicked) {
         // The browser lists the channel strips, and the strip that is chosen there replaces the one of the track.
@@ -1503,7 +1506,7 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
         state.pending = .fill_browser;
     }
     if (state.map_strip_fx >= 0 and track != null) {
-        if (mapWrenchKey("##uistrip", "Open FX window", strip_button)) mft_fx.toggleFxWindow(track, state.map_strip_fx);
+        if (mapWrenchKey("##uistrip", i18n.t("Open FX window"), strip_button)) mft_fx.toggleFxWindow(track, state.map_strip_fx);
         const strip_name = state.map_strip_name[0..strip.len :0];
         drawStateKey(globals, track, state.map_strip_fx, .strip, strip_name, strip_plate, strip_button, &state.map_strip_error);
         const pick = try drawMapPicker(globals, .strip, strip_name, strip_plate, strip_button);
@@ -1524,7 +1527,7 @@ fn drawMapStripCard(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, glob
         const sy = origin.y + @as(f64, @floatFromInt(i / per_row)) * (section_h + 10);
         const dl = imgui.api.GetWindowDrawList(ctx);
         var upper_buf: [32:0]u8 = undefined;
-        const upper = std.ascii.upperString(upper_buf[0..mapTitle(module).len], mapTitle(module));
+        const upper = widgets.upperText(upper_buf[0..mapTitle(module).len], mapTitle(module));
         upper_buf[upper.len] = 0;
         const focus = !state.map_focus_auto and state.module == module;
         mapText(dl, sx, sy, if (focus) color else theme.text_dim, upper_buf[0..upper.len :0]);
@@ -1572,7 +1575,7 @@ fn drawMapKey(id: [:0]const u8, kind: enum { learn, single, close }, on: bool, e
 /// The card of the assignments: every control that has a parameter, in the order of the modules, the knobs and then the pushes, with a key that takes the
 /// parameter away. Its entries go down ten to a column.
 fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, color: c_int, changed: *bool) !void {
-    if (!widgets.beginCard(&fxsel_kit, "Assignments", null, null, color)) return;
+    if (!widgets.beginCard(&fxsel_kit, i18n.t("Assignments"), null, null, color)) return;
     defer widgets.endCard(&fxsel_kit);
     const origin = widgets.cursorScreenPos(&fxsel_kit);
     const row_h = imgui.api.GetTextLineHeightWithSpacing(ctx) + 2;
@@ -1600,7 +1603,7 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
             var param_buf: [96:0]u8 = undefined;
             var line_buf: [220:0]u8 = undefined;
             const role = mft_port.roleLabel(module, is_push, if (is_push) control - mappings.knob_count else control);
-            const line = std.mem.printSentinel(&line_buf, "{s} {s}{s} > {s}", .{ field_name, role, if (is_push) " (push)" else "", paramLabel(track, mft_fxsel.mapFx(state, module), param, &param_buf) }, 0) catch "?";
+            const line = std.mem.printSentinel(&line_buf, "{s} {s}{s} > {s}", .{ field_name, role, if (is_push) i18n.t(" (push)") else "", paramLabel(track, mft_fxsel.mapFx(state, module), param, &param_buf) }, 0) catch "?";
             const x = origin.x + @as(f64, @floatFromInt(count / 10)) * column_w;
             const y = origin.y + @as(f64, @floatFromInt(count % 10)) * row_h;
             imgui.api.SetCursorScreenPos(ctx, x, y);
@@ -1637,7 +1640,7 @@ fn drawMapAssignments(state: *mft_fxsel.FxSelState, track: reaper.MediaTrack, co
     if (count == 0) {
         imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.text_dim });
-        try imgui.Text(.{ ctx, "Nothing is assigned yet." });
+        try imgui.Text(.{ ctx, i18n.t("Nothing is assigned yet.") });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
 }
@@ -1688,13 +1691,13 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     imgui.api.BeginGroup(ctx);
     imgui.api.Spacing(ctx);
     imgui.api.Spacing(ctx);
-    if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) "MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin" else "MIDI learn: touch an encoder, then move a parameter in the plugin window")) state.map_learn = !state.map_learn;
-    if (drawMapKey("##single", .single, state.map_single, true, if (state.map_single) "Back to a plugin for each module" else "Single FX mode: one channel strip for all the modules")) {
+    if (drawMapKey("##learn", .learn, state.map_learn, true, if (state.map_learn) i18n.t("MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin") else i18n.t("MIDI learn: touch an encoder, then move a parameter in the plugin window"))) state.map_learn = !state.map_learn;
+    if (drawMapKey("##single", .single, state.map_single, true, if (state.map_single) i18n.t("Back to a plugin for each module") else i18n.t("Single FX mode: one channel strip for all the modules"))) {
         state.map_single = !state.map_single;
         state.strip_target = state.map_single;
         state.map_selected = 0;
     }
-    if (drawMapKey("##close", .close, false, true, "Close the mapping")) state.screen = .actions;
+    if (drawMapKey("##close", .close, false, true, i18n.t("Close the mapping"))) state.screen = .actions;
     imgui.api.EndGroup(ctx);
     imgui.api.SameLine(ctx, null, null);
 
@@ -1727,7 +1730,7 @@ fn drawMappingWindow(globals: *MftGlobals) !void {
     // What the learn is waiting for, or what the last press said.
     if (state.map_learn) {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, theme.amber });
-        try imgui.Text(.{ ctx, "MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin window." });
+        try imgui.Text(.{ ctx, i18n.t("MIDI learn is on: touch an encoder to choose the control, then move a parameter in the plugin window.") });
         try imgui.PopStyleColor(.{ ctx, 1 });
     }
     if (state.noteText().len > 0) {
@@ -1776,9 +1779,9 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
     const accent = colors.hueToRgb(globals.preferences.colorForModule(mft_fxsel.pageOf(state.module)));
     var title_buf: [64:0]u8 = undefined;
     const title = if (state.strip_target)
-        "FX Selection - Channel strip"
+        i18n.t("FX Selection - Channel strip")
     else
-        std.mem.printSentinel(&title_buf, "FX Selection - {s}", .{@tagName(state.module)}, 0) catch "FX Selection";
+        i18n.print(&title_buf, "FX Selection - {s}", .{i18n.dyn(@tagName(state.module))}) catch i18n.t("FX Selection");
 
     const source: ?fx_browser.Source = if (state.screen == .browse) browser_source.get(globals, state.browser.count) else null;
     if (state.screen == .browse) {
@@ -1789,7 +1792,7 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
             if (crumb.len > 0) {
                 // The line is a label, so it is engraved in the font of the titles of the cards, in capitals like them.
                 var upper: [512:0]u8 = undefined;
-                const shown = std.ascii.upperString(upper[0..crumb.len], crumb);
+                const shown = widgets.upperText(upper[0..crumb.len], crumb);
                 upper[shown.len] = 0;
                 widgets.engravedText(&fxsel_kit, upper[0..shown.len :0], accent);
             }
@@ -1809,14 +1812,14 @@ fn drawFxSelWindow(globals: *MftGlobals) !void {
             outcome = try drawFxSelActions(&fxsel_kit, state, accent, title, line_height, card_w);
             // Under the card, the buttons do what the controller does: OK runs the action that the cursor is on, as the push of the encoder 13, and
             // Cancel leaves the mode, as the push of the encoder 14.
-            if (widgets.pushButton(&fxsel_kit, "OK", 0)) outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
+            if (widgets.pushButton(&fxsel_kit, i18n.t("OK"), 0)) outcome = mft_fxsel.press(state, mft_fxsel.list_encoder, null);
             imgui.api.SameLine(ctx, null, null);
-            if (widgets.pushButton(&fxsel_kit, "Cancel", 0)) outcome = mft_fxsel.press(state, mft_fxsel.cancel_encoder, null);
+            if (widgets.pushButton(&fxsel_kit, i18n.t("Cancel"), 0)) outcome = mft_fxsel.press(state, mft_fxsel.cancel_encoder, null);
         },
         .browse => if (source) |data| {
             outcome = try drawFxSelBrowser(&fxsel_kit, state, data, globals.preferences.defaultPlugin(state.module, state.strip_target), accent, line_height, card_w, room);
         } else {
-            try imgui.Text(.{ ctx, "The list of plugins could not be read." });
+            try imgui.Text(.{ ctx, i18n.t("The list of plugins could not be read.") });
         },
         .presets => outcome = try drawFxSelPresets(&fxsel_kit, state, accent, line_height, card_w, room),
         .maps => {
@@ -1859,7 +1862,7 @@ fn readView(globals: *MftGlobals) device.View {
         view.settings = .{
             .cursor = @as(f64, @floatFromInt(cursor)) / @as(f64, @floatFromInt(settings_rows.row_count - 1)),
             .value = settings_rows.fraction(&globals.preferences, row),
-            .row_label = row.label,
+            .row_label = i18n.dyn(row.label),
         };
     }
     if (globals.mft.fxsel) |*state| {
@@ -1886,9 +1889,9 @@ fn pushName(track: reaper.MediaTrack, route: mft_fx.PushRoute, buf: *[32:0]u8) v
     buf[0] = 0;
     switch (route.action) {
         .param => |param| {
-            if (!reaper.TrackFX_GetParamName(track, route.fx_index, @intCast(param), @ptrCast(buf), 32)) _ = std.mem.printSentinel(buf, "Push", .{}, 0) catch {};
+            if (!reaper.TrackFX_GetParamName(track, route.fx_index, @intCast(param), @ptrCast(buf), 32)) _ = std.mem.printSentinel(buf, "{s}", .{i18n.t("Push")}, 0) catch {};
         },
-        .band => _ = std.mem.printSentinel(buf, "Shape", .{}, 0) catch {},
+        .band => _ = std.mem.printSentinel(buf, "{s}", .{i18n.t("Shape")}, 0) catch {},
     }
 }
 
@@ -2404,4 +2407,58 @@ test "the single FX mode of the mapping panel draws the card of the channel stri
     try drawWindows(&globals);
     try std.testing.expect(!state.map_single);
     try mock.assertBalanced();
+}
+
+test "every window draws in French, with the stacks balanced: the device, the settings, the FX Selection on each screen, and the mapping panel" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    defer i18n.language = .en;
+
+    var globals: MftGlobals = .{};
+    globals.preferences.language = .fr;
+    for ([_]MftActiveModule{ .INPUT, .TRANSPORT, .SETTINGS, .AUTO }) |page| {
+        globals.mft.active_module = page;
+        try drawWindows(&globals);
+    }
+    try std.testing.expect(i18n.isFrench());
+    for (0..settings_rows.row_count) |cursor| {
+        globals.mft.settings_cursor = @intCast(cursor);
+        try drawWindows(&globals);
+    }
+    globals.mft.active_module = .INPUT;
+    globals.mft.fxsel = mft_fxsel.FxSelState{};
+    const state = &globals.mft.fxsel.?;
+    try drawWindows(&globals);
+    try std.testing.expectEqualStrings("Charger un effet", mft_fxsel.Action.load_fx.label());
+    for ([_]mft_fxsel.Screen{ .browse, .presets, .save }) |screen| {
+        state.screen = screen;
+        try drawWindows(&globals);
+    }
+    state.maps.add("default");
+    state.maps.add("Voix");
+    mft_fxsel.openMaps(state, "VST: ReaEQ (Cockos)", "default");
+    try drawWindows(&globals);
+    state.screen = .map;
+    const comp = mft_fxsel.moduleIndex(.COMP);
+    const name = "VST: ReaComp (Cockos)";
+    @memcpy(state.map_fx_name[comp][0..name.len], name);
+    state.map_fx_index[comp] = 3;
+    state.map_edits[comp].knobs[0] = 3;
+    state.map_edits[comp].names.set(0, "Seuil");
+    try drawWindows(&globals);
+    state.map_learn = true;
+    try drawWindows(&globals);
+    state.map_single = true;
+    try drawWindows(&globals);
+    try mock.assertBalanced();
+}
+
+test "every name of the data that the windows translate when they draw it has its French: the REAPER actions, the side keys, the pages" {
+    const t = std.testing;
+    for (mft_auto.actions) |action| try t.expect(i18n.has(action.label));
+    inline for (@typeInfo(MftActiveModule).@"enum".field_names) |page| try t.expect(i18n.has(page));
+    inline for (@typeInfo(mft_fxsel.MappableModule).@"enum".field_names) |module| try t.expect(i18n.has(module));
+    for ([_][]const u8{ "CHAIN", "HIDE", "FXSEL", "BYPASS", "MUTE", "SOLO", "PHASE" }) |key| try t.expect(i18n.has(key));
 }

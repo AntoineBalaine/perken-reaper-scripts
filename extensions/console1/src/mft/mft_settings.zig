@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const mft_globals = @import("mft_globals.zig");
 const imgui = @import("reaper_imgui");
 const theme = @import("panel_theme");
@@ -154,10 +155,10 @@ pub fn save(globals: *MftGlobals) void {
         // The panel says it to the player, so the log only keeps a warning.
         log.warn("failed to save preferences: {s}", .{@errorName(err)});
         // The page stays, so that the player sees that the settings were not saved.
-        setStatus("The settings could not be saved to preferences.ini.");
+        setStatus(i18n.t("The settings could not be saved to preferences.ini."));
         return;
     };
-    setStatus("Saved to preferences.ini.");
+    setStatus(i18n.t("Saved to preferences.ini."));
     globals.mft.settings_leave = true;
 }
 
@@ -170,7 +171,7 @@ pub fn cancel(globals: *MftGlobals) void {
     } else |_| {}
     synced = false;
     if (send_hue) |send| send(globals, 0);
-    setStatus("Back to the saved values.");
+    setStatus(i18n.t("Back to the saved values."));
     globals.mft.settings_leave = true;
 }
 
@@ -221,7 +222,7 @@ fn bar(kit: *widgets.Panel, id: [:0]const u8, fraction: f64, fill: ?c_int) ?f64 
 // The drop-down of one slot: the plugin chosen is on the screen, and a click opens the list of the installed plugins.
 fn pluginPicker(kit: *widgets.Panel, slot: usize, width: f64) !void {
     const current = bufSlice(slot);
-    const preview: [:0]const u8 = if (current.len == 0) "(choose a plugin)" else current;
+    const preview: [:0]const u8 = if (current.len == 0) i18n.t("(choose a plugin)") else current;
     if (!widgets.beginPickList(kit, NAME_IDS[slot], preview, width)) {
         // The list closed: the next time that it opens, its search starts empty and takes the keyboard again.
         if (filter_open_slot == slot) {
@@ -248,7 +249,7 @@ fn pluginChoices(kit: *widgets.Panel, slot: usize) !void {
         filter_focus -= 1;
     }
     imgui.api.SetNextItemWidth(ctx, CHOICES_W);
-    _ = imgui.api.InputTextWithHint(ctx, "##pluginfilter", "Search\u{2026}", @as([*]u8, @ptrCast(&filter)), filter.len + 1, null, null);
+    _ = imgui.api.InputTextWithHint(ctx, "##pluginfilter", i18n.t("Search\u{2026}"), @as([*]u8, @ptrCast(&filter)), filter.len + 1, null, null);
     if (imgui.api.IsItemActive(ctx)) filter_focus = 0;
     // Because the field has the keyboard, Escape would only leave the field, and the list would stay open: Escape closes the list.
     if (imgui.api.IsKeyPressed(ctx, imgui.Key_Escape, null)) {
@@ -354,7 +355,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
     const r = rows_mod.rows[index];
     const selected = globals.mft.settings_cursor == index;
     var name_buf: [64:0]u8 = undefined;
-    const name = std.mem.printSentinel(&name_buf, "{s}##strow{d}", .{ r.label, index }, 0) catch "?";
+    const name = std.mem.printSentinel(&name_buf, "{s}##strow{d}", .{ i18n.dyn(r.label), index }, 0) catch "?";
     var lit = selected;
     var w: f64 = label_w;
     var h: f64 = 0;
@@ -367,7 +368,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
     switch (r.kind) {
         .hue => {
             const hue = rows_mod.hue(p, r.setting);
-            if (bar(kit, r.label, @as(f64, @floatFromInt(hue)) / @as(f64, HUE_MAX), null)) |moved| {
+            if (bar(kit, i18n.dyn(r.label), @as(f64, @floatFromInt(hue)) / @as(f64, HUE_MAX), null)) |moved| {
                 globals.mft.settings_cursor = @intCast(index);
                 const next = hueAtFraction(moved);
                 if (next != hue) {
@@ -380,7 +381,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
         },
         .number => {
             const fraction = rows_mod.fraction(p, r);
-            if (bar(kit, r.label, fraction, widgets.accent(kit))) |moved| {
+            if (bar(kit, i18n.dyn(r.label), fraction, widgets.accent(kit))) |moved| {
                 globals.mft.settings_cursor = @intCast(index);
                 switch (r.setting) {
                     .sensitivity => p.sensitivity = sensitivityAtFraction(moved),
@@ -424,7 +425,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
                 var value_colors: c_int = 1;
                 imgui.api.PopStyleColor(ctx, &value_colors);
                 if (imgui.api.IsItemHovered(ctx, null)) {
-                    widgets.tooltip(kit, "Double-click to type the value");
+                    widgets.tooltip(kit, i18n.t("Double-click to type the value"));
                     if (imgui.api.IsMouseDoubleClicked(ctx, 0)) {
                         globals.mft.settings_cursor = @intCast(index);
                         edit_row = index;
@@ -441,7 +442,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
             var scope_buf: [24:0]u8 = undefined;
             imgui.api.PushID(ctx, std.mem.printSentinel(&scope_buf, "sttoggle{d}", .{index}, 0) catch "sttoggle");
             defer imgui.api.PopID(ctx);
-            if (widgets.toggle(kit, if (value) "On" else "Off", &value)) {
+            if (widgets.toggle(kit, if (value) i18n.t("On") else i18n.t("Off"), &value)) {
                 globals.mft.settings_cursor = @intCast(index);
                 rows_mod.setToggle(p, r.setting, value);
             }
@@ -453,9 +454,14 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
             imgui.api.GetContentRegionAvail(ctx, &room_w, &room_h);
             try pluginPicker(kit, rows_mod.pluginSlot(r.setting) orelse strip_slot, @max(room_w - 4, 80));
         },
-        .mode => if (segmented(kit, "stmode", &.{ "Multi FX", "Single FX" }, if (p.single_fx_mode) 1 else 0, 96)) |choice| {
+        .mode => if (segmented(kit, "stmode", &.{ i18n.t("Multi FX"), i18n.t("Single FX") }, if (p.single_fx_mode) 1 else 0, 96)) |choice| {
             globals.mft.settings_cursor = @intCast(index);
             p.single_fx_mode = choice == 1;
+        },
+        // The names of the languages are in their own languages, so that a user who does not read the one in use finds theirs.
+        .language => if (segmented(kit, "stlang", &.{ i18n.Language.en.label(), i18n.Language.fr.label() }, @backingInt(p.language), 96)) |choice| {
+            globals.mft.settings_cursor = @intCast(index);
+            p.language = @fromBackingInt(@intCast(choice));
         },
         .order => {
             const labels = comptime blk: {
@@ -470,7 +476,7 @@ fn drawRow(kit: *widgets.Panel, globals: *MftGlobals, index: usize) !void {
         },
         .not_done => {
             imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.text_dim);
-            imgui.api.Text(ctx, "not done yet");
+            imgui.api.Text(ctx, i18n.t("not done yet"));
             imgui.api.PopStyleColor(ctx, &popped);
         },
     }
@@ -484,9 +490,9 @@ pub fn drawPanel(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void
     imgui.api.BeginGroup(ctx);
     imgui.api.Spacing(ctx);
     imgui.api.Spacing(ctx);
-    if (drawKey(kit, .save, true, "Save the settings, and go back to the page")) save(globals);
-    if (drawKey(kit, .cancel, true, "Cancel: back to the saved values, and to the page")) cancel(globals);
-    _ = drawKey(kit, .install, false, "Install the factory presets (not done yet: the maps are installed by build-install.sh)");
+    if (drawKey(kit, .save, true, i18n.t("Save the settings, and go back to the page"))) save(globals);
+    if (drawKey(kit, .cancel, true, i18n.t("Cancel: back to the saved values, and to the page"))) cancel(globals);
+    _ = drawKey(kit, .install, false, i18n.t("Install the factory presets (not done yet: the maps are installed by build-install.sh)"));
     imgui.api.EndGroup(ctx);
     imgui.api.SameLine(ctx, null, null);
 

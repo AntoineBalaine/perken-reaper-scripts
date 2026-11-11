@@ -2,10 +2,11 @@
 //! tracks, and the default FX. The first encoder of the SETTINGS page scrolls them, and the second one adjusts the highlighted one: a turn changes a color,
 //! a number or the choice of a list, and moves a switch, and a click flips a switch or goes to the next choice.
 //!
-//! The language row has nothing behind it in the controller yet: it is drawn and marked as not done, and the encoders leave it as it is. The feedback
-//! window, the log file and the manual routing of the design are left out, because the controller has no use for them. Because the logic does not call REAPER, it is
+//! The feedback window, the log file and the manual routing of the design are left out, because the controller has no use for them. The labels of the
+//! rows are in English, and the windows translate them when they draw them (`mft_i18n.dyn`). Because the logic does not call REAPER, it is
 //! here, where the unit tests can reach it.
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 
@@ -18,17 +19,17 @@ pub const Group = enum {
 
     pub fn title(self: Group) [:0]const u8 {
         return switch (self) {
-            .colors => "Colors",
-            .knobs => "Knobs",
-            .general => "General",
-            .tracks => "Tracks",
-            .default_fx => "Default FX",
+            .colors => i18n.t("Colors"),
+            .knobs => i18n.t("Knobs"),
+            .general => i18n.t("General"),
+            .tracks => i18n.t("Tracks"),
+            .default_fx => i18n.t("Default FX"),
         };
     }
 };
 
 /// What a row holds, which says how it is drawn and how the encoder changes it.
-pub const Kind = enum { hue, number, toggle, order, plugin, mode, not_done };
+pub const Kind = enum { hue, number, toggle, order, plugin, mode, language, not_done };
 
 /// The settings, in the order of the rows.
 pub const Setting = enum {
@@ -80,7 +81,7 @@ pub const rows = [_]Row{
     .{ .setting = .fine, .group = .knobs, .kind = .number, .label = "Fine multiplier" },
     .{ .setting = .startup_message, .group = .general, .kind = .toggle, .label = "Show startup message" },
     .{ .setting = .plugin_ui, .group = .general, .kind = .toggle, .label = "Show plugin UI" },
-    .{ .setting = .language, .group = .general, .kind = .not_done, .label = "Language" },
+    .{ .setting = .language, .group = .general, .kind = .language, .label = "Language" },
     .{ .setting = .auto_insert, .group = .tracks, .kind = .toggle, .label = "Auto insert modules" },
     .{ .setting = .auto_insert_bypassed, .group = .tracks, .kind = .toggle, .label = "Auto insert bypassed" },
     .{ .setting = .auto_reorder, .group = .tracks, .kind = .toggle, .label = "Auto reorder modules" },
@@ -207,6 +208,7 @@ pub fn adjust(prefs: *MftPreferences, row: Row, delta: i8) void {
         .toggle => setToggle(prefs, row.setting, delta > 0),
         .order => prefs.module_order = prefs.module_order.step(if (delta > 0) 1 else -1),
         .mode => prefs.single_fx_mode = delta > 0,
+        .language => prefs.language = if (delta > 0) .fr else .en,
         .plugin, .not_done => {},
     }
 }
@@ -217,6 +219,7 @@ pub fn flip(prefs: *MftPreferences, row: Row) void {
         .toggle => setToggle(prefs, row.setting, !toggleValue(prefs, row.setting)),
         .order => prefs.module_order = prefs.module_order.step(1),
         .mode => prefs.single_fx_mode = !prefs.single_fx_mode,
+        .language => prefs.language = if (prefs.language == .en) .fr else .en,
         .hue, .number, .plugin, .not_done => {},
     }
 }
@@ -233,6 +236,7 @@ pub fn fraction(prefs: *const MftPreferences, row: Row) f64 {
         .toggle => if (toggleValue(prefs, row.setting)) 1.0 else 0.0,
         .order => @as(f64, @floatFromInt(@backingInt(prefs.module_order))) / 2.0,
         .mode => if (prefs.single_fx_mode) 1.0 else 0.0,
+        .language => if (prefs.language == .fr) 1.0 else 0.0,
         .plugin, .not_done => 0.0,
     };
 }
@@ -310,4 +314,18 @@ test "the order of the modules goes round with a turn and a click, and the auto 
     try t.expectEqualStrings("S-C-EQ", prefs.module_order.label());
     adjust(&prefs, rows[16], -1);
     try t.expect(!prefs.auto_reorder);
+}
+
+test "the language row chooses between English and French with a turn or a click, and every label of the rows has its French" {
+    const t = std.testing;
+    var prefs = MftPreferences{};
+    const row = for (rows) |r| {
+        if (r.setting == .language) break r;
+    } else unreachable;
+    adjust(&prefs, row, 1);
+    try t.expectEqual(i18n.Language.fr, prefs.language);
+    try t.expectEqual(@as(f64, 1.0), fraction(&prefs, row));
+    flip(&prefs, row);
+    try t.expectEqual(i18n.Language.en, prefs.language);
+    for (rows) |r| try t.expect(i18n.has(r.label));
 }

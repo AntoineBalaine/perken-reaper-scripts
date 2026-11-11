@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("../mft_i18n.zig");
 const mft_globals = @import("../mft_globals.zig");
 const builtin = @import("builtin");
 // The C declarations, translated by the build from src/csurf/c_bindings.h.
@@ -30,6 +31,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
     const chan = msg[0] & 0x0f;
     const cc = if (status == 0xb0) msg[1] else msg[0];
     const val = if (status == 0xb0) msg[2] else msg[1];
+
+    // The notes that the events leave are in the language of the settings.
+    i18n.language = globals.preferences.language;
 
     // The FX SEL mode takes over the encoders: nothing reaches the page while it is open. The side keys stay as they are.
     if (globals.mft.fxsel) |*state| {
@@ -108,7 +112,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 }
             }
             const track = globals.current_track orelse {
-                state.setNote("There is no track to load the plugin on.");
+                state.setNote(i18n.t("There is no track to load the plugin on."));
                 return;
             };
             const loaded = if (state.strip_target) mft_fx.loadStrip(globals, track, name) else mft_fx.loadPlugin(globals, track, state.module, name);
@@ -124,13 +128,13 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
                 // The controller goes to the page of the module that got the plugin.
                 closeFxSel(globals, mft_fxsel.pageOf(state.module));
             } else {
-                state.setNote("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it.");
+                state.setNote(i18n.t("The plugin could not be loaded: the track has a channel strip, or REAPER could not add it."));
             }
         },
         .load_plugin_map => |map_name| {
             const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
             globals.map_store.useMap(owner, state.mapsPlugin(), map_name) catch |err| {
-                state.setNote("The map could not be chosen.");
+                state.setNote(i18n.t("The map could not be chosen."));
                 log.warn("failed to choose the map {s}: {s}", .{ map_name, @errorName(err) });
                 return;
             };
@@ -140,14 +144,14 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             const owner: map_store.Owner = if (state.strip_target) .strip else .{ .module = state.module };
             globals.map_store.setDefaultMap(io, owner, state.mapsPlugin(), map_name) catch |err| {
                 log.warn("failed to save the default map: {s}", .{@errorName(err)});
-                state.setNote(if (err == error.UnsupportedName) "A map whose name has an equal sign cannot be the default." else "The default map could not be written to default_maps.ini.");
+                state.setNote(if (err == error.UnsupportedName) i18n.t("A map whose name has an equal sign cannot be the default.") else i18n.t("The default map could not be written to default_maps.ini."));
                 return;
             };
         },
         .set_default_plugin => |name| {
             // Because the name belongs to the list of the browser, the preferences keep a copy of their own, for the session.
             const owned = globals.arena.allocator().dupeSentinel(u8, name, 0) catch {
-                state.setNote("The default could not be changed: out of memory.");
+                state.setNote(i18n.t("The default could not be changed: out of memory."));
                 return;
             };
             globals.preferences.setDefaultPlugin(state.module, state.strip_target, owned);
@@ -155,7 +159,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             mft_settings.markUnsynced();
             globals.preferences.saveToDisk(io, globals.resource_path) catch |err| {
                 log.warn("failed to save the default plugin: {s}", .{@errorName(err)});
-                state.setNote("The default is changed for this session, but preferences.ini could not be written.");
+                state.setNote(i18n.t("The default is changed for this session, but preferences.ini could not be written."));
                 return;
             };
         },
@@ -163,7 +167,7 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
             state.presets.clear();
             const track = globals.current_track orelse return;
             const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
-                state.setNote("This module has no plugin on the track.");
+                state.setNote(i18n.t("This module has no plugin on the track."));
                 return;
             };
             mft_presets.listNames(io, track, fx, &state.presets);
@@ -171,25 +175,25 @@ pub fn applyOutcome(globals: *MftGlobals, state: *mft_fxsel.FxSelState, outcome:
         .load_preset => |name| {
             const track = globals.current_track orelse return;
             const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
-                state.setNote("This module has no plugin on the track.");
+                state.setNote(i18n.t("This module has no plugin on the track."));
                 return;
             };
-            if (mft_presets.load(track, fx, name)) closeFxSel(globals, mft_fxsel.pageOf(state.module)) else state.setNote("The preset could not be loaded.");
+            if (mft_presets.load(track, fx, name)) closeFxSel(globals, mft_fxsel.pageOf(state.module)) else state.setNote(i18n.t("The preset could not be loaded."));
         },
         .save_preset => |name| {
             const track = globals.current_track orelse {
-                state.setNote("There is no track to save the preset from.");
+                state.setNote(i18n.t("There is no track to save the preset from."));
                 return;
             };
             const fx = (if (state.strip_target) mft_fx.findStrip(track) else mft_fx.fxForModule(track, state.module)) orelse {
-                state.setNote("This module has no plugin on the track.");
+                state.setNote(i18n.t("This module has no plugin on the track."));
                 return;
             };
             if (mft_presets.save(io, track, fx, name)) {
                 closeFxSel(globals, mft_fxsel.pageOf(state.module));
             } else |err| {
                 var buf: [96]u8 = undefined;
-                state.setNote(std.fmt.bufPrint(&buf, "The preset could not be saved ({s}).", .{@errorName(err)}) catch "The preset could not be saved.");
+                state.setNote(i18n.print(&buf, "The preset could not be saved ({s}).", .{@errorName(err)}) catch i18n.t("The preset could not be loaded."));
             }
         },
         .open_mapping => {
@@ -249,7 +253,7 @@ pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) 
             state.map_strip_loaded = state.map_strip;
             state.map_strip_error[0] = 0;
         } else |err| {
-            _ = std.mem.printSentinel(&state.map_strip_error, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+            _ = i18n.print(&state.map_strip_error, "The map file could not be written: {s}.", .{@errorName(err)}) catch {};
         }
     }
     if (mft_fxsel.isAutoChanged(state)) {
@@ -257,7 +261,7 @@ pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) 
             state.map_auto_loaded = state.map_auto;
             state.map_auto_error[0] = 0;
         } else |err| {
-            _ = std.mem.printSentinel(&state.map_auto_error, "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+            _ = i18n.print(&state.map_auto_error, "The map file could not be written: {s}.", .{@errorName(err)}) catch {};
         }
     }
     inline for (@typeInfo(MappableModule).@"enum".field_names) |field_name| {
@@ -269,7 +273,7 @@ pub fn storeChangedMappings(globals: *MftGlobals, state: *mft_fxsel.FxSelState) 
                 state.map_loaded[i] = state.map_edits[i];
                 state.map_error[i][0] = 0;
             } else |err| {
-                _ = std.mem.printSentinel(&state.map_error[i], "The map file could not be written: {s}.", .{@errorName(err)}, 0) catch {};
+                _ = i18n.print(&state.map_error[i], "The map file could not be written: {s}.", .{@errorName(err)}) catch {};
             }
         }
     }
@@ -469,7 +473,7 @@ fn turnOrder(globals: *MftGlobals, delta: i8) void {
     stepOrder(globals, steps);
     // Because the player turns the knob to reach an order, the pop-up of the knob says the order that the track is in now.
     const track = globals.current_track orelse return;
-    const text: []const u8 = if (mft_fx.trackOrder(track)) |order| order.label() else "No modules";
+    const text: []const u8 = if (mft_fx.trackOrder(track)) |order| order.label() else i18n.t("No modules");
     globals.mft.push_note.set(8 + mft_transport.order_knob, text, std.Io.Timestamp.now(mft_globals.hostIo(), .awake).toMilliseconds());
 }
 
@@ -547,8 +551,8 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
                 // The pop-up of the button says why the single FX mode inserted nothing.
                 const why: []const u8 = switch (mft_fx.ensureModuleFx(globals, track, mappable)) {
                     .ok => "",
-                    .no_default_strip => "No default strip set",
-                    .strip_not_added => "Strip not found",
+                    .no_default_strip => i18n.t("No default strip set"),
+                    .strip_not_added => i18n.t("Strip not found"),
                 };
                 if (why.len > 0) globals.mft.push_note.set(cc, why, std.Io.Timestamp.now(io, .awake).toMilliseconds());
             }

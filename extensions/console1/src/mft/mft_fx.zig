@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const mft_globals = @import("mft_globals.zig");
 const reaper = @import("reaper").reaper;
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
@@ -260,9 +261,9 @@ pub fn actionName(target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
     // The unit tests have no REAPER to ask, so they get the name of the list of the AUTO page.
     if (comptime @import("builtin").is_test) {
         return switch (target) {
-            .action => |id| mft_auto.actionLabel(id) orelse "Action",
-            .named_action => |named| std.mem.printSentinel(buf, "{s}", .{named.name()}, 0) catch "Action",
-            .fx_param => "Action",
+            .action => |id| mft_auto.actionLabel(id) orelse i18n.t("Action"),
+            .named_action => |named| std.mem.printSentinel(buf, "{s}", .{named.name()}, 0) catch i18n.t("Action"),
+            .fx_param => i18n.t("Action"),
         };
     }
     // An action of the controller has its name here, even when REAPER does not know it (it is not registered yet, or in the unit tests).
@@ -270,17 +271,17 @@ pub fn actionName(target: mft_auto.Target, buf: *[160:0]u8) [:0]const u8 {
         if (mft_actions.nameOfCommand(target.named_action.name())) |name| return name;
     }
     const id = autoCommand(target) orelse return switch (target) {
-        .named_action => |named| std.mem.printSentinel(buf, "{s} (missing)", .{named.name()}, 0) catch "Action",
-        else => "Action",
+        .named_action => |named| i18n.print(buf, "{s} (missing)", .{named.name()}) catch i18n.t("Action"),
+        else => i18n.t("Action"),
     };
     if (reaper.SectionFromUniqueID(0)) |main| {
         if (reaper.kbd_getTextFromCmd(id, main)) |text| {
             const span = std.mem.span(text);
-            if (span.len > 0) return std.mem.printSentinel(buf, "{s}", .{span}, 0) catch "Action";
+            if (span.len > 0) return std.mem.printSentinel(buf, "{s}", .{span}, 0) catch i18n.t("Action");
         }
     }
-    if (mft_auto.actionLabel(id)) |label| return label;
-    return std.mem.printSentinel(buf, "Action {d}", .{id}, 0) catch "Action";
+    if (mft_auto.actionLabel(id)) |label| return i18n.dyn(label);
+    return i18n.print(buf, "Action {d}", .{id}) catch i18n.t("Action");
 }
 
 // The routing of the AUTO page on a track: the knobs and the pushes that have a parameter of an FX of the track, which is found by its name. The ones that

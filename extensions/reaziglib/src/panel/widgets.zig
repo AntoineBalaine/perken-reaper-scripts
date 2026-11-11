@@ -222,6 +222,36 @@ pub fn display(panel: *Panel, text: [:0]const u8, color: c_int, min_width: f64) 
     popFont(panel, pushed);
 }
 
+/// The uppercase copy of a text, as the titles of the cards and the captions are written. Because a title can be in French, the letters with an accent of
+/// Latin-1 (é, è, à, ç...) and œ are made uppercase too, which `std.ascii.upperString` leaves as they are. Each of them has as many bytes in uppercase as
+/// in lowercase, so the copy has the length of the source; `dest` must be at least as long.
+pub fn upperText(dest: []u8, source: []const u8) []u8 {
+    std.debug.assert(dest.len >= source.len);
+    var i: usize = 0;
+    while (i < source.len) : (i += 1) {
+        const c = source[i];
+        dest[i] = std.ascii.toUpper(c);
+        if (i + 1 >= source.len) continue;
+        const next = source[i + 1];
+        // In UTF-8, the lowercase letters of Latin-1 are C3 A0 to C3 BE (but C3 B7, the division sign), 32 above their capitals; œ is C5 93, after Œ.
+        if (c == 0xC3 and next >= 0xA0 and next <= 0xBE and next != 0xB7) {
+            dest[i + 1] = next - 0x20;
+            i += 1;
+        } else if (c == 0xC5 and next == 0x93) {
+            dest[i + 1] = 0x92;
+            i += 1;
+        }
+    }
+    return dest[0..source.len];
+}
+
+test "upperText: the letters of ASCII and the accents of French are made uppercase, and the length is kept" {
+    var buf: [32]u8 = undefined;
+    try std.testing.expectEqualStrings("ENTRÉE", upperText(&buf, "Entrée"));
+    try std.testing.expectEqualStrings("ÉGALISEUR À ÇA ŒIL", upperText(&buf, "égaliseur à ça œil"));
+    try std.testing.expectEqualStrings("3 ÷ 4", upperText(&buf, "3 ÷ 4"));
+}
+
 // ---- the push button and the toggle ----
 
 /// The id of a widget that has no label of its own in ImGui: a prefix and the visible label.
@@ -330,7 +360,7 @@ pub fn beginCard(panel: *Panel, title: []const u8, width: ?f64, height: ?f64, ca
     panel.card_title[kept] = 0;
     if (visible) {
         var upper: [96:0]u8 = undefined;
-        const shown = std.ascii.upperString(upper[0..kept], title[0..kept]);
+        const shown = upperText(upper[0..kept], title[0..kept]);
         upper[shown.len] = 0;
         engravedText(panel, upper[0..shown.len :0], card_accent);
         imgui.api.Spacing(ctx);
@@ -778,7 +808,7 @@ pub fn knob(panel: *Panel, control: Control, value: i32, label: []const u8, bipo
     }
 
     var upper: [label_line_cap * 2]u8 = undefined;
-    const caption = std.ascii.upperString(&upper, label[0..@min(label.len, upper.len)]);
+    const caption = upperText(&upper, label[0..@min(label.len, upper.len)]);
     centeredLabel(panel, caption, knob_w, knob_label_lines);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
@@ -797,7 +827,7 @@ pub fn dial(panel: *Panel, control: Control, value: i32, label: []const u8, lit:
     imgui.api.Dummy(ctx, knob_w, knob_d + 8);
     drawKnobFace(panel, at, control, std.math.clamp(value, control.low, control.high), false, color, false);
     var upper: [label_line_cap * 2]u8 = undefined;
-    const caption = std.ascii.upperString(&upper, label[0..@min(label.len, upper.len)]);
+    const caption = upperText(&upper, label[0..@min(label.len, upper.len)]);
     centeredLabel(panel, caption, knob_w, knob_label_lines);
     imgui.api.EndGroup(ctx);
 }
@@ -989,7 +1019,7 @@ pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, 
     // The caption is in capitals, like the lettering of the panel.
     var caption_buf: [label_line_cap:0]u8 = undefined;
     const caption_len = @min(label.len, caption_buf.len - 1);
-    _ = std.ascii.upperString(caption_buf[0..caption_len], label[0..caption_len]);
+    _ = upperText(caption_buf[0..caption_len], label[0..caption_len]);
     caption_buf[caption_len] = 0;
     const caption: [:0]const u8 = caption_buf[0..caption_len :0];
     const label_w = textSize(panel, caption).w;
@@ -1180,7 +1210,7 @@ pub fn bracketRow(panel: *Panel, brackets: []const Bracket, count: usize) void {
         const x2 = origin.x + @as(f64, @floatFromInt(b.to)) * pitch - spacing - 4;
         var text_buf: [64:0]u8 = undefined;
         const n = @min(b.label.len, text_buf.len - 1);
-        _ = std.ascii.upperString(text_buf[0..n], b.label[0..n]);
+        _ = upperText(text_buf[0..n], b.label[0..n]);
         text_buf[n] = 0;
         const text: [:0]const u8 = text_buf[0..n :0];
         const size = textSize(panel, text);

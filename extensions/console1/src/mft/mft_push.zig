@@ -3,6 +3,7 @@
 //! Because the maps say only which parameter or which band a push is for, the choice of the next value is here, with no call into REAPER,
 //! so that the unit tests can reach it. The calls that read and write the values are in `mft_fx.zig`.
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 
 /// The shapes that a click on the push of a band of ReaEQ goes through, by the number that ReaEQ stores for a band type: low shelf, band, high
 /// shelf, low pass, high pass and notch. A band that has another shape goes to the first of them.
@@ -19,15 +20,15 @@ pub fn nextBandType(current: u8) u8 {
 /// The name that ReaEQ gives to a band type, for the pop-up that follows a click.
 pub fn bandTypeName(band_type: u8) [:0]const u8 {
     return switch (band_type) {
-        0 => "Low Shelf",
-        1 => "High Shelf",
-        2, 8, 10 => "Band",
-        3 => "Low Pass",
-        4 => "High Pass",
-        5 => "All Pass",
-        6 => "Notch",
-        7 => "Band Pass",
-        else => "Other",
+        0 => i18n.t("Low Shelf"),
+        1 => i18n.t("High Shelf"),
+        2, 8, 10 => i18n.t("Band"),
+        3 => i18n.t("Low Pass"),
+        4 => i18n.t("High Pass"),
+        5 => i18n.t("All Pass"),
+        6 => i18n.t("Notch"),
+        7 => i18n.t("Band Pass"),
+        else => i18n.t("Other"),
     };
 }
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const reaper = @import("reaper").reaper;
 
 // Transport control for TRANSPORT mode. The eight top encoders each have a
@@ -31,14 +32,14 @@ const CMD_ZOOM_FIT_TRACKS_V = 40110; // View: Toggle track zoom to minimum heigh
 
 pub fn rotationLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
-        0 => "Jog",
-        1 => "Item",
-        2 => "Zoom H",
-        3 => "Zoom V",
-        4 => "Rate",
-        5 => "Grid",
-        6 => "Trk",
-        7 => "Mkr",
+        0 => i18n.t("Jog"),
+        1 => i18n.t("Item"),
+        2 => i18n.t("Zoom H"),
+        3 => i18n.t("Zoom V"),
+        4 => i18n.t("Rate"),
+        5 => i18n.t("Grid"),
+        6 => i18n.t("Trk"),
+        7 => i18n.t("Mkr"),
         else => "-",
     };
 }
@@ -47,14 +48,14 @@ pub fn rotationLabel(idx: usize) [:0]const u8 {
 // meaningful momentary action are assigned.
 pub fn pressLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
-        0 => "Play/Stop",
-        1 => "Play/Pause",
-        2 => "FitH",
-        3 => "FitV",
-        4 => "Rate=1",
-        5 => "Snap",
-        6 => "Rec",
-        7 => "Marker",
+        0 => i18n.t("Play/Stop"),
+        1 => i18n.t("Play/Pause"),
+        2 => i18n.t("FitH"),
+        3 => i18n.t("FitV"),
+        4 => i18n.t("Rate=1"),
+        5 => i18n.t("Snap"),
+        6 => i18n.t("Rec"),
+        7 => i18n.t("Marker"),
         else => "-",
     };
 }
@@ -103,12 +104,12 @@ pub const order_knob = 2;
 /// The words of the turns of the bottom row, whose pushes select the pages. The last two are free.
 pub fn bottomLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
-        0 => "Loop In",
-        1 => "Loop Out",
-        order_knob => "Order",
-        3 => "Loop",
-        4 => "Trk Vol",
-        5 => "Trk Pan",
+        0 => i18n.t("Loop In"),
+        1 => i18n.t("Loop Out"),
+        order_knob => i18n.t("Order"),
+        3 => i18n.t("Loop"),
+        4 => i18n.t("Trk Vol"),
+        5 => i18n.t("Trk Pan"),
         else => "-",
     };
 }

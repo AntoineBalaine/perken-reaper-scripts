@@ -7,6 +7,7 @@
 //! which belong to the window and not to the controller. Because the controller is the one that turns the encoders, presses
 //! the keys and picks the modes, the panel shows that state through `View` and does not answer the mouse for them.
 const std = @import("std");
+const i18n = @import("mft_i18n.zig");
 const imgui = @import("reaper_imgui");
 const theme = @import("panel_theme");
 const widgets = @import("panel_widgets");
@@ -346,12 +347,13 @@ pub fn drawSideKey(kit: *widgets.Panel, dl: Dl, x: f64, y: f64, key: SideKey, on
     // text.
     const tone = if (on) color else widgets.faded(color, 0x99);
     const pushed = widgets.pushLabelFont(kit);
-    const size = widgets.textSize(kit, key.name);
+    const key_name = i18n.dyn(key.name);
+    const size = widgets.textSize(kit, key_name);
     const icon_w: f64 = 14;
     const gap: f64 = 7;
     const left = x + (side_w - (icon_w + gap + size.w)) / 2;
     icons.draw(dl, key.icon, left + icon_w / 2, y + side_h / 2, 7, tone, tone, false, null);
-    printedText(kit, dl, left + icon_w + gap + size.w / 2, y + (side_h - size.h) / 2, key.name, if (on) color else theme.label);
+    printedText(kit, dl, left + icon_w + gap + size.w / 2, y + (side_h - size.h) / 2, key_name, if (on) color else theme.label);
     widgets.popFont(kit, pushed);
 }
 
@@ -613,14 +615,14 @@ fn drawKnobCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, cell
             };
             drawEncoder(dl, cell.cx, cell.cy, .{ .value = value, .color = mode_color, .pressed = held });
             const turn: ?[:0]const u8 = switch (idx) {
-                0 => "Row",
+                0 => i18n.t("Row"),
                 1 => settings.row_label,
                 else => null,
             };
             const press: [:0]const u8 = switch (idx) {
-                1 => "Flip",
-                6 => "Save",
-                7 => "Cancel",
+                1 => i18n.t("Flip"),
+                6 => i18n.t("Save"),
+                7 => i18n.t("Cancel"),
                 else => "-",
             };
             if (turn == null and std.mem.eql(u8, press, "-")) {
@@ -702,7 +704,7 @@ fn drawModuleCell(kit: *widgets.Panel, dl: Dl, view: *const View, idx: usize, ce
     }
     // The word under a page button says what a click does, so it is written as a press: with the sign of a press, and lit while the button
     // is held. The page in use is in the color of the page.
-    drawDualLabel(kit, dl, cell.cx, cell.label_y, turn, @tagName(module), color, if (active) 1 else 0.4, false, held, if (active) color else theme.text_dim);
+    drawDualLabel(kit, dl, cell.cx, cell.label_y, turn, i18n.dyn(@tagName(module)), color, if (active) 1 else 0.4, false, held, if (active) color else theme.text_dim);
 }
 
 /// One encoder while the FX SEL mode is open: it has no value, and its window says what a turn and a press do in the mode. The encoder that is
@@ -782,17 +784,17 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     const pushed = widgets.pushLabelFont(kit);
     var widest: f64 = 0;
     inline for (@typeInfo(MftActiveModule).@"enum".field_names) |field_name| {
-        widest = @max(widest, widgets.textSize(kit, field_name).w);
+        widest = @max(widest, widgets.textSize(kit, i18n.dyn(field_name)).w);
     }
     // The name of the FX Selection mode has to fit in the card too.
-    const fxsel_name = "FX SELECTION";
+    const fxsel_name = i18n.t("FX SELECTION");
     widest = @max(widest, widgets.textSize(kit, fxsel_name).w);
     widgets.popFont(kit, pushed);
     imgui.api.SetCursorScreenPos(ctx, x + pad, y + pad);
     if (view.fxsel_labels != null) {
         widgets.display(kit, fxsel_name, view.fxsel_color, widest + 20);
     } else {
-        widgets.display(kit, @tagName(view.active), view.color(view.active), widest + 20);
+        widgets.display(kit, i18n.dyn(@tagName(view.active)), view.color(view.active), widest + 20);
     }
 
     const cx = x + body_w / 2;
@@ -804,7 +806,7 @@ fn drawHeader(kit: *widgets.Panel, dl: Dl, view: *const View, x: f64, y: f64, bo
     const lamp = imgui.api.GetTextLineHeight(ctx);
     imgui.api.SetCursorScreenPos(ctx, cx - size.w / 2 - 8 - lamp, y + pad + (header_row_h - lamp) / 2);
     widgets.lamp(kit, if (view.online) theme.green else theme.amber, true);
-    widgets.tooltip(kit, if (view.online) "online, mirroring the controller" else "offline, the controller is not connected");
+    widgets.tooltip(kit, if (view.online) i18n.t("online, mirroring the controller") else i18n.t("offline, the controller is not connected"));
 }
 
 // ---- the whole device ----
