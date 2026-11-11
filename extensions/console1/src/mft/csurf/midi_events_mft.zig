@@ -11,6 +11,7 @@ const MftActiveModule = mft_state.MftActiveModule;
 const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
+const mft_push = @import("../mft_push.zig");
 const mft_transport = @import("../mft_transport.zig");
 const mft_auto = @import("../mft_auto.zig");
 const mft_fxsel = @import("../mft_fxsel.zig");
@@ -374,7 +375,13 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
 
     globals.mft.last_fx_index = target.fx_index;
     const current = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
-    const new_val = std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
+    // A parameter with few steps (a list of choices, a switch) moves one step for a few ticks, and the others move with the turn.
+    const stepping = mft_fx.paramStepping(track, target.fx_index, @intCast(target.param));
+    const new_val = if (mft_push.turnsBySteps(stepping)) blk: {
+        const steps = mft_push.countTicks(&globals.mft.step_ticks[slot], delta);
+        if (steps == 0) return;
+        break :blk mft_push.steppedValue(current, stepping, steps);
+    } else std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
     _ = reaper.TrackFX_SetParamNormalized(track, target.fx_index, @intCast(target.param), new_val);
 
     // When the FX chain window is open, focus the plugin whose parameter is

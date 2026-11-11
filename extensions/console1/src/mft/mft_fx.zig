@@ -606,18 +606,25 @@ fn bandTypeKey(buf: *[16:0]u8, band: u2) [:0]const u8 {
 
 /// Does what a click on a push asks: steps a parameter, or the shape of a band of the EQ. The text that says what it changed (the new shape,
 /// or the new value as the plugin writes it) goes into `note`, which is left empty when nothing changed.
+/// How a parameter is stepped, its step in normalized units.
+pub fn paramStepping(track: reaper.MediaTrack, fx: c_int, param: c_int) mft_push.Stepping {
+    var step: f64 = 0;
+    var small: f64 = 0;
+    var large: f64 = 0;
+    var toggle = false;
+    if (!reaper.TrackFX_GetParameterStepSizes(track, fx, param, &step, &small, &large, &toggle)) return .{};
+    var min: f64 = 0;
+    var max: f64 = 0;
+    var mid: f64 = 0;
+    _ = reaper.TrackFX_GetParamEx(track, fx, param, &min, &max, &mid);
+    return .{ .step = mft_push.normalizedStep(step, min, max), .toggle = toggle };
+}
+
 pub fn runPush(track: reaper.MediaTrack, route: PushRoute, note: *[32:0]u8) void {
     note[0] = 0;
     switch (route.action) {
         .param => |param| {
-            var stepping = mft_push.Stepping{};
-            var step: f64 = 0;
-            var small: f64 = 0;
-            var large: f64 = 0;
-            var toggle = false;
-            if (reaper.TrackFX_GetParameterStepSizes(track, route.fx_index, param, &step, &small, &large, &toggle)) {
-                stepping = .{ .step = step, .toggle = toggle };
-            }
+            const stepping = paramStepping(track, route.fx_index, param);
             const current = reaper.TrackFX_GetParamNormalized(track, route.fx_index, param);
             if (std.math.isNan(current) or current < 0) return;
             _ = reaper.TrackFX_SetParamNormalized(track, route.fx_index, param, mft_push.nextParamValue(current, stepping));
