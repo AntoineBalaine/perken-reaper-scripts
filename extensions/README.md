@@ -43,6 +43,16 @@ Each extension is versioned and released on its own, from its own tags:
   releases page by its tag prefix.
 - Each extension keeps its own `CHANGELOG.md`.
 
+A tag `v<version>` (for example `v0.1.0-prerelease.1`) releases every
+extension at once, through `.github/workflows/release.yml`. It runs the
+workflow of each extension with that version, and publishes one GitHub release
+that has the files of all of them. A version with a hyphen is published as a
+pre-release. When an extension fails to build, the release still has the
+files of the others, and the release notes list the result of each extension.
+Windows builds come from perken-utilities, reavim-ext and vr09. Console1 and
+MFT have no Windows build, because they use SWELL, which REAPER only ships on
+macOS and Linux.
+
 ## Building and installing into REAPER
 
 `build-install.sh` builds extensions and installs them into REAPER's

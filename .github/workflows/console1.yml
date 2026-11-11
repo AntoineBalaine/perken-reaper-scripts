@@ -19,6 +19,14 @@ on:
       - "extensions/reaziglib/**"
       - ".github/workflows/console1.yml"
   workflow_dispatch:
+  # release.yml calls this workflow to build every extension for one release, with the version of its tag. The release job of this workflow only runs
+  # on this workflow's own tags, so it is skipped then.
+  workflow_call:
+    inputs:
+      version:
+        description: "The version to build, given by release.yml"
+        type: string
+        required: true
 
 # macOS jobs are pinned to macos-15: on the macos-26 image that
 # macos-latest now points to, Zig 0.14.1 links nothing from the C library
@@ -84,10 +92,14 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        env:
+          CALLER_VERSION: ${{ inputs.version }}
         shell: bash
         # Tags look like console1-v1.2.3; other runs build a "dev" version.
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/console1-v* ]]; then
+          if [[ -n "$CALLER_VERSION" ]]; then
+            echo "version=$CALLER_VERSION" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/console1-v* ]]; then
             echo "version=${GITHUB_REF_NAME#console1-v}" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"

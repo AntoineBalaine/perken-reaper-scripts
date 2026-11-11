@@ -1,0 +1,112 @@
+name: release
+
+# One release for every extension of the repository. A tag v<version> (v0.1.0, v0.1.0-prerelease.1) runs the workflow of each extension, which builds and
+# tests it for every platform that it supports, and then publishes a single GitHub release with the files of all of them. A version that has a hyphen
+# (0.1.0-prerelease.1, 0.2.0-rc.1) is published as a pre-release.
+#
+# The workflows of the extensions keep their own tags (mft-v*, console1-v*...), which release that extension alone; a v* tag does not start them on its
+# own, since a GitHub tag pattern is matched from the start of the name.
+#
+# Because a failing extension should not hide the files of the others (a pre-release is there to find what fails, Windows first), the release is
+# published with the files of the extensions that built, and the run stays red for the ones that did not.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the release; the workflows of reavim-ext and vr09 also ask for it in their build job
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+  console1:
+    needs: version
+    uses: ./.github/workflows/console1.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  mft:
+    needs: version
+    uses: ./.github/workflows/mft.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  perken-utilities:
+    needs: version
+    uses: ./.github/workflows/perken-utilities.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  reavim-ext:
+    needs: version
+    uses: ./.github/workflows/reavim-ext.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  vr09:
+    needs: version
+    uses: ./.github/workflows/vr09.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, console1, mft, perken-utilities, reavim-ext, vr09]
+    # The release is published with what built, unless the run was cancelled.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Gather the files of every extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            case "$name" in
+              # The full build of the Console 1 for a platform (the extension, its UI and its maps) goes up as one archive, as console1.yml does.
+              reaper-c1-*) tar -czf "release-assets/${name}.tar.gz" -C "$dir" . ;;
+              # The other artifacts are files to publish as they are: the binaries, the zips, the files for ReaPack, the font licenses.
+              *) find "$dir" -type f -exec cp {} release-assets/ \; ;;
+            esac
+          done
+          ls -la release-assets
+
+      - name: Summary of the extensions
+        shell: bash
+        run: |
+          {
+            echo "Version ${{ needs.version.outputs.version }}, from ${GITHUB_SHA::8}."
+            echo
+            echo "| extension | build |"
+            echo "| --- | --- |"
+            echo "| console1 | ${{ needs.console1.result }} |"
+            echo "| mft | ${{ needs.mft.result }} |"
+            echo "| perken-utilities | ${{ needs.perken-utilities.result }} |"
+            echo "| reavim-ext | ${{ needs.reavim-ext.result }} |"
+            echo "| vr09 | ${{ needs.vr09.result }} |"
+          } > release-notes.md
+          cat release-notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: release-assets/*
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          make_latest: false
