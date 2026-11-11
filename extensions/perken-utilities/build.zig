@@ -55,6 +55,14 @@ pub fn build(b: *std.Build) void {
     reaziglib.addCsurf(b, reazig_dep, test_exe);
     addBeatTracker(b, qm_dep, test_exe);
     addHegel(b, test_exe);
+    // On Windows, the tests link as the extension does. Because cl compiles the C++ with the dynamic runtime (/MD), and Zig gives a static executable
+    // the static runtime (libucrt, libvcruntime, libcmt), the runtimes were linked twice; a dynamic executable gets the dynamic one, as the DLL does.
+    // Because libhegel, a Rust library, brings its own copy of the compiler's helpers (__divti3, __udivti3...), which COFF has no weak symbols to
+    // share, the tests do not bundle Zig's copy too.
+    if (target.result.os.tag == .windows) {
+        test_exe.linkage = .dynamic;
+        test_exe.bundle_compiler_rt = false;
+    }
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
     test_exe.root_module.addOptions("build_options", build_options);
     // The sources that the API-list test scans: this extension's own, and

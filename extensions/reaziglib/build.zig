@@ -424,7 +424,9 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
                 var dirs = std.mem.tokenizeScalar(u8, lib_dirs, ';');
                 while (dirs.next()) |dir| compile.root_module.addLibraryPath(.{ .cwd_relative = dir });
             }
-            for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.root_module.linkSystemLibrary(lib, .{});
+            // Because the libraries are found in those folders, pkg-config is not asked: the runners of the CI have a broken one, whose errors
+            // only add noise to the log.
+            for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.root_module.linkSystemLibrary(lib, .{ .use_pkg_config = .no });
         },
         else => {},
     }
